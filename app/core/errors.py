@@ -29,3 +29,19 @@ class Conflict(AppError):
     code = "conflict"
     http_status = status.HTTP_409_CONFLICT
     message = "Conflict"
+
+class BadRequest(AppError):
+    code = "bad_request"
+    http_status = status.HTTP_400_BAD_REQUEST
+    message = "Bad request"
+
+
+class Unauthorized(AppError):
+    code = "unauthorized"
+    http_status = status.HTTP_401_UNAUTHORIZED
+    message = "Unauthorized"
+
+class TooManyRequests(AppError):
+    code = "too_many_requests"
+    http_status = status.HTTP_429_TOO_MANY_REQUESTS
+    message = "Too many requests"
