@@ -264,3 +264,28 @@ uvicorn app.main:app --reload
 ```
 
 ---
+
+## Публичное API (до авторизации)
+
+Эти эндпоинты уже можно использовать с фронтенда, даже без регистрации/логина.  
+Считаем, что все анонимные запросы — от студента.
+
+- **Каталог предметов и тем**
+  - `GET /subjects` — список предметов.
+  - `GET /subjects/{subject_id}` — детальная информация по предмету.
+  - `GET /topics?subject_id={uuid}&parent_topic_id={uuid}&difficulty_level={1..5}` — список тем с фильтрами.
+  - `GET /topics/{topic_id}` — детальная информация по теме.
+
+- **Задачи (LeetCode‑страница)**
+  - `GET /problems?subject_id={uuid}&topic_id={uuid}&difficulty={easy|medium|hard}` — список **опубликованных** задач с фильтрами.
+  - `GET /problems/{problem_id}` — детальная информация по одной задаче (доступны только задачи со статусом `published`).
+
+Примеры запросов (PowerShell / curl):
+
+```powershell
+curl http://127.0.0.1:8000/subjects
+curl "http://127.0.0.1:8000/topics?subject_id=<SUBJECT_UUID>"
+curl "http://127.0.0.1:8000/problems?subject_id=<SUBJECT_UUID>&difficulty=easy"
+curl http://127.0.0.1:8000/problems/<PROBLEM_UUID>
+```
+
