@@ -9,3 +9,7 @@ from app.modules.lessons.data import models as _lessons_models  # noqa: F401
 from app.modules.problems.data import models as _problems_models  # noqa: F401
 from app.modules.projects.data import models as _projects_models  # noqa: F401
 from app.modules.submissions.data import models as _submissions_models  # noqa: F401
+from app.data.db.base import Base  # noqa: F401
+from app.modules.users.data import models as _users_models  # noqa: F401
+from app.modules.auth.data import models as _auth_models  # noqa: F401
+
