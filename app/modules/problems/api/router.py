@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session
+from app.modules.auth.deps import get_current_user, require_roles
 from app.modules.problems.api.schemas import (
     ProblemAdminOut,
     ProblemCreate,
@@ -14,6 +15,7 @@ from app.modules.problems.api.schemas import (
 )
 from app.modules.problems.data.models import ProblemDifficulty
 from app.modules.problems.application.service import ProblemService
+from app.modules.users.data.models import UserRole
 
 
 router = APIRouter(tags=["problems"])
@@ -76,6 +78,7 @@ async def list_public_problems(
     topic_id: uuid.UUID | None = Query(default=None),
     difficulty: ProblemDifficulty | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
 ):
     svc = ProblemService(session)
     problems = await svc.list_public(
@@ -90,6 +93,7 @@ async def list_public_problems(
 async def get_public_problem(
     problem_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
 ):
     svc = ProblemService(session)
     problem = await svc.get_public(problem_id)
@@ -104,6 +108,13 @@ async def get_public_problem(
 async def create_problem(
     body: ProblemCreate,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = ProblemService(session)
     problem = await svc.create_draft_problem(body)
@@ -115,6 +126,13 @@ async def update_problem(
     problem_id: uuid.UUID,
     body: ProblemUpdate,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = ProblemService(session)
     problem = await svc.update_draft(problem_id, body)
@@ -128,6 +146,12 @@ async def update_problem(
 async def publish_problem(
     problem_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = ProblemService(session)
     problem = await svc.moderator_publish(problem_id)
@@ -141,6 +165,12 @@ async def publish_problem(
 async def archive_problem(
     problem_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = ProblemService(session)
     problem = await svc.archive_problem(problem_id)
@@ -154,6 +184,12 @@ async def archive_problem(
 async def delete_problem(
     problem_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = ProblemService(session)
     await svc.delete_problem(problem_id)

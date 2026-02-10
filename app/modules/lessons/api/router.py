@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session
+from app.modules.auth.deps import get_current_user
 from app.modules.lessons.application.service import LessonService
 from app.modules.lessons.api.schemas import LessonDetailOut, LessonOut
 
@@ -20,6 +21,7 @@ router = APIRouter(tags=["lessons"])
 async def list_lessons_for_topic(
     topic_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
 ):
     """
     List lessons for a given topic, ordered by `order_no` then creation time.
@@ -36,6 +38,7 @@ async def list_lessons_for_topic(
 async def get_lesson_detail(
     lesson_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
 ):
     """
     Get a single lesson with theory and ordered problem ids attached to it.

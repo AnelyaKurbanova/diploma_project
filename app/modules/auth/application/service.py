@@ -7,7 +7,7 @@ from redis.asyncio import from_url as redis_from_url
 
 from app.settings import settings
 from app.core.errors import BadRequest, Unauthorized, TooManyRequests
-from app.modules.users.data.repo import UserRepo
+from app.modules.users.data.repo import UserRepo, UserProfileRepo
 from app.modules.auth.data.repo import AuthRepo
 from app.modules.auth.security.tokens import (
     hash_value, create_access_token, create_refresh_token, decode_token, gen_csrf, now_utc
@@ -16,7 +16,6 @@ from app.modules.auth.security.otp import (
     generate_otp_code, hash_otp_code, verify_otp_code, otp_expires_at, resend_not_before, is_expired, attempts_exceeded
 )
 from app.modules.auth.security.csrf import validate_csrf_hash
-from app.modules.auth.infra.mailer import send_verification_email
 from app.modules.auth.infra.audit import AuditService
 from app.modules.auth.infra.ratelimit import RateLimitService, InMemoryRateLimiter, RedisRateLimiter
 from contextlib import asynccontextmanager
@@ -27,6 +26,7 @@ class AuthService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.users = UserRepo(session)
+        self.profiles = UserProfileRepo(session)
         self.auth = AuthRepo(session)
         self.audit = AuditService(session)
 
@@ -38,16 +38,24 @@ class AuthService:
     @asynccontextmanager
     async def _tx(self):
         """
-        Start transaction only if not already in one.
-        Safe for calls where session may already be autobegun.
+        Transaction helper.
+
+        - If a transaction is already in progress (autobegun by SQLAlchemy),
+          run the block and explicitly COMMIT/ROLLBACK on exit.
+        - Otherwise, open a new transaction with `session.begin()`.
         """
         if self.session.in_transaction():
-            yield
+            try:
+                yield
+                await self.session.commit()
+            except Exception:
+                await self.session.rollback()
+                raise
         else:
             async with self.session.begin():
                 yield
 
-    async def register_start(self, email: str, ip: str | None, ua: str | None):
+    async def register_start(self, email: str, ip: str | None, ua: str | None) -> str:
         email = email.lower().strip()
         await self._rl.enforce(f"otp:email:{email}", settings.RL_OTP_PER_EMAIL_PER_HOUR, 3600, "Too many OTP requests")
         if ip:
@@ -55,6 +63,12 @@ class AuthService:
 
         async with self._tx():
             user = await self.users.get_by_email(email)
+            # If user already fully registered, do not allow re-registration
+            if user and user.is_email_verified:
+                raise BadRequest("User with this email already exists")
+
+            code = generate_otp_code()
+
             if not user:
                 user = await self.users.create(email)
 
@@ -62,7 +76,6 @@ class AuthService:
             if current and current.resend_not_before and current.resend_not_before > now_utc():
                 raise TooManyRequests("Please wait before requesting a new code")
 
-            code = generate_otp_code()
             await self.auth.upsert_verification(
                 user_id=user.id,
                 purpose="register",
@@ -72,7 +85,8 @@ class AuthService:
             )
             await self.audit.log("otp_sent", user.id, ip, ua, {"purpose": "register"})
 
-        send_verification_email(email, code, "register")
+        # Return code for caller (API layer) to send email asynchronously
+        return code
 
     async def register_verify(self, email: str, code: str, ip: str | None, ua: str | None):
         if ip:
@@ -103,22 +117,24 @@ class AuthService:
             await self.audit.log("register_verified", user.id, ip, ua)
             return access, refresh, csrf
 
-    async def login_email_start(self, email: str, ip: str | None, ua: str | None):
+    async def login_email_start(self, email: str, ip: str | None, ua: str | None) -> str | None:
         email = email.lower().strip()
         await self._rl.enforce(f"otp:email:{email}", settings.RL_OTP_PER_EMAIL_PER_HOUR, 3600, "Too many OTP requests")
         if ip:
             await self._rl.enforce(f"otp:ip:{ip}", settings.RL_OTP_PER_IP_PER_HOUR, 3600, "Too many OTP requests from IP")
 
         user = await self.users.get_by_email(email)
-        if not user or not user.is_active:
-            return  # neutral response
+        # Only allow login for existing, active and email-verified users
+        if not user or not user.is_active or not user.is_email_verified:
+            return None  # neutral response
+
+        code = generate_otp_code()
 
         async with self._tx():
             current = await self.auth.get_latest_active_verification(user.id, "login")
             if current and current.resend_not_before and current.resend_not_before > now_utc():
                 raise TooManyRequests("Please wait before requesting a new code")
 
-            code = generate_otp_code()
             await self.auth.upsert_verification(
                 user_id=user.id,
                 purpose="login",
@@ -128,7 +144,8 @@ class AuthService:
             )
             await self.audit.log("otp_sent", user.id, ip, ua, {"purpose": "login"})
 
-        send_verification_email(email, code, "login")
+        # Return code for caller (API layer) to send email asynchronously
+        return code
 
     async def login_email_verify(self, email: str, code: str, ip: str | None, ua: str | None):
         if ip:
@@ -136,7 +153,8 @@ class AuthService:
 
         email = email.lower().strip()
         user = await self.users.get_by_email(email)
-        if not user or not user.is_active:
+        # Login is allowed only for active and email-verified users
+        if not user or not user.is_active or not user.is_email_verified:
             raise Unauthorized("Invalid credentials")
 
         async with self._tx():

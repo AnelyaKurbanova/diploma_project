@@ -1,13 +1,16 @@
 from __future__ import annotations
+
 import uuid
+
 from fastapi import Depends
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import Unauthorized
+from app.core.errors import Unauthorized, Forbidden
 from app.data.db.session import get_session
 from app.modules.auth.security.tokens import decode_token
-from app.modules.users.data.models import UserModel
+from app.modules.users.data.models import UserModel, UserRole
+
 
 bearer_scheme = HTTPBearer(auto_error=True)
 
@@ -27,3 +30,15 @@ async def get_current_user(
     if not user or not user.is_active:
         raise Unauthorized("User not found")
     return user
+
+
+def require_roles(*allowed_roles: UserRole):
+    async def dependency(user=Depends(get_current_user)):
+        if user.role not in allowed_roles:
+            raise Forbidden("Insufficient permissions")
+        return user
+
+    return dependency
+
+
+get_current_active_user = get_current_user

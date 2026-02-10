@@ -1,5 +1,5 @@
 from __future__ import annotations
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Request, Response, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,6 +9,7 @@ from app.modules.auth.api.shemas import (
     RegisterStartIn, LoginEmailStartIn, VerifyCodeIn, MessageOut, AccessTokenOut, SessionOut
 )
 from app.modules.auth.application.service import AuthService
+from app.modules.auth.infra.mailer import send_verification_email
 from app.modules.auth.deps import get_current_user
 from app.modules.auth.providers.google_oidc import oauth
 from app.modules.auth.security.cookies import (
@@ -20,13 +21,21 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register/start", response_model=MessageOut)
-async def register_start(body: RegisterStartIn, request: Request, session: AsyncSession = Depends(get_session)):
+async def register_start(
+    body: RegisterStartIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
     svc = AuthService(session)
-    await svc.register_start(
+    code = await svc.register_start(
         body.email,
         ip=request.client.host if request.client else None,
         ua=request.headers.get("user-agent"),
     )
+    # Fire-and-forget email sending in background task
+    if code:
+        background_tasks.add_task(send_verification_email, body.email, code, "register")
     return MessageOut(message="If email is eligible, verification code was sent")
 
 
@@ -43,13 +52,20 @@ async def register_verify(body: VerifyCodeIn, request: Request, response: Respon
 
 
 @router.post("/login/email/start", response_model=MessageOut)
-async def login_email_start(body: LoginEmailStartIn, request: Request, session: AsyncSession = Depends(get_session)):
+async def login_email_start(
+    body: LoginEmailStartIn,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
+):
     svc = AuthService(session)
-    await svc.login_email_start(
+    code = await svc.login_email_start(
         body.email,
         ip=request.client.host if request.client else None,
         ua=request.headers.get("user-agent"),
     )
+    if code:
+        background_tasks.add_task(send_verification_email, body.email, code, "login")
     return MessageOut(message="If email is eligible, verification code was sent")
 
 

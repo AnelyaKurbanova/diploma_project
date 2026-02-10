@@ -97,7 +97,7 @@ class SubmissionService:
         is_correct = ua.lower() == text_answer.strip().lower()
         return is_correct, points if is_correct else 0
 
-    async def submit(self, data: SubmissionCreate) -> SubmissionResultOut:
+    async def submit(self, user_id: uuid.UUID, data: SubmissionCreate) -> SubmissionResultOut:
         problem = await self.problems_repo.get_problem(data.problem_id)
         if problem.status is not ProblemStatus.PUBLISHED:
             raise NotFound("Problem not available")
@@ -141,11 +141,11 @@ class SubmissionService:
 
         async with self.session.begin():
             attempt_no = await self.submissions_repo.next_attempt_no(
-                data.user_id,
+                user_id,
                 data.problem_id,
             )
             submission: SubmissionModel = await self.submissions_repo.create_submission(
-                user_id=data.user_id,
+                user_id=user_id,
                 problem_id=data.problem_id,
                 attempt_no=attempt_no,
                 status=status,

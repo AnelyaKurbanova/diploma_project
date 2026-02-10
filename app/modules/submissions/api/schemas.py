@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import uuid
-from decimal import Decimal
-from enum import Enum
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field
 
@@ -18,8 +17,6 @@ class SubmissionAnswer(BaseModel):
 
 class SubmissionCreate(BaseModel):
     problem_id: uuid.UUID
-    # Temporary field until auth is in place; can be omitted by frontend.
-    user_id: uuid.UUID | None = None
     answer: SubmissionAnswer
 
 

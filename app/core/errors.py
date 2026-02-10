@@ -41,6 +41,11 @@ class Unauthorized(AppError):
     http_status = status.HTTP_401_UNAUTHORIZED
     message = "Unauthorized"
 
+class Forbidden(AppError):
+    code = "forbidden"
+    http_status = status.HTTP_403_FORBIDDEN
+    message = "Forbidden"
+
 class TooManyRequests(AppError):
     code = "too_many_requests"
     http_status = status.HTTP_429_TOO_MANY_REQUESTS
