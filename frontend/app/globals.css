@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+/* Design tokens based on Figma */
+:root {
+  /* App background and base text */
+  --background: #f1f5f9; /* slate-100 like */
+  --foreground: #0a0f1a;
+
+  /* Brand colors from the block */
+  --color-primary: #155dfc;
+  --color-muted: #64748b;
+  --color-card: #ffffff;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--color-primary);
+  --color-muted: var(--color-muted);
+  --color-card: var(--color-card);
+
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont,
+    "Segoe UI", sans-serif;
+}
