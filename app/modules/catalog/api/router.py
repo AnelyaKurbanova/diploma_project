@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session
+from app.modules.auth.deps import get_current_user, require_roles
 from app.modules.catalog.api.schemas import (
     SubjectCreate,
     SubjectOut,
@@ -15,6 +16,7 @@ from app.modules.catalog.api.schemas import (
     TopicUpdate,
 )
 from app.modules.catalog.application.service import SubjectService, TopicService
+from app.modules.users.data.models import UserRole
 
 
 router = APIRouter(tags=["catalog"])
@@ -39,6 +41,7 @@ def to_topic_out(row) -> TopicOut:
         title_ru=row.title_ru,
         title_kk=row.title_kk,
         title_en=row.title_en,
+        grade_level=row.grade_level,
         difficulty_level=row.difficulty_level,
         order_no=row.order_no,
         created_at=row.created_at,
@@ -53,6 +56,13 @@ def to_topic_out(row) -> TopicOut:
 async def create_subject(
     body: SubjectCreate,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = SubjectService(session)
     row = await svc.create(body)
@@ -83,6 +93,13 @@ async def update_subject(
     subject_id: uuid.UUID,
     body: SubjectUpdate,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = SubjectService(session)
     row = await svc.update(subject_id, body)
@@ -96,6 +113,13 @@ async def update_subject(
 async def delete_subject(
     subject_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = SubjectService(session)
     await svc.delete(subject_id)
@@ -110,6 +134,13 @@ async def delete_subject(
 async def create_topic(
     body: TopicCreate,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = TopicService(session)
     row = await svc.create(body)
@@ -149,6 +180,13 @@ async def update_topic(
     topic_id: uuid.UUID,
     body: TopicUpdate,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = TopicService(session)
     row = await svc.update(topic_id, body)
@@ -162,6 +200,13 @@ async def update_topic(
 async def delete_topic(
     topic_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
 ):
     svc = TopicService(session)
     await svc.delete(topic_id)
