@@ -19,7 +19,14 @@ export default function EmailVerifyPage() {
     startEmailLogin,
     startEmailRegister,
     emailFlowError,
+    user,
   } = useAuth();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace("/dashboard");
+    }
+  }, [isLoading, user, router]);
 
   const emailFromParams = searchParams.get("email");
   const purposeFromParams = searchParams.get("purpose") as

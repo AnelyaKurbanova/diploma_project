@@ -8,11 +8,17 @@ import {
   useMemo,
   useState,
 } from "react";
-import { API_BASE_URL, apiGet, apiPost } from "./api";
+import {
+  API_BASE_URL,
+  apiGet,
+  apiPost,
+  setRefreshAccessTokenHandler,
+} from "./api";
 
 type User = {
   id: string;
   email: string;
+  role: string;
   is_email_verified: boolean;
   is_active: boolean;
 };
@@ -24,7 +30,7 @@ type AuthContextValue = {
   error: string | null;
   loginWithGoogle: () => void;
   logout: () => Promise<void>;
-  refreshToken: () => Promise<void>;
+  refreshToken: () => Promise<string | null>;
   setFromCallback: (accessToken: string) => Promise<void>;
   // Email-based auth flow
   startEmailLogin: (email: string) => Promise<void>;
@@ -123,8 +129,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
     [],
   );
 
-  const refreshToken = useCallback(async () => {
-    if (isRefreshing) return;
+  const refreshToken = useCallback(async (): Promise<string | null> => {
+    if (isRefreshing) return accessToken ?? null;
     setIsRefreshing(true);
     try {
       const data = await postAuthWithCsrf<{ access_token: string }>(
@@ -134,15 +140,23 @@ export function AuthProvider({ children }: AuthProviderProps) {
       persistAccessToken(data.access_token);
       await loadUser(data.access_token);
       setError(null);
+      return data.access_token;
     } catch (err) {
       console.error("Failed to refresh token", err);
       setAccessToken(null);
       persistAccessToken(null);
       setUser(null);
+      return null;
     } finally {
       setIsRefreshing(false);
     }
-  }, [isRefreshing, loadUser, persistAccessToken]);
+  }, [accessToken, isRefreshing, loadUser, persistAccessToken]);
+
+  useEffect(() => {
+    setRefreshAccessTokenHandler(async () => {
+      return refreshToken();
+    });
+  }, [refreshToken]);
 
   useEffect(() => {
     // Initial hydration from localStorage

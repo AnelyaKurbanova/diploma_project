@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
@@ -17,6 +17,12 @@ export default function AuthPage() {
   } = useAuth();
 
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace("/dashboard");
+    }
+  }, [isLoading, user, router]);
   const [email, setEmail] = useState("");
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
   const [localEmailError, setLocalEmailError] = useState<string | null>(null);

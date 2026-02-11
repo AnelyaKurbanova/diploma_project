@@ -8,12 +8,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.data.db.session import get_session
 from app.modules.auth.deps import get_current_user, require_roles
 from app.modules.problems.api.schemas import (
+    ProblemAdminListOut,
     ProblemAdminOut,
     ProblemCreate,
     ProblemOut,
     ProblemUpdate,
 )
-from app.modules.problems.data.models import ProblemDifficulty
+from app.modules.problems.data.models import ProblemDifficulty, ProblemStatus
 from app.modules.problems.application.service import ProblemService
 from app.modules.users.data.models import UserRole
 
@@ -117,7 +118,7 @@ async def create_problem(
     ),
 ):
     svc = ProblemService(session)
-    problem = await svc.create_draft_problem(body)
+    problem = await svc.create_draft_problem(body, created_by=current_user.id)
     return to_problem_admin_out(problem)
 
 
@@ -194,4 +195,91 @@ async def delete_problem(
     svc = ProblemService(session)
     await svc.delete_problem(problem_id)
     return None
+
+
+@router.get("/admin/problems/{problem_id}", response_model=ProblemAdminOut)
+async def get_admin_problem(
+    problem_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    svc = ProblemService(session)
+    problem = await svc.get(problem_id)
+    return to_problem_admin_out(problem)
+
+
+@router.get("/admin/problems", response_model=ProblemAdminListOut)
+async def list_all_problems(
+    page: int = Query(default=1, ge=1),
+    per_page: int = Query(default=20, ge=1, le=100),
+    problem_status: ProblemStatus | None = Query(default=None, alias="status"),
+    subject_id: uuid.UUID | None = Query(default=None),
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    svc = ProblemService(session)
+    offset = (page - 1) * per_page
+    problems, total = await svc.list_all(
+        status=problem_status,
+        subject_id=subject_id,
+        offset=offset,
+        limit=per_page,
+    )
+    return ProblemAdminListOut(
+        items=[to_problem_admin_out(p) for p in problems],
+        total=total,
+        page=page,
+        per_page=per_page,
+    )
+
+
+@router.post(
+    "/problems/{problem_id}/submit-review",
+    response_model=ProblemAdminOut,
+)
+async def submit_for_review(
+    problem_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    svc = ProblemService(session)
+    problem = await svc.submit_for_review(problem_id)
+    return to_problem_admin_out(problem)
+
+
+@router.post(
+    "/problems/{problem_id}/reject",
+    response_model=ProblemAdminOut,
+)
+async def reject_problem(
+    problem_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    svc = ProblemService(session)
+    problem = await svc.reject_problem(problem_id)
+    return to_problem_admin_out(problem)
 

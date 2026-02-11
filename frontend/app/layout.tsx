@@ -14,8 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Diploma project",
-  description: "Онлайн‑платформа для дипломного проекта",
+  title: "ENT Platform — Подготовка к ЕНТ",
+  description:
+    "Современная образовательная платформа для подготовки к ЕНТ с AI-видео, интерактивными заданиями и персонализированной аналитикой",
 };
 
 export default function RootLayout({

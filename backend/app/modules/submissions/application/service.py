@@ -99,7 +99,7 @@ class SubmissionService:
 
     async def submit(self, user_id: uuid.UUID, data: SubmissionCreate) -> SubmissionResultOut:
         problem = await self.problems_repo.get_problem(data.problem_id)
-        if problem.status is not ProblemStatus.PUBLISHED:
+        if problem.status != ProblemStatus.PUBLISHED:
             raise NotFound("Problem not available")
 
         answer: SubmissionAnswer = data.answer

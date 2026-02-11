@@ -1,14 +1,20 @@
 'use client';
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
 import { Button } from "@/components/ui/button";
 
 export default function RegisterPage() {
-  const { startEmailRegister, emailFlowError } = useAuth();
+  const { startEmailRegister, emailFlowError, user, isLoading } = useAuth();
   const router = useRouter();
+
+  useEffect(() => {
+    if (!isLoading && user) {
+      router.replace("/dashboard");
+    }
+  }, [isLoading, user, router]);
 
   const [email, setEmail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);

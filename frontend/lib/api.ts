@@ -7,6 +7,14 @@ interface RequestOptions extends RequestInit {
   accessToken?: string | null;
 }
 
+let refreshAccessTokenHandler: (() => Promise<string | null>) | null = null;
+
+export function setRefreshAccessTokenHandler(
+  handler: () => Promise<string | null>,
+): void {
+  refreshAccessTokenHandler = handler;
+}
+
 async function request<T>(
   path: string,
   method: HttpMethod,
@@ -14,45 +22,74 @@ async function request<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
 
-  const headers = new Headers(options.headers ?? {});
-  headers.set("Accept", "application/json");
+  let currentOptions = options;
 
-  if (options.accessToken) {
-    headers.set("Authorization", `Bearer ${options.accessToken}`);
-  }
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const headers = new Headers(currentOptions.headers ?? {});
+    headers.set("Accept", "application/json");
 
-  const init: RequestInit = {
-    ...options,
-    method,
-    headers,
-  };
+    if (currentOptions.accessToken) {
+      headers.set("Authorization", `Bearer ${currentOptions.accessToken}`);
+    }
 
-  const response = await fetch(url, init);
-
-  const contentType = response.headers.get("Content-Type") ?? "";
-  const isJson = contentType.includes("application/json");
-
-  if (!response.ok) {
-    const errorBody = isJson ? await response.json().catch(() => null) : null;
-    const message =
-      (errorBody && (errorBody.message ?? errorBody.detail)) ??
-      `Request to ${path} failed with status ${response.status}`;
-
-    const error = new Error(message) as Error & {
-      status?: number;
-      body?: unknown;
+    const init: RequestInit = {
+      ...currentOptions,
+      method,
+      headers,
     };
-    error.status = response.status;
-    error.body = errorBody;
-    throw error;
+
+    const response = await fetch(url, init);
+
+    const contentType = response.headers.get("Content-Type") ?? "";
+    const isJson = contentType.includes("application/json");
+
+    if (!response.ok) {
+      // If we have an expired/invalid access token and a refresh handler,
+      // try to refresh once and then retry the original request.
+      if (
+        response.status === 401 &&
+        options.accessToken &&
+        attempt === 0 &&
+        typeof refreshAccessTokenHandler === "function"
+      ) {
+        const newToken = await refreshAccessTokenHandler();
+        if (newToken) {
+          currentOptions = {
+            ...currentOptions,
+            accessToken: newToken,
+          };
+          continue;
+        }
+      }
+
+      const errorBody = isJson ? await response.json().catch(() => null) : null;
+      const message =
+        (errorBody && (errorBody.message ?? errorBody.detail)) ??
+        `Request to ${path} failed with status ${response.status}`;
+
+      const error = new Error(message) as Error & {
+        status?: number;
+        body?: unknown;
+      };
+      error.status = response.status;
+      error.body = errorBody;
+      throw error;
+    }
+
+    if (response.status === 204 || !isJson) {
+      return undefined as T;
+    }
+
+    const text = await response.text();
+    if (!text) {
+      return undefined as T;
+    }
+
+    return JSON.parse(text) as T;
   }
 
-  if (!isJson) {
-    // @ts-expect-error we know T might not be JSON here
-    return (undefined as T) ?? (response as unknown as T);
-  }
-
-  return (await response.json()) as T;
+  // Fallback, should not normally be hit
+  throw new Error(`Request to ${path} failed after retry`);
 }
 
 export function apiGet<T>(
@@ -89,5 +126,129 @@ export function apiPost<T>(
   });
 }
 
+export function apiPatch<T>(
+  path: string,
+  body?: unknown,
+  accessToken?: string | null,
+  options?: Omit<RequestOptions, "method" | "accessToken" | "body">,
+): Promise<T> {
+  const headers = new Headers(options?.headers ?? {});
+
+  if (body !== undefined && !(body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  return request<T>(path, "PATCH", {
+    ...(options ?? {}),
+    headers,
+    accessToken,
+    body:
+      body instanceof FormData || body === undefined
+        ? (body as BodyInit | undefined)
+        : (JSON.stringify(body) as BodyInit),
+  });
+}
+
+export function apiDelete<T>(
+  path: string,
+  accessToken?: string | null,
+  options?: Omit<RequestOptions, "method" | "accessToken">,
+): Promise<T> {
+  return request<T>(path, "DELETE", {
+    ...(options ?? {}),
+    accessToken,
+  });
+}
+
 export { API_BASE_URL };
+
+// ---------------------------------------------------------------------------
+// Teacher classes (groups)
+// ---------------------------------------------------------------------------
+
+export type TeacherClass = {
+  id: string;
+  name: string;
+  join_code: string;
+  created_at: string;
+  students_count: number;
+};
+
+export type ClassStudent = {
+  id: string;
+  email: string;
+  full_name: string | null;
+  joined_at: string;
+  overall_progress: number | null;
+};
+
+export type ClassStats = {
+  total_students: number;
+  avg_overall_progress: number;
+};
+
+export type ClassDetail = {
+  id: string;
+  name: string;
+  join_code: string;
+  created_at: string;
+  students: ClassStudent[];
+  stats: ClassStats;
+};
+
+export type StudentClass = {
+  id: string;
+  name: string;
+  teacher_name: string | null;
+  joined_at: string;
+  overall_progress: number | null;
+};
+
+export function apiListTeacherClasses(
+  accessToken: string,
+): Promise<TeacherClass[]> {
+  return apiGet<TeacherClass[]>("/classes", accessToken);
+}
+
+export function apiCreateClass(
+  name: string,
+  accessToken: string,
+): Promise<TeacherClass> {
+  return apiPost<TeacherClass>("/classes", { name }, accessToken);
+}
+
+export function apiGetClassDetail(
+  classId: string,
+  accessToken: string,
+): Promise<ClassDetail> {
+  return apiGet<ClassDetail>(`/classes/${classId}`, accessToken);
+}
+
+export function apiRemoveClassStudent(
+  classId: string,
+  studentId: string,
+  accessToken: string,
+): Promise<void> {
+  return apiDelete<void>(
+    `/classes/${classId}/students/${studentId}`,
+    accessToken,
+  );
+}
+
+export function apiJoinClassByCode(
+  joinCode: string,
+  accessToken: string,
+): Promise<StudentClass> {
+  return apiPost<StudentClass>(
+    "/classes/me/join",
+    { join_code: joinCode },
+    accessToken,
+  );
+}
+
+export function apiListStudentClasses(
+  accessToken: string,
+): Promise<StudentClass[]> {
+  return apiGet<StudentClass[]>("/classes/me", accessToken);
+}
 
