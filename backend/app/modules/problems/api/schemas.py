@@ -109,3 +109,10 @@ class ProblemAdminOut(ProblemOut):
     updated_at: datetime
     answer_key: ProblemAnswerKeyOut | None
 
+
+class ProblemAdminListOut(BaseModel):
+    items: list[ProblemAdminOut]
+    total: int
+    page: int
+    per_page: int
+

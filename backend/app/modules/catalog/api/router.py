@@ -22,13 +22,17 @@ from app.modules.users.data.models import UserRole
 router = APIRouter(tags=["catalog"])
 
 
-def to_subject_out(row) -> SubjectOut:
+def to_subject_out(row, *, topic_count: int = 0) -> SubjectOut:
     return SubjectOut(
         id=row.id,
         code=row.code,
         name_ru=row.name_ru,
         name_kk=row.name_kk,
         name_en=row.name_en,
+        description_ru=row.description_ru,
+        description_kk=row.description_kk,
+        description_en=row.description_en,
+        topic_count=topic_count,
         created_at=row.created_at,
     )
 
@@ -42,7 +46,6 @@ def to_topic_out(row) -> TopicOut:
         title_kk=row.title_kk,
         title_en=row.title_en,
         grade_level=row.grade_level,
-        difficulty_level=row.difficulty_level,
         order_no=row.order_no,
         created_at=row.created_at,
     )
@@ -74,8 +77,8 @@ async def list_subjects(
     session: AsyncSession = Depends(get_session),
 ):
     svc = SubjectService(session)
-    rows = await svc.list()
-    return [to_subject_out(r) for r in rows]
+    rows = await svc.list_with_topic_counts()
+    return [to_subject_out(row, topic_count=cnt) for row, cnt in rows]
 
 
 @router.get("/subjects/{subject_id}", response_model=SubjectOut)
@@ -84,8 +87,8 @@ async def get_subject(
     session: AsyncSession = Depends(get_session),
 ):
     svc = SubjectService(session)
-    row = await svc.get(subject_id)
-    return to_subject_out(row)
+    row, cnt = await svc.get_with_topic_count(subject_id)
+    return to_subject_out(row, topic_count=cnt)
 
 
 @router.patch("/subjects/{subject_id}", response_model=SubjectOut)
@@ -151,7 +154,6 @@ async def create_topic(
 async def list_topics(
     subject_id: uuid.UUID | None = Query(default=None),
     parent_topic_id: uuid.UUID | None = Query(default=None),
-    difficulty_level: int | None = Query(default=None, ge=1, le=5),
     grade_level: int | None = Query(default=None, ge=1, le=11),
     session: AsyncSession = Depends(get_session),
 ):
@@ -159,7 +161,6 @@ async def list_topics(
     rows = await svc.list(
         subject_id=subject_id,
         parent_topic_id=parent_topic_id,
-        difficulty_level=difficulty_level,
         grade_level=grade_level,
     )
     return [to_topic_out(r) for r in rows]

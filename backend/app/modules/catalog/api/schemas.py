@@ -11,6 +11,9 @@ class SubjectCreate(BaseModel):
     name_ru: str = Field(min_length=2, max_length=255)
     name_kk: str | None = Field(default=None, max_length=255)
     name_en: str | None = Field(default=None, max_length=255)
+    description_ru: str | None = Field(default=None)
+    description_kk: str | None = Field(default=None)
+    description_en: str | None = Field(default=None)
 
 
 class SubjectUpdate(BaseModel):
@@ -18,6 +21,9 @@ class SubjectUpdate(BaseModel):
     name_ru: str | None = Field(default=None, min_length=2, max_length=255)
     name_kk: str | None = Field(default=None, max_length=255)
     name_en: str | None = Field(default=None, max_length=255)
+    description_ru: str | None = Field(default=None)
+    description_kk: str | None = Field(default=None)
+    description_en: str | None = Field(default=None)
 
 
 class SubjectOut(BaseModel):
@@ -26,6 +32,10 @@ class SubjectOut(BaseModel):
     name_ru: str
     name_kk: str | None
     name_en: str | None
+    description_ru: str | None
+    description_kk: str | None
+    description_en: str | None
+    topic_count: int
     created_at: datetime
 
 
@@ -38,7 +48,6 @@ class TopicCreate(BaseModel):
     title_en: str | None = Field(default=None, max_length=255)
 
     grade_level: int | None = Field(default=None, ge=1, le=11)
-    difficulty_level: int = Field(default=1, ge=1, le=5)
     order_no: int = Field(default=0, ge=0)
 
 
@@ -51,7 +60,6 @@ class TopicUpdate(BaseModel):
     title_en: str | None = Field(default=None, max_length=255)
 
     grade_level: int | None = Field(default=None, ge=1, le=11)
-    difficulty_level: int | None = Field(default=None, ge=1, le=5)
     order_no: int | None = Field(default=None, ge=0)
 
 
@@ -63,7 +71,6 @@ class TopicOut(BaseModel):
     title_kk: str | None
     title_en: str | None
     grade_level: int | None
-    difficulty_level: int
     order_no: int
     created_at: datetime
 

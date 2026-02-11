@@ -72,10 +72,23 @@ class AdminSetRoleIn(BaseModel):
     role: UserRole
 
 
+class AdminUserUpdate(BaseModel):
+    is_active: bool | None = None
+    role: UserRole | None = None
+
+
 class AdminUserOut(BaseModel):
     id: uuid.UUID
     email: str
     role: UserRole
     is_email_verified: bool
     is_active: bool
+    created_at: datetime
+
+
+class AdminUserListOut(BaseModel):
+    items: list[AdminUserOut]
+    total: int
+    page: int
+    per_page: int
 

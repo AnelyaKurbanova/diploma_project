@@ -38,6 +38,7 @@ class ProblemDifficulty(str, enum.Enum):
 
 class ProblemStatus(str, enum.Enum):
     DRAFT = "draft"
+    PENDING_REVIEW = "pending_review"
     PUBLISHED = "published"
     ARCHIVED = "archived"
 

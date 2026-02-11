@@ -3,9 +3,10 @@ from __future__ import annotations
 import uuid
 from typing import Iterable, Sequence
 
-from sqlalchemy import Select, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.errors import Conflict, NotFound
 from app.modules.problems.data.models import (
@@ -25,7 +26,16 @@ class ProblemsRepo:
         self.session = session
 
     async def _get_problem_or_404(self, problem_id: uuid.UUID) -> ProblemModel:
-        row = await self.session.get(ProblemModel, problem_id)
+        stmt = (
+            select(ProblemModel)
+            .where(ProblemModel.id == problem_id)
+            .options(
+                selectinload(ProblemModel.choices),
+                selectinload(ProblemModel.answer_keys),
+                selectinload(ProblemModel.tags).selectinload(ProblemTagMapModel.tag),
+            )
+        )
+        row = (await self.session.execute(stmt)).scalar_one_or_none()
         if not row:
             raise NotFound("Problem not found")
         return row
@@ -68,6 +78,7 @@ class ProblemsRepo:
         problem: ProblemModel,
         choices: Iterable[tuple[str, bool, int]],
     ) -> None:
+        await self.session.refresh(problem, ["choices"])
         problem.choices.clear()
         for text, is_correct, order_no in choices:
             problem.choices.append(
@@ -88,6 +99,8 @@ class ProblemsRepo:
         answer_pattern: str | None,
         tolerance: float | None,
     ) -> None:
+        await self.session.refresh(problem, ["answer_keys"])
+
         if (
             numeric_answer is None
             and text_answer is None
@@ -112,6 +125,7 @@ class ProblemsRepo:
         problem: ProblemModel,
         tag_names: Iterable[str],
     ) -> None:
+        await self.session.refresh(problem, ["tags"])
         normalized = {name.strip().lower() for name in tag_names if name.strip()}
         if not normalized:
             problem.tags.clear()
@@ -155,8 +169,14 @@ class ProblemsRepo:
         difficulty: ProblemDifficulty | None = None,
         status: ProblemStatus | None = None,
     ) -> list[ProblemModel]:
-        stmt: Select[ProblemModel] = select(ProblemModel).order_by(
-            ProblemModel.created_at.desc()
+        stmt: Select[ProblemModel] = (
+            select(ProblemModel)
+            .options(
+                selectinload(ProblemModel.choices),
+                selectinload(ProblemModel.answer_keys),
+                selectinload(ProblemModel.tags).selectinload(ProblemTagMapModel.tag),
+            )
+            .order_by(ProblemModel.created_at.desc())
         )
         if subject_id is not None:
             stmt = stmt.where(ProblemModel.subject_id == subject_id)
@@ -169,6 +189,38 @@ class ProblemsRepo:
 
         rows: Sequence[ProblemModel] = (await self.session.execute(stmt)).scalars().all()
         return list(rows)
+
+    async def list_problems_paginated(
+        self,
+        *,
+        status: ProblemStatus | None = None,
+        subject_id: uuid.UUID | None = None,
+        offset: int = 0,
+        limit: int = 50,
+    ) -> tuple[list[ProblemModel], int]:
+        stmt: Select[ProblemModel] = (
+            select(ProblemModel)
+            .options(
+                selectinload(ProblemModel.choices),
+                selectinload(ProblemModel.answer_keys),
+                selectinload(ProblemModel.tags).selectinload(ProblemTagMapModel.tag),
+            )
+            .order_by(ProblemModel.created_at.desc())
+        )
+        count_stmt = select(func.count()).select_from(ProblemModel)
+
+        if status is not None:
+            stmt = stmt.where(ProblemModel.status == status)
+            count_stmt = count_stmt.where(ProblemModel.status == status)
+        if subject_id is not None:
+            stmt = stmt.where(ProblemModel.subject_id == subject_id)
+            count_stmt = count_stmt.where(ProblemModel.subject_id == subject_id)
+
+        total = (await self.session.execute(count_stmt)).scalar_one()
+        rows: Sequence[ProblemModel] = (
+            await self.session.execute(stmt.offset(offset).limit(limit))
+        ).scalars().all()
+        return list(rows), total
 
     async def update_problem(
         self,

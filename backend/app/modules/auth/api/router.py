@@ -172,6 +172,7 @@ async def me(current_user=Depends(get_current_user)):
     return {
         "id": str(current_user.id),
         "email": current_user.email,
+        "role": current_user.role.value,
         "is_email_verified": current_user.is_email_verified,
         "is_active": current_user.is_active,
     }
