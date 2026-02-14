@@ -81,8 +81,8 @@ export default function SubjectDetailPage() {
           `/topics?subject_id=${found.id}`,
           accessToken,
         );
-        // Show only root topics (no parent)
-        setTopics(topicsData.filter((t) => !t.parent_topic_id));
+        // Flat topic list for simplified flow: subject -> topic -> tasks
+        setTopics(topicsData);
       } catch {
         setLoadError(true);
       }

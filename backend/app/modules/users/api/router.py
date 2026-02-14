@@ -3,15 +3,26 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
+from sqlalchemy import func, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequest, NotFound
 from app.core.security import verify_teacher_code
 from app.data.db.session import get_session
 from app.modules.auth.deps import get_current_user
+from app.modules.classes.data.models import ClassModel, ClassStudentModel
 from app.modules.schools.data.repo import SchoolRepo
-from app.modules.users.api.schemas import OnboardingIn, UserProfileOut, UserProfileUpdate
-from app.modules.users.data.models import UserRole
+from app.modules.lessons.data.models import LessonProgressModel
+from app.modules.submissions.data.models import SubmissionModel
+from app.modules.users.api.schemas import (
+    ActivityDayOut,
+    FriendOut,
+    OnboardingIn,
+    SocialOut,
+    UserProfileOut,
+    UserProfileUpdate,
+)
+from app.modules.users.data.models import UserModel, UserProfileModel, UserRole
 from app.modules.users.data.repo import UserProfileRepo
 
 
@@ -59,6 +70,101 @@ async def get_my_profile(
         raise NotFound("Profile not initialized")
 
     return _to_profile_out(current_user, profile)
+
+
+@router.get("/social", response_model=SocialOut)
+async def get_my_social(
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    # -------- Friends from real class relations --------
+    # For student:
+    # - classmates from enrolled classes (excluding self)
+    # - teachers of enrolled classes
+    # For teacher:
+    # - students from teacher's own classes
+    friend_ids: set = set()
+
+    if current_user.role == UserRole.STUDENT:
+        class_ids_stmt = select(ClassStudentModel.class_id).where(
+            ClassStudentModel.student_id == current_user.id,
+        )
+        class_ids = (await session.execute(class_ids_stmt)).scalars().all()
+        if class_ids:
+            classmates_stmt = select(ClassStudentModel.student_id).where(
+                ClassStudentModel.class_id.in_(class_ids),
+                ClassStudentModel.student_id != current_user.id,
+            )
+            teacher_ids_stmt = select(ClassModel.teacher_id).where(
+                ClassModel.id.in_(class_ids),
+                ClassModel.teacher_id != current_user.id,
+            )
+            friend_ids.update((await session.execute(classmates_stmt)).scalars().all())
+            friend_ids.update((await session.execute(teacher_ids_stmt)).scalars().all())
+    elif current_user.role == UserRole.TEACHER:
+        class_ids_stmt = select(ClassModel.id).where(ClassModel.teacher_id == current_user.id)
+        class_ids = (await session.execute(class_ids_stmt)).scalars().all()
+        if class_ids:
+            students_stmt = select(ClassStudentModel.student_id).where(
+                ClassStudentModel.class_id.in_(class_ids),
+            )
+            friend_ids.update((await session.execute(students_stmt)).scalars().all())
+
+    friends: list[FriendOut] = []
+    if friend_ids:
+        friend_rows_stmt = (
+            select(UserModel, UserProfileModel)
+            .outerjoin(UserProfileModel, UserProfileModel.user_id == UserModel.id)
+            .where(UserModel.id.in_(list(friend_ids)))
+            .order_by(UserModel.created_at.desc())
+            .limit(20)
+        )
+        rows = (await session.execute(friend_rows_stmt)).all()
+        for user_row, profile_row in rows:
+            display_name = (
+                profile_row.full_name
+                if profile_row and profile_row.full_name
+                else user_row.email.split("@")[0]
+            )
+            friends.append(
+                FriendOut(
+                    id=user_row.id,
+                    full_name=display_name,
+                    role=user_row.role,
+                )
+            )
+
+    # -------- Activity by day from real learning actions --------
+    # We aggregate submissions + completed lessons per day.
+    sub_q = (
+        select(func.date(SubmissionModel.submitted_at).label("date"))
+        .where(SubmissionModel.user_id == current_user.id)
+    )
+    lesson_q = (
+        select(func.date(LessonProgressModel.completed_at).label("date"))
+        .where(
+            LessonProgressModel.user_id == current_user.id,
+            LessonProgressModel.completed.is_(True),
+        )
+    )
+    union_q = union_all(sub_q, lesson_q).subquery()
+    activity_stmt = (
+        select(
+            union_q.c.date.label("date"),
+            func.count().label("count"),
+        )
+        .group_by(union_q.c.date)
+        .order_by(union_q.c.date.desc())
+        .limit(120)
+    )
+    activity_rows = (await session.execute(activity_stmt)).all()
+    activity = [
+        ActivityDayOut(date=row.date.isoformat(), count=int(row.count))
+        for row in activity_rows
+        if row.date is not None
+    ]
+
+    return SocialOut(friends=friends, activity=activity)
 
 
 @router.patch("/profile", response_model=UserProfileOut)
@@ -151,4 +257,3 @@ async def complete_onboarding(
     await session.commit()
 
     return _to_profile_out(current_user, profile)
-
