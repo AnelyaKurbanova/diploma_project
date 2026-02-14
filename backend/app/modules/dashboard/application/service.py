@@ -87,29 +87,37 @@ class DashboardService:
         total_result = await self.session.execute(total_stmt)
         total = total_result.scalar_one()
 
-        graded_stmt = (
+        # Count progress by unique problems, not by raw submission attempts.
+        # Repeated clicks/attempts for the same problem must not inflate stats.
+        per_problem_stmt = (
             select(
-                func.count().label("total_graded"),
-                func.count()
-                .filter(SubmissionModel.is_correct.is_(True))
-                .label("correct"),
-                func.count()
-                .filter(SubmissionModel.is_correct.is_(False))
-                .label("incorrect"),
+                SubmissionModel.problem_id.label("problem_id"),
+                func.max(
+                    case((SubmissionModel.is_correct.is_(True), 1), else_=0)
+                ).label("has_correct"),
             )
             .select_from(SubmissionModel)
             .where(
                 SubmissionModel.user_id == user_id,
                 SubmissionModel.status == SubmissionStatus.GRADED,
             )
+            .group_by(SubmissionModel.problem_id)
         )
-        graded_result = await self.session.execute(graded_stmt)
-        row = graded_result.one()
+        per_problem_subq = per_problem_stmt.subquery()
 
+        summary_stmt = select(
+            func.count().label("attempted"),
+            func.count().filter(per_problem_subq.c.has_correct == 1).label("correct"),
+            func.count().filter(per_problem_subq.c.has_correct == 0).label("incorrect"),
+        ).select_from(per_problem_subq)
+        summary_result = await self.session.execute(summary_stmt)
+        row = summary_result.one()
+
+        attempted = row.attempted or 0
         correct = row.correct or 0
         incorrect = row.incorrect or 0
         solved_problem_count = correct + incorrect
-        unsolved = max(total - solved_problem_count, 0)
+        unsolved = max(total - attempted, 0)
 
         return {
             "total": total,

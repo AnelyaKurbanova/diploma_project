@@ -121,7 +121,9 @@ export function DashboardHeader({ userName, userRole }: DashboardHeaderProps) {
 
           <nav className="hidden items-center gap-1 sm:flex">
             {NAV_ITEMS.map((item) => {
-              const active = pathname === item.href;
+              const active =
+                pathname === item.href ||
+                (item.href !== "/" && pathname.startsWith(`${item.href}/`));
               return (
                 <Link
                   key={item.href}
@@ -199,6 +201,10 @@ export function DashboardHeader({ userName, userRole }: DashboardHeaderProps) {
               <div className="py-1">
                 <button
                   type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    router.push("/profile");
+                  }}
                   className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-slate-600 hover:bg-gray-50"
                 >
                   <span className="inline-flex h-5 w-5 items-center justify-center">
@@ -232,6 +238,10 @@ export function DashboardHeader({ userName, userRole }: DashboardHeaderProps) {
                 </button>
                 <button
                   type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    router.push("/settings");
+                  }}
                   className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm text-slate-600 hover:bg-gray-50"
                 >
                   <span className="inline-flex h-5 w-5 items-center justify-center">

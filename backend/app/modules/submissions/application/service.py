@@ -5,6 +5,7 @@ import re
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -26,6 +27,26 @@ class SubmissionService:
         self.session = session
         self.problems_repo = ProblemsRepo(session)
         self.submissions_repo = SubmissionsRepo(session)
+
+    @asynccontextmanager
+    async def _tx(self):
+        """
+        Safe transaction helper.
+
+        FastAPI dependencies can start a transaction earlier on the same session
+        (e.g. while resolving current user). In that case `session.begin()` would
+        raise `InvalidRequestError`, so we commit/rollback explicitly.
+        """
+        if self.session.in_transaction():
+            try:
+                yield
+                await self.session.commit()
+            except Exception:
+                await self.session.rollback()
+                raise
+        else:
+            async with self.session.begin():
+                yield
 
     async def _grade_single_multiple_choice(
         self,
@@ -139,7 +160,7 @@ class SubmissionService:
             else SubmissionStatus.NEEDS_REVIEW
         )
 
-        async with self.session.begin():
+        async with self._tx():
             attempt_no = await self.submissions_repo.next_attempt_no(
                 user_id,
                 data.problem_id,
@@ -175,4 +196,3 @@ class SubmissionService:
             created_at=created_at,
             message=message,
         )
-

@@ -92,3 +92,18 @@ class AdminUserListOut(BaseModel):
     page: int
     per_page: int
 
+
+class FriendOut(BaseModel):
+    id: uuid.UUID
+    full_name: str
+    role: UserRole
+
+
+class ActivityDayOut(BaseModel):
+    date: str  # YYYY-MM-DD
+    count: int
+
+
+class SocialOut(BaseModel):
+    friends: list[FriendOut]
+    activity: list[ActivityDayOut]
