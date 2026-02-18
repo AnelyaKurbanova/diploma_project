@@ -24,10 +24,6 @@ class LessonService:
         self.session = session
         self.repo = LessonsRepo(session)
 
-    # ------------------------------------------------------------------
-    # Lessons CRUD
-    # ------------------------------------------------------------------
-
     async def create(self, data: LessonCreate) -> LessonOut:
         row = await self.repo.create_lesson(
             topic_id=data.topic_id,

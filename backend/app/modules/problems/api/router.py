@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session
@@ -16,10 +17,150 @@ from app.modules.problems.api.schemas import (
 )
 from app.modules.problems.data.models import ProblemDifficulty, ProblemStatus
 from app.modules.problems.application.service import ProblemService
+from app.modules.activity.application.service import ActivityService
 from app.modules.users.data.models import UserRole
 
 
 router = APIRouter(tags=["problems"])
+
+
+class PresignRequest(BaseModel):
+    content_type: str = Field(min_length=1)
+    file_name: str | None = None
+    problem_id: uuid.UUID | None = None
+
+
+class PresignResponse(BaseModel):
+    upload_url: str
+    final_url: str
+    key: str
+    content_type: str
+
+
+class CanonicalizeRequest(BaseModel):
+    text: str = Field(min_length=1)
+
+
+class CanonicalizeResponse(BaseModel):
+    canonical: str | None
+
+
+class DistractorsRequest(BaseModel):
+    question: str = Field(min_length=1)
+    correct_answer: str = Field(min_length=1)
+    count: int = Field(default=3, ge=1, le=6)
+
+
+class DistractorsResponse(BaseModel):
+    options: list[str]
+
+
+class ExplanationRequest(BaseModel):
+    question: str = Field(min_length=1)
+    correct_answer: str = Field(min_length=1)
+    choices: list[str] | None = None
+
+
+class ExplanationResponse(BaseModel):
+    explanation: str | None
+
+
+@router.post(
+    "/problems/answers/canonicalize",
+    response_model=CanonicalizeResponse,
+)
+async def preview_canonical(
+    body: CanonicalizeRequest,
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    from app.modules.problems.application.canonicalize import normalize_for_storage
+    return CanonicalizeResponse(canonical=normalize_for_storage(body.text))
+
+
+@router.post(
+    "/problems/answers/distractors",
+    response_model=DistractorsResponse,
+)
+async def generate_distractors_api(
+    body: DistractorsRequest,
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    from app.modules.problems.application.llm_distractors import generate_distractors
+
+    options = await generate_distractors(
+        question=body.question,
+        correct_answer=body.correct_answer,
+        count=body.count,
+    )
+    return DistractorsResponse(options=options)
+
+
+@router.post(
+    "/problems/answers/explanation",
+    response_model=ExplanationResponse,
+)
+async def generate_explanation_api(
+    body: ExplanationRequest,
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    from app.modules.problems.application.llm_explanation import generate_explanation
+
+    explanation = await generate_explanation(
+        question=body.question,
+        correct_answer=body.correct_answer,
+        choices=body.choices or None,
+    )
+    return ExplanationResponse(explanation=explanation)
+
+
+@router.post(
+    "/problems/images/presign",
+    response_model=PresignResponse,
+)
+async def presign_image_upload(
+    body: PresignRequest,
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    from app.modules.problems.infra.s3 import (
+        ALLOWED_CONTENT_TYPES,
+        generate_presigned_upload,
+    )
+    from app.core.errors import BadRequest
+
+    if body.content_type not in ALLOWED_CONTENT_TYPES:
+        raise BadRequest(
+            f"Недопустимый тип файла. Разрешены: {', '.join(sorted(ALLOWED_CONTENT_TYPES))}"
+        )
+    result = generate_presigned_upload(
+        problem_id=body.problem_id,
+        content_type=body.content_type,
+        file_name=body.file_name,
+    )
+    return PresignResponse(**result)
 
 
 def to_problem_out(problem) -> ProblemOut:
@@ -50,6 +191,15 @@ def to_problem_out(problem) -> ProblemOut:
             }
             for m in problem.tags
         ],
+        images=[
+            {
+                "id": img.id,
+                "url": img.url,
+                "order_no": img.order_no,
+                "alt_text": img.alt_text,
+            }
+            for img in sorted(problem.images, key=lambda x: x.order_no)
+        ],
     )
 
 
@@ -62,6 +212,7 @@ def to_problem_admin_out(problem) -> ProblemAdminOut:
             "text_answer": problem.answer_keys.text_answer,
             "answer_pattern": problem.answer_keys.answer_pattern,
             "tolerance": problem.answer_keys.tolerance,
+            "canonical_answer": problem.answer_keys.canonical_answer,
         }
     return ProblemAdminOut(
         **base.model_dump(),
@@ -93,11 +244,24 @@ async def list_public_problems(
 @router.get("/problems/{problem_id}", response_model=ProblemOut)
 async def get_public_problem(
     problem_id: uuid.UUID,
+    request: Request,
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
     svc = ProblemService(session)
     problem = await svc.get_public(problem_id)
+
+    activity = ActivityService(session)
+    client = request.client
+    await activity.log(
+        event_type="problem_viewed",
+        user_id=current_user.id if current_user else None,
+        path=str(request.url.path),
+        ip=client.host if client else None,
+        user_agent=request.headers.get("user-agent"),
+        meta={"problem_id": str(problem_id)},
+    )
+
     return to_problem_out(problem)
 
 

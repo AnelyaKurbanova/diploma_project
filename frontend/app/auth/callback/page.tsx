@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
@@ -8,6 +8,20 @@ import { EntHeader } from "@/components/ent-header";
 type CallbackState = "processing" | "error";
 
 export default function AuthCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+        </div>
+      }
+    >
+      <AuthCallbackInner />
+    </Suspense>
+  );
+}
+
+function AuthCallbackInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const { setFromCallback } = useAuth();

@@ -8,6 +8,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, NotFound
+from app.core.i18n import tr
 from app.modules.catalog.data.models import SubjectModel, TopicModel
 
 
@@ -39,13 +40,13 @@ class CatalogRepo:
         try:
             await self.session.flush()
         except IntegrityError:
-            raise Conflict("Subject with this code already exists")
+            raise Conflict(tr("subject_code_exists"))
         return row
 
     async def get_subject(self, subject_id: uuid.UUID) -> SubjectModel:
         row = await self.session.get(SubjectModel, subject_id)
         if not row:
-            raise NotFound("Subject not found")
+            raise NotFound(tr("subject_not_found"))
         return row
 
     async def list_subjects(self) -> list[SubjectModel]:
@@ -111,7 +112,7 @@ class CatalogRepo:
         try:
             await self.session.flush()
         except IntegrityError:
-            raise Conflict("Subject with this code already exists")
+            raise Conflict(tr("subject_code_exists"))
         return row
 
     async def delete_subject(self, subject_id: uuid.UUID) -> None:
@@ -143,13 +144,13 @@ class CatalogRepo:
         try:
             await self.session.flush()
         except IntegrityError:
-            raise Conflict("Topic with these parameters already exists")
+            raise Conflict(tr("topic_params_exist"))
         return row
 
     async def get_topic(self, topic_id: uuid.UUID) -> TopicModel:
         row = await self.session.get(TopicModel, topic_id)
         if not row:
-            raise NotFound("Topic not found")
+            raise NotFound(tr("topic_not_found"))
         return row
 
     async def list_topics(
@@ -203,7 +204,7 @@ class CatalogRepo:
         try:
             await self.session.flush()
         except IntegrityError:
-            raise Conflict("Topic with these parameters already exists")
+            raise Conflict(tr("topic_params_exist"))
         return row
 
     async def delete_topic(self, topic_id: uuid.UUID) -> None:

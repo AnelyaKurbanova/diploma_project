@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from app.core.errors import Conflict, NotFound
+from app.core.i18n import tr
 from app.modules.projects.data.models import ProjectModel
 
 class ProjectRepo:
@@ -18,13 +19,13 @@ class ProjectRepo:
         try:
             await self.session.flush()
         except IntegrityError:
-            raise Conflict("Project with this name already exists")
+            raise Conflict(tr("project_name_exists"))
         return row
 
     async def get(self, project_id: uuid.UUID) -> ProjectModel:
         row = await self.session.get(ProjectModel, project_id)
         if not row:
-            raise NotFound("Project not found")
+            raise NotFound(tr("project_not_found"))
         return row
 
     async def list(self, limit: int, offset: int) -> list[ProjectModel]:
@@ -51,7 +52,7 @@ class ProjectRepo:
         try:
             await self.session.flush()
         except IntegrityError:
-            raise Conflict("Project with this name already exists")
+            raise Conflict(tr("project_name_exists"))
         return row
 
     async def delete(self, project_id: uuid.UUID) -> None:

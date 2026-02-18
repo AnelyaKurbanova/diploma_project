@@ -32,7 +32,6 @@ class ClassModel(Base):
 
     name: Mapped[str] = mapped_column(String(255), nullable=False)
 
-    # Код для присоединения к классу учеников. Должен быть уникальным и стабильным.
     join_code: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
@@ -87,9 +86,6 @@ class ClassStudentModel(Base):
         nullable=False,
         server_default=func.now(),
     )
-
-    # Опциональное поле для кеша прогресса или количества задач, если понадобится
-    # progress_percent: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     class_: Mapped[ClassModel] = relationship(back_populates="students")
 

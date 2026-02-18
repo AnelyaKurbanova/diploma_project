@@ -14,7 +14,6 @@ class LimitResult:
 
 
 class InMemoryRateLimiter:
-    # dev fallback (single process)
     def __init__(self):
         self._store: dict[str, deque[float]] = defaultdict(deque)
         self._lock = asyncio.Lock()
@@ -54,7 +53,10 @@ class RateLimitService:
     def __init__(self, backend):
         self.backend = backend
 
-    async def enforce(self, key: str, limit: int, window_seconds: int, message="Too many requests"):
+    async def enforce(self, key: str, limit: int, window_seconds: int, message: str | None = None):
+        from app.core.i18n import tr
+
         result = await self.backend.hit(key=key, limit=limit, window_seconds=window_seconds)
         if not result.allowed:
-            raise TooManyRequests(f"{message}. Retry in {result.retry_after_seconds}s")
+            msg = message or tr("too_many_requests")
+            raise TooManyRequests(f"{msg}. {tr('retry_in', seconds=result.retry_after_seconds)}")

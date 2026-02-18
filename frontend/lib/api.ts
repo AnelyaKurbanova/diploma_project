@@ -44,8 +44,6 @@ async function request<T>(
     const isJson = contentType.includes("application/json");
 
     if (!response.ok) {
-      // If we have an expired/invalid access token and a refresh handler,
-      // try to refresh once and then retry the original request.
       if (
         response.status === 401 &&
         options.accessToken &&
@@ -65,7 +63,7 @@ async function request<T>(
       const errorBody = isJson ? await response.json().catch(() => null) : null;
       const message =
         (errorBody && (errorBody.message ?? errorBody.detail)) ??
-        `Request to ${path} failed with status ${response.status}`;
+        `Запрос ${path} не выполнен (статус ${response.status})`;
 
       const error = new Error(message) as Error & {
         status?: number;
@@ -88,8 +86,7 @@ async function request<T>(
     return JSON.parse(text) as T;
   }
 
-  // Fallback, should not normally be hit
-  throw new Error(`Request to ${path} failed after retry`);
+  throw new Error(`Запрос ${path} не выполнен после повторной попытки`);
 }
 
 export function apiGet<T>(
@@ -161,10 +158,6 @@ export function apiDelete<T>(
 }
 
 export { API_BASE_URL };
-
-// ---------------------------------------------------------------------------
-// Teacher classes (groups)
-// ---------------------------------------------------------------------------
 
 export type TeacherClass = {
   id: string;

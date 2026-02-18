@@ -5,12 +5,25 @@ import uuid
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.modules.problems.api.schemas import ProblemCreate, ProblemUpdate
+from app.modules.problems.application.canonicalize import normalize_for_storage
 from app.modules.problems.data.models import (
     ProblemDifficulty,
     ProblemModel,
     ProblemStatus,
 )
 from app.modules.problems.data.repo import ProblemsRepo
+from app.core.i18n import tr
+
+
+def _compute_canonical(answer_key_data) -> str | None:  # noqa: ANN001
+    if answer_key_data is None:
+        return None
+    raw = answer_key_data.text_answer
+    if raw:
+        return normalize_for_storage(raw)
+    if answer_key_data.numeric_answer is not None:
+        return normalize_for_storage(str(answer_key_data.numeric_answer))
+    return None
 
 
 class ProblemService:
@@ -19,9 +32,37 @@ class ProblemService:
         self.repo = ProblemsRepo(session)
 
     async def _commit_and_reload(self, problem_id: uuid.UUID) -> ProblemModel:
-        """Commit current transaction and re-fetch the problem with all relations."""
         await self.session.commit()
         return await self.repo.get_problem(problem_id)
+
+    async def _save_answer_keys(self, problem: ProblemModel, answer_key_data) -> None:  # noqa: ANN001
+        if answer_key_data is None:
+            return
+        canonical = _compute_canonical(answer_key_data)
+        await self.repo.set_answer_keys(
+            problem,
+            numeric_answer=(
+                float(answer_key_data.numeric_answer)
+                if answer_key_data.numeric_answer is not None
+                else None
+            ),
+            text_answer=answer_key_data.text_answer,
+            answer_pattern=answer_key_data.answer_pattern,
+            tolerance=(
+                float(answer_key_data.tolerance)
+                if answer_key_data.tolerance is not None
+                else None
+            ),
+            canonical_answer=canonical,
+        )
+
+    async def _save_images(self, problem: ProblemModel, images_data) -> None:  # noqa: ANN001
+        if images_data is None:
+            return
+        await self.repo.set_images(
+            problem,
+            [(img.url, img.order_no, img.alt_text) for img in images_data],
+        )
 
     async def create_draft_problem(
         self,
@@ -50,27 +91,16 @@ class ProblemService:
                     for c in data.choices
                 ],
             )
-        if data.answer_key is not None:
-            await self.repo.set_answer_keys(
-                problem,
-                numeric_answer=(
-                    float(data.answer_key.numeric_answer)
-                    if data.answer_key.numeric_answer is not None
-                    else None
-                ),
-                text_answer=data.answer_key.text_answer,
-                answer_pattern=data.answer_key.answer_pattern,
-                tolerance=(
-                    float(data.answer_key.tolerance)
-                    if data.answer_key.tolerance is not None
-                    else None
-                ),
-            )
+
+        await self._save_answer_keys(problem, data.answer_key)
+
         if data.tags is not None:
             await self.repo.set_tags(
                 problem,
                 [t.name for t in data.tags],
             )
+
+        await self._save_images(problem, data.images)
 
         return await self._commit_and_reload(problem.id)
 
@@ -82,7 +112,7 @@ class ProblemService:
         if problem.status != ProblemStatus.PUBLISHED:
             from app.core.errors import NotFound
 
-            raise NotFound("Problem not found")
+            raise NotFound(tr("problem_not_found"))
         return problem
 
     async def list_public(
@@ -108,9 +138,8 @@ class ProblemService:
         if problem.status not in (ProblemStatus.DRAFT, ProblemStatus.PENDING_REVIEW):
             from app.core.errors import Conflict
 
-            raise Conflict("Only draft or pending-review problems can be edited")
+            raise Conflict(tr("only_draft_or_pending_edit"))
 
-        # If editing a pending_review problem, reset it back to draft
         if problem.status == ProblemStatus.PENDING_REVIEW:
             await self.repo.change_status(problem_id, status=ProblemStatus.DRAFT)
 
@@ -134,27 +163,16 @@ class ProblemService:
                     for c in data.choices
                 ],
             )
-        if data.answer_key is not None:
-            await self.repo.set_answer_keys(
-                problem,
-                numeric_answer=(
-                    float(data.answer_key.numeric_answer)
-                    if data.answer_key.numeric_answer is not None
-                    else None
-                ),
-                text_answer=data.answer_key.text_answer,
-                answer_pattern=data.answer_key.answer_pattern,
-                tolerance=(
-                    float(data.answer_key.tolerance)
-                    if data.answer_key.tolerance is not None
-                    else None
-                ),
-            )
+
+        await self._save_answer_keys(problem, data.answer_key)
+
         if data.tags is not None:
             await self.repo.set_tags(
                 problem,
                 [t.name for t in data.tags],
             )
+
+        await self._save_images(problem, data.images)
 
         return await self._commit_and_reload(problem_id)
 
@@ -177,7 +195,7 @@ class ProblemService:
         problem = await self.repo.get_problem(problem_id)
         if problem.status != ProblemStatus.DRAFT:
             from app.core.errors import Conflict
-            raise Conflict("Only draft problems can be submitted for review")
+            raise Conflict(tr("only_draft_submit_review"))
         await self.repo.change_status(
             problem_id,
             status=ProblemStatus.PENDING_REVIEW,
@@ -188,7 +206,7 @@ class ProblemService:
         problem = await self.repo.get_problem(problem_id)
         if problem.status != ProblemStatus.PENDING_REVIEW:
             from app.core.errors import Conflict
-            raise Conflict("Only problems pending review can be published")
+            raise Conflict(tr("only_pending_publish"))
         await self.repo.change_status(
             problem_id,
             status=ProblemStatus.PUBLISHED,
@@ -199,7 +217,7 @@ class ProblemService:
         problem = await self.repo.get_problem(problem_id)
         if problem.status != ProblemStatus.PENDING_REVIEW:
             from app.core.errors import Conflict
-            raise Conflict("Only problems pending review can be rejected")
+            raise Conflict(tr("only_pending_reject"))
         await self.repo.change_status(
             problem_id,
             status=ProblemStatus.DRAFT,

@@ -73,7 +73,7 @@ export default function RegisterPage() {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="your@email.com"
+                      placeholder="ваш@email.com"
                       className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm leading-5 text-slate-900 shadow-sm transition-all duration-200 ease-out hover:border-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                     />
                   </label>
