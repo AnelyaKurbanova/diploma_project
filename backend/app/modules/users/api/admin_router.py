@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFound
+from app.core.i18n import tr
 from app.data.db.session import get_session
 from app.modules.auth.deps import require_roles
 from app.modules.users.api.schemas import (
@@ -67,7 +68,7 @@ async def set_user_role(
     repo = UserRepo(session)
     user = await repo.get_by_id(user_id)
     if not user:
-        raise NotFound("User not found")
+        raise NotFound(tr("user_not_found"))
 
     user.role = body.role
     await session.flush()
@@ -87,7 +88,7 @@ async def update_user(
     repo = UserRepo(session)
     user = await repo.get_by_id(user_id)
     if not user:
-        raise NotFound("User not found")
+        raise NotFound(tr("user_not_found"))
 
     if body.is_active is not None:
         user.is_active = body.is_active

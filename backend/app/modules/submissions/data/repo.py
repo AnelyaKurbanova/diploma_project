@@ -36,6 +36,7 @@ class SubmissionsRepo:
         score: int | None,
         answer_text: str | None,
         answer_numeric: float | None,
+        grading_trace: dict | None,
     ) -> SubmissionModel:
         submission = SubmissionModel(
             user_id=user_id,
@@ -46,6 +47,7 @@ class SubmissionsRepo:
             score=score,
             answer_text=answer_text,
             answer_numeric=answer_numeric,
+            grading_trace=grading_trace,
         )
         self.session.add(submission)
         await self.session.flush()
@@ -64,4 +66,70 @@ class SubmissionsRepo:
                 )
             )
         await self.session.flush()
+
+    async def get_last_for_user_problem(
+        self,
+        user_id: uuid.UUID,
+        problem_id: uuid.UUID,
+    ) -> SubmissionModel | None:
+        stmt: Select[SubmissionModel] = (
+            select(SubmissionModel)
+            .where(
+                SubmissionModel.user_id == user_id,
+                SubmissionModel.problem_id == problem_id,
+            )
+            .order_by(SubmissionModel.submitted_at.desc())
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalars().first()
+
+    async def get_choice_ids_for_submission(
+        self,
+        submission_id: uuid.UUID,
+    ) -> list[uuid.UUID]:
+        stmt: Select[SubmissionChoiceMapModel] = select(
+            SubmissionChoiceMapModel.choice_id
+        ).where(SubmissionChoiceMapModel.submission_id == submission_id)
+        rows: Sequence[uuid.UUID] = (await self.session.execute(stmt)).scalars().all()
+        return list(rows)
+
+    async def get_last_for_user_problems(
+        self,
+        user_id: uuid.UUID,
+        problem_ids: Sequence[uuid.UUID],
+    ) -> list[SubmissionModel]:
+        if not problem_ids:
+            return []
+        stmt: Select[SubmissionModel] = (
+            select(SubmissionModel)
+            .where(
+                SubmissionModel.user_id == user_id,
+                SubmissionModel.problem_id.in_(problem_ids),
+            )
+            .order_by(SubmissionModel.submitted_at.desc())
+        )
+        rows: Sequence[SubmissionModel] = (await self.session.execute(stmt)).scalars().all()
+        seen: set[uuid.UUID] = set()
+        result: list[SubmissionModel] = []
+        for sub in rows:
+            if sub.problem_id not in seen:
+                seen.add(sub.problem_id)
+                result.append(sub)
+        return result
+
+    async def get_choice_ids_for_submissions(
+        self,
+        submission_ids: Sequence[uuid.UUID],
+    ) -> dict[uuid.UUID, list[uuid.UUID]]:
+        if not submission_ids:
+            return {}
+        stmt: Select[SubmissionChoiceMapModel] = select(
+            SubmissionChoiceMapModel.submission_id,
+            SubmissionChoiceMapModel.choice_id,
+        ).where(SubmissionChoiceMapModel.submission_id.in_(submission_ids))
+        rows = (await self.session.execute(stmt)).all()
+        out: dict[uuid.UUID, list[uuid.UUID]] = {sid: [] for sid in submission_ids}
+        for submission_id, choice_id in rows:
+            out[submission_id].append(choice_id)
+        return out
 

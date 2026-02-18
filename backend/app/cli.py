@@ -1,7 +1,3 @@
-"""
-CLI to add schools with teacher code. Code is hashed before storage; never logged.
-Usage: python -m app.cli add_school "School Name" "teacher_code"
-"""
 from __future__ import annotations
 
 import asyncio

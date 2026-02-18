@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
     });
   } catch {
     return NextResponse.json(
-      { message: "Submission proxy error" },
+      { message: "Ошибка при отправке решения" },
       { status: 502 },
     );
   }

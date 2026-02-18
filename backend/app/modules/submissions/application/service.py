@@ -1,25 +1,65 @@
 from __future__ import annotations
 
-import math
+import logging
 import re
+import unicodedata
 import uuid
 from datetime import datetime, timezone
-from decimal import Decimal
 from contextlib import asynccontextmanager
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFound
+from app.core.i18n import tr
+from app.modules.problems.application.canonicalize import normalize_for_storage
 from app.modules.problems.data.models import (
-    ProblemChoiceModel,
+    ProblemAnswerKeyModel,
     ProblemModel,
     ProblemStatus,
     ProblemType,
 )
 from app.modules.problems.data.repo import ProblemsRepo
-from app.modules.submissions.api.schemas import SubmissionAnswer, SubmissionCreate, SubmissionResultOut
+from app.modules.submissions.api.schemas import (
+    SubmissionAnswer,
+    SubmissionCreate,
+    SubmissionResultOut,
+    SubmissionProgressOut,
+    SubmissionProgressItemOut,
+)
 from app.modules.submissions.data.models import SubmissionModel, SubmissionStatus
 from app.modules.submissions.data.repo import SubmissionsRepo
+
+logger = logging.getLogger(__name__)
+
+_FRACTION_RE = re.compile(r"^([+-]?\d+(?:[.,]\d+)?)\s*/\s*(\d+(?:[.,]\d+)?)$")
+_NUMBER_PREFIX_RE = re.compile(r"^([+-]?\d+(?:[.,]\d+)?)")
+
+
+def _try_parse_number(s: str) -> float | None:
+    s = s.strip()
+    if not s:
+        return None
+    s = unicodedata.normalize("NFKC", s)
+    s = s.replace(",", ".").replace(" ", "").replace("\u00a0", "")
+    s = s.replace("\u2212", "-")
+    try:
+        return float(s)
+    except ValueError:
+        pass
+    m = _FRACTION_RE.match(s)
+    if m:
+        num = float(m.group(1).replace(",", "."))
+        den = float(m.group(2).replace(",", "."))
+        if den != 0:
+            return num / den
+
+    m = _NUMBER_PREFIX_RE.match(s)
+    if m:
+        try:
+            return float(m.group(1).replace(",", "."))
+        except ValueError:
+            return None
+    return None
 
 
 class SubmissionService:
@@ -30,13 +70,6 @@ class SubmissionService:
 
     @asynccontextmanager
     async def _tx(self):
-        """
-        Safe transaction helper.
-
-        FastAPI dependencies can start a transaction earlier on the same session
-        (e.g. while resolving current user). In that case `session.begin()` would
-        raise `InvalidRequestError`, so we commit/rollback explicitly.
-        """
         if self.session.in_transaction():
             try:
                 yield
@@ -56,12 +89,10 @@ class SubmissionService:
         if choice_ids is None:
             return None, None
 
-        # Load correct choices for this problem
         correct_ids = {c.id for c in problem.choices if c.is_correct}
         selected_ids = set(choice_ids)
 
         if not correct_ids:
-            # No key defined – cannot grade deterministically
             return None, None
 
         if problem.type is ProblemType.SINGLE_CHOICE:
@@ -73,85 +104,168 @@ class SubmissionService:
 
         return is_correct, problem.points if is_correct else 0
 
-    def _grade_numeric(
+    def _deterministic_text_check(
         self,
-        correct_value: float | None,
-        tolerance: float | None,
-        answer_numeric: Decimal | None,
+        user_answer: str,
+        answer_key: ProblemAnswerKeyModel,
         points: int,
-    ) -> tuple[bool | None, int | None]:
-        if correct_value is None or answer_numeric is None:
-            return None, None
-
-        tol = tolerance or 0.0
-        diff = abs(float(answer_numeric) - float(correct_value))
-        is_correct = diff <= tol
-        return is_correct, points if is_correct else 0
-
-    def _grade_short_text(
-        self,
-        text_answer: str | None,
-        answer_pattern: str | None,
-        user_answer: str | None,
-        points: int,
-    ) -> tuple[bool | None, int | None]:
-        if user_answer is None:
-            return None, None
-
+    ) -> tuple[bool | None, int | None, dict]:
         ua = user_answer.strip()
         if not ua:
-            return None, None
+            return None, None, {"kind": "empty"}
 
-        if answer_pattern:
+        ua_norm = unicodedata.normalize("NFKC", ua)
+
+        if answer_key.answer_pattern:
             try:
-                pattern = re.compile(answer_pattern, flags=re.IGNORECASE)
+                pattern = re.compile(answer_key.answer_pattern, flags=re.IGNORECASE)
+                is_correct = pattern.fullmatch(ua_norm) is not None
+                return (
+                    is_correct,
+                    points if is_correct else 0,
+                    {
+                        "kind": "pattern_fullmatch",
+                        "pattern": answer_key.answer_pattern,
+                    },
+                )
             except re.error:
-                # Broken pattern – fallback to simple comparison
-                pattern = None
-            if pattern is not None:
-                is_correct = pattern.fullmatch(ua) is not None
-                return is_correct, points if is_correct else 0
+                pass
 
-        if text_answer is None:
-            return None, None
+        if answer_key.text_answer is not None:
+            if ua_norm.lower() == answer_key.text_answer.strip().lower():
+                return True, points, {"kind": "text_equal"}
 
-        is_correct = ua.lower() == text_answer.strip().lower()
-        return is_correct, points if is_correct else 0
+        if answer_key.canonical_answer:
+            user_canonical = normalize_for_storage(ua_norm)
+            if user_canonical and user_canonical == answer_key.canonical_answer:
+                return (
+                    True,
+                    points,
+                    {
+                        "kind": "canonical_match",
+                        "user_canonical": user_canonical,
+                        "stored_canonical": answer_key.canonical_answer,
+                    },
+                )
+
+        if answer_key.numeric_answer is not None:
+            parsed = _try_parse_number(ua_norm)
+            if parsed is not None:
+                tol = float(answer_key.tolerance or 0)
+                diff = abs(parsed - float(answer_key.numeric_answer))
+                is_correct = diff <= tol
+                return (
+                    is_correct,
+                    points if is_correct else 0,
+                    {
+                        "kind": "numeric_with_tolerance",
+                        "parsed": parsed,
+                        "target": float(answer_key.numeric_answer),
+                        "tolerance": tol,
+                        "diff": diff,
+                    },
+                )
+            return None, None, {"kind": "numeric_parse_failed"}
+
+        if answer_key.text_answer is not None:
+            return False, 0, {"kind": "text_mismatch"}
+
+        return None, None, {"kind": "no_answer_key"}
 
     async def submit(self, user_id: uuid.UUID, data: SubmissionCreate) -> SubmissionResultOut:
         problem = await self.problems_repo.get_problem(data.problem_id)
         if problem.status != ProblemStatus.PUBLISHED:
-            raise NotFound("Problem not available")
+            raise NotFound(tr("problem_not_available"))
 
         answer: SubmissionAnswer = data.answer
         is_correct: bool | None = None
         score: int | None = None
+        grading_trace: dict | None = {
+            "problem_type": problem.type.value,
+            "input": {
+                "answer_text": answer.answer_text,
+                "answer_numeric": float(answer.answer_numeric)
+                if answer.answer_numeric is not None
+                else None,
+                "choice_ids": [str(cid) for cid in (answer.choice_ids or [])],
+            },
+        }
 
         if problem.type in (ProblemType.SINGLE_CHOICE, ProblemType.MULTIPLE_CHOICE):
             is_correct, score = await self._grade_single_multiple_choice(
                 problem,
                 answer.choice_ids or [],
             )
-        elif problem.type is ProblemType.NUMERIC:
+            if grading_trace is not None:
+                grading_trace["choice_grading"] = {
+                    "is_correct": is_correct,
+                    "score": score,
+                }
+        elif problem.type in (ProblemType.NUMERIC, ProblemType.SHORT_TEXT):
             ak = problem.answer_keys
-            if ak is not None:
-                is_correct, score = self._grade_numeric(
-                    correct_value=ak.numeric_answer,
-                    tolerance=ak.tolerance,
-                    answer_numeric=answer.answer_numeric,
-                    points=problem.points,
+            user_text = answer.answer_text
+            if user_text is None and answer.answer_numeric is not None:
+                user_text = str(answer.answer_numeric)
+
+            if ak is not None and user_text:
+                # Stage 1: deterministic check on raw input
+                is_correct, score, debug1 = self._deterministic_text_check(
+                    user_text,
+                    ak,
+                    problem.points,
                 )
-        elif problem.type is ProblemType.SHORT_TEXT:
-            ak = problem.answer_keys
-            if ak is not None:
-                is_correct, score = self._grade_short_text(
-                    text_answer=ak.text_answer,
-                    answer_pattern=ak.answer_pattern,
-                    user_answer=answer.answer_text,
-                    points=problem.points,
-                )
+                if grading_trace is not None:
+                    grading_trace["deterministic_first"] = {
+                        "is_correct": is_correct,
+                        "score": score,
+                        "debug": debug1,
+                    }
+                llm_info: dict | None = None
+                if is_correct is not True:
+                    try:
+                        from app.modules.submissions.application.llm_normalizer import (
+                            normalize_answer_via_llm,
+                        )
+
+                        normalized = await normalize_answer_via_llm(user_text)
+                        llm_info = {
+                            "called": True,
+                            "normalized": normalized,
+                        }
+                        if (
+                            normalized
+                            and normalized.strip().lower() != user_text.strip().lower()
+                        ):
+                            llm_correct, llm_score, debug2 = (
+                                self._deterministic_text_check(
+                                    normalized,
+                                    ak,
+                                    problem.points,
+                                )
+                            )
+                            if grading_trace is not None:
+                                grading_trace["deterministic_second"] = {
+                                    "normalized_input": normalized,
+                                    "is_correct": llm_correct,
+                                    "score": llm_score,
+                                    "debug": debug2,
+                                }
+                            if llm_correct is True:
+                                is_correct, score = True, llm_score
+                    except Exception as exc:
+                        logger.warning("LLM normalization failed: %s", exc)
+                        llm_info = {
+                            "called": True,
+                            "normalized": None,
+                            "error": str(exc),
+                        }
+
+                if grading_trace is not None and llm_info is not None:
+                    grading_trace["llm"] = llm_info
+
+                if is_correct is None:
+                    is_correct, score = False, 0
         else:
-            # MATCH and other types can be added later
             is_correct, score = None, None
 
         status = (
@@ -172,10 +286,15 @@ class SubmissionService:
                 status=status,
                 is_correct=is_correct,
                 score=score,
-                answer_text=answer.answer_text,
+                answer_text=answer.answer_text or (
+                    str(answer.answer_numeric)
+                    if answer.answer_numeric is not None
+                    else None
+                ),
                 answer_numeric=float(answer.answer_numeric)
                 if answer.answer_numeric is not None
                 else None,
+                grading_trace=grading_trace,
             )
 
             if answer.choice_ids:
@@ -185,7 +304,7 @@ class SubmissionService:
                 )
 
         created_at = submission.submitted_at or datetime.now(timezone.utc)
-        message = "Graded" if status is SubmissionStatus.GRADED else "Sent to review"
+        message = tr("graded") if status is SubmissionStatus.GRADED else tr("sent_to_review")
 
         return SubmissionResultOut(
             submission_id=submission.id,
@@ -196,3 +315,60 @@ class SubmissionService:
             created_at=created_at,
             message=message,
         )
+
+    async def get_last_progress(
+        self,
+        user_id: uuid.UUID,
+        problem_id: uuid.UUID,
+    ) -> SubmissionProgressOut:
+        sub = await self.submissions_repo.get_last_for_user_problem(user_id, problem_id)
+        if sub is None:
+            return SubmissionProgressOut(has_attempt=False)
+
+        choice_ids = await self.submissions_repo.get_choice_ids_for_submission(sub.id)
+        return SubmissionProgressOut(
+            has_attempt=True,
+            last_status=SubmissionStatus(sub.status) if sub.status else None,
+            last_is_correct=sub.is_correct,
+            last_score=sub.score,
+            last_answer_choice_ids=choice_ids or None,
+            last_answer_text=sub.answer_text,
+            last_created_at=sub.submitted_at,
+        )
+
+    async def get_progress_batch(
+        self,
+        user_id: uuid.UUID,
+        problem_ids: list[uuid.UUID],
+    ) -> list[SubmissionProgressItemOut]:
+        if not problem_ids:
+            return []
+        subs = await self.submissions_repo.get_last_for_user_problems(user_id, problem_ids)
+        if not subs:
+            return [
+                SubmissionProgressItemOut(problem_id=pid, has_attempt=False)
+                for pid in problem_ids
+            ]
+        submission_ids = [s.id for s in subs]
+        choice_map = await self.submissions_repo.get_choice_ids_for_submissions(submission_ids)
+        sub_by_id = {s.id: s for s in subs}
+        items: list[SubmissionProgressItemOut] = []
+        for pid in problem_ids:
+            sub = next((s for s in subs if s.problem_id == pid), None)
+            if sub is None:
+                items.append(SubmissionProgressItemOut(problem_id=pid, has_attempt=False))
+                continue
+            choice_ids = choice_map.get(sub.id) or []
+            items.append(
+                SubmissionProgressItemOut(
+                    problem_id=pid,
+                    has_attempt=True,
+                    last_status=SubmissionStatus(sub.status) if sub.status else None,
+                    last_is_correct=sub.is_correct,
+                    last_score=sub.score,
+                    last_answer_choice_ids=choice_ids or None,
+                    last_answer_text=sub.answer_text,
+                    last_created_at=sub.submitted_at,
+                )
+            )
+        return items

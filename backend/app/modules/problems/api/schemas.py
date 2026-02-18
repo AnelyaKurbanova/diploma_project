@@ -5,7 +5,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import Enum
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.modules.problems.data.models import (
     ProblemDifficulty,
@@ -22,6 +22,12 @@ class ProblemChoiceIn(BaseModel):
 
 class ProblemTagIn(BaseModel):
     name: str = Field(min_length=1, max_length=64)
+
+
+class ProblemImageIn(BaseModel):
+    url: str = Field(min_length=1, max_length=1024)
+    order_no: int = Field(ge=0, le=2)
+    alt_text: str | None = Field(default=None, max_length=255)
 
 
 class ProblemAnswerKeyIn(BaseModel):
@@ -49,6 +55,15 @@ class ProblemCreate(ProblemBase):
     choices: list[ProblemChoiceIn] | None = None
     tags: list[ProblemTagIn] | None = None
     answer_key: ProblemAnswerKeyIn | None = None
+    images: list[ProblemImageIn] | None = Field(default=None, max_length=3)
+
+    @field_validator("type")
+    @classmethod
+    def _forbid_numeric_type(cls, v: ProblemType) -> ProblemType:
+        if v is ProblemType.NUMERIC:
+            from app.core.i18n import tr
+            raise ValueError(tr("numeric_type_deprecated"))
+        return v
 
 
 class ProblemUpdate(BaseModel):
@@ -66,6 +81,7 @@ class ProblemUpdate(BaseModel):
     choices: list[ProblemChoiceIn] | None = None
     tags: list[ProblemTagIn] | None = None
     answer_key: ProblemAnswerKeyIn | None = None
+    images: list[ProblemImageIn] | None = Field(default=None, max_length=3)
 
 
 class ProblemChoiceOut(BaseModel):
@@ -85,6 +101,14 @@ class ProblemAnswerKeyOut(BaseModel):
     text_answer: str | None = None
     answer_pattern: str | None = None
     tolerance: Decimal | None = None
+    canonical_answer: str | None = None
+
+
+class ProblemImageOut(BaseModel):
+    id: uuid.UUID
+    url: str
+    order_no: int
+    alt_text: str | None
 
 
 class ProblemOut(BaseModel):
@@ -100,6 +124,7 @@ class ProblemOut(BaseModel):
     points: int
     choices: list[ProblemChoiceOut]
     tags: list[ProblemTagOut]
+    images: list[ProblemImageOut]
 
 
 class ProblemAdminOut(ProblemOut):

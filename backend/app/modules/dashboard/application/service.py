@@ -87,8 +87,6 @@ class DashboardService:
         total_result = await self.session.execute(total_stmt)
         total = total_result.scalar_one()
 
-        # Count progress by unique problems, not by raw submission attempts.
-        # Repeated clicks/attempts for the same problem must not inflate stats.
         per_problem_stmt = (
             select(
                 SubmissionModel.problem_id.label("problem_id"),

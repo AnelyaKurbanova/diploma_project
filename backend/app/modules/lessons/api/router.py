@@ -24,11 +24,6 @@ from app.modules.users.data.models import UserRole
 router = APIRouter(tags=["lessons"])
 
 
-# ------------------------------------------------------------------
-# Lessons
-# ------------------------------------------------------------------
-
-
 @router.get(
     "/topics/{topic_id}/lessons",
     response_model=list[LessonOut],
@@ -55,7 +50,6 @@ async def create_lesson(
         require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
     ),
 ):
-    # Ensure topic_id from path is used
     body.topic_id = topic_id
     svc = LessonService(session)
     return await svc.create(body)
@@ -106,11 +100,6 @@ async def delete_lesson(
     return None
 
 
-# ------------------------------------------------------------------
-# Content blocks
-# ------------------------------------------------------------------
-
-
 @router.post(
     "/lessons/{lesson_id}/blocks",
     response_model=ContentBlockOut,
@@ -158,11 +147,6 @@ async def delete_content_block(
     svc = LessonService(session)
     await svc.delete_block(block_id)
     return None
-
-
-# ------------------------------------------------------------------
-# Progress
-# ------------------------------------------------------------------
 
 
 @router.post(

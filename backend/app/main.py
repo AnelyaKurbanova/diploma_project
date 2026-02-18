@@ -14,7 +14,6 @@ setup_logging()
 
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
 
-# CORS (для фронта и cookies)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -26,12 +25,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Обязательно для Google OAuth (request.session)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SESSION_SECRET,
     same_site="lax",
-    https_only=settings.COOKIE_SECURE,  # false локально, true в prod
+    https_only=settings.COOKIE_SECURE,  
     max_age=600,
 )
 
@@ -49,9 +47,11 @@ async def app_error_handler(_: Request, exc: AppError):
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(_: Request, __: Exception):
+    from app.core.i18n import tr
+
     return JSONResponse(
         status_code=500,
-        content={"error": "internal_server_error", "message": "Internal server error"},
+        content={"error": "internal_server_error", "message": tr("internal_server_error")},
     )
 
 app.include_router(api_router)

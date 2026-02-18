@@ -9,10 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import Conflict, NotFound
+from app.core.i18n import tr
 from app.modules.problems.data.models import (
     ProblemAnswerKeyModel,
     ProblemChoiceModel,
     ProblemDifficulty,
+    ProblemImageModel,
     ProblemModel,
     ProblemStatus,
     ProblemTagMapModel,
@@ -33,11 +35,12 @@ class ProblemsRepo:
                 selectinload(ProblemModel.choices),
                 selectinload(ProblemModel.answer_keys),
                 selectinload(ProblemModel.tags).selectinload(ProblemTagMapModel.tag),
+                selectinload(ProblemModel.images),
             )
         )
         row = (await self.session.execute(stmt)).scalar_one_or_none()
         if not row:
-            raise NotFound("Problem not found")
+            raise NotFound(tr("problem_not_found"))
         return row
 
     async def create_problem(
@@ -70,7 +73,7 @@ class ProblemsRepo:
         try:
             await self.session.flush()
         except IntegrityError as exc:
-            raise Conflict("Failed to create problem") from exc
+            raise Conflict(tr("failed_to_create_problem")) from exc
         return row
 
     async def set_choices(
@@ -98,6 +101,7 @@ class ProblemsRepo:
         text_answer: str | None,
         answer_pattern: str | None,
         tolerance: float | None,
+        canonical_answer: str | None = None,
     ) -> None:
         await self.session.refresh(problem, ["answer_keys"])
 
@@ -117,7 +121,26 @@ class ProblemsRepo:
         problem.answer_keys.text_answer = text_answer
         problem.answer_keys.answer_pattern = answer_pattern
         problem.answer_keys.tolerance = tolerance
+        problem.answer_keys.canonical_answer = canonical_answer
 
+        await self.session.flush()
+
+    async def set_images(
+        self,
+        problem: ProblemModel,
+        images: Iterable[tuple[str, int, str | None]],
+    ) -> None:
+        await self.session.refresh(problem, ["images"])
+        problem.images.clear()
+        await self.session.flush()
+        for url, order_no, alt_text in images:
+            problem.images.append(
+                ProblemImageModel(
+                    url=url,
+                    order_no=order_no,
+                    alt_text=alt_text,
+                )
+            )
         await self.session.flush()
 
     async def set_tags(
@@ -175,6 +198,7 @@ class ProblemsRepo:
                 selectinload(ProblemModel.choices),
                 selectinload(ProblemModel.answer_keys),
                 selectinload(ProblemModel.tags).selectinload(ProblemTagMapModel.tag),
+                selectinload(ProblemModel.images),
             )
             .order_by(ProblemModel.created_at.desc())
         )
@@ -204,6 +228,7 @@ class ProblemsRepo:
                 selectinload(ProblemModel.choices),
                 selectinload(ProblemModel.answer_keys),
                 selectinload(ProblemModel.tags).selectinload(ProblemTagMapModel.tag),
+                selectinload(ProblemModel.images),
             )
             .order_by(ProblemModel.created_at.desc())
         )
@@ -256,7 +281,7 @@ class ProblemsRepo:
         try:
             await self.session.flush()
         except IntegrityError as exc:
-            raise Conflict("Failed to update problem") from exc
+            raise Conflict(tr("failed_to_update_problem")) from exc
         return row
 
     async def change_status(
