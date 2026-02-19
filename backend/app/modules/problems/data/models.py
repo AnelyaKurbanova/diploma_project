@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
+    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -226,4 +227,3 @@ class ProblemImageModel(Base):
     alt_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
 
     problem: Mapped[ProblemModel] = relationship(back_populates="images")
-

@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
@@ -26,22 +26,19 @@ function AuthCallbackInner() {
   const router = useRouter();
   const { setFromCallback } = useAuth();
 
+  const [runtimeError, setRuntimeError] = useState<string | null>(null);
   const [state, setState] = useState<CallbackState>("processing");
-  const [message, setMessage] = useState<string | null>(null);
+  const error = searchParams.get("error");
+  const accessToken = searchParams.get("access_token");
+
+  const queryErrorMessage = useMemo(() => {
+    if (error) return "Авторизация через Google не удалась. Попробуйте ещё раз.";
+    if (!accessToken) return "Не удалось получить токен доступа от сервера.";
+    return null;
+  }, [error, accessToken]);
 
   useEffect(() => {
-    const error = searchParams.get("error");
-    const accessToken = searchParams.get("access_token");
-
-    if (error) {
-      setState("error");
-      setMessage("Авторизация через Google не удалась. Попробуйте ещё раз.");
-      return;
-    }
-
-    if (!accessToken) {
-      setState("error");
-      setMessage("Не удалось получить токен доступа от сервера.");
+    if (queryErrorMessage || !accessToken) {
       return;
     }
 
@@ -51,12 +48,13 @@ function AuthCallbackInner() {
         router.replace("/dashboard");
       } catch {
         setState("error");
-        setMessage("Не удалось завершить авторизацию. Попробуйте ещё раз.");
+        setRuntimeError("Не удалось завершить авторизацию. Попробуйте ещё раз.");
       }
     })();
-  }, [router, searchParams, setFromCallback]);
+  }, [router, queryErrorMessage, accessToken, setFromCallback]);
 
-  const isError = state === "error";
+  const isError = state === "error" || Boolean(queryErrorMessage) || Boolean(runtimeError);
+  const message = runtimeError ?? queryErrorMessage;
 
   return (
     <div className="min-h-screen bg-white text-slate-900">
@@ -95,4 +93,3 @@ function AuthCallbackInner() {
     </div>
   );
 }
-

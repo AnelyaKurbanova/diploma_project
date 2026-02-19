@@ -162,6 +162,7 @@ export default function SettingsPage() {
               <div className="rounded-xl border border-gray-200 bg-slate-50 p-3">
                 <p className="mb-2 text-sm font-medium text-slate-700">Аватар</p>
                 <div className="flex items-center gap-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={form.avatar_url || "/images/default-avatar.png"}
                     alt="avatar"

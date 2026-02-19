@@ -188,7 +188,6 @@ class LessonsRepo:
         unique_problem_ids: list[uuid.UUID] = list(dict.fromkeys(problem_ids))
 
         # Delete existing
-    ) -> None:      
         stmt = select(BlockProblemMapModel).where(
             BlockProblemMapModel.content_block_id == block_id
         )
@@ -199,7 +198,6 @@ class LessonsRepo:
 
         # Insert new
         for idx, pid in enumerate(unique_problem_ids):
-        for idx, pid in enumerate(problem_ids):
             self.session.add(
                 BlockProblemMapModel(
                     content_block_id=block_id,

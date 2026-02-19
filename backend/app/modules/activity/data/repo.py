@@ -21,15 +21,16 @@ class ActivityRepo:
         user_agent: str | None,
         meta: dict[str, Any] | None = None,
     ) -> UserActivityEventModel:
-        row = UserActivityEventModel(
-            event_type=event_type,
-            user_id=user_id,
-            path=path,
-            ip=ip,
-            user_agent=user_agent,
-            meta=meta or {},
-        )
-        self.session.add(row)
-        await self.session.flush()
+        # Isolate activity writes so failures here do not poison the outer request transaction.
+        async with self.session.begin_nested():
+            row = UserActivityEventModel(
+                event_type=event_type,
+                user_id=user_id,
+                path=path,
+                ip=ip,
+                user_agent=user_agent,
+                meta=meta or {},
+            )
+            self.session.add(row)
+            await self.session.flush()
         return row
-
