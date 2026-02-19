@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPatch } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -10,6 +10,7 @@ type UserProfile = {
   full_name: string | null;
   school: string | null;
   city: string | null;
+  avatar_url: string | null;
   grade_level: number | null;
   preferred_language: string;
   timezone: string;
@@ -19,6 +20,7 @@ type FormState = {
   full_name: string;
   school: string;
   city: string;
+  avatar_url: string;
   grade_level: string;
   preferred_language: string;
   timezone: string;
@@ -29,6 +31,7 @@ function toFormState(profile: UserProfile): FormState {
     full_name: profile.full_name ?? "",
     school: profile.school ?? "",
     city: profile.city ?? "",
+    avatar_url: profile.avatar_url ?? "",
     grade_level: profile.grade_level != null ? String(profile.grade_level) : "",
     preferred_language: profile.preferred_language ?? "ru",
     timezone: profile.timezone ?? "Asia/Almaty",
@@ -46,10 +49,12 @@ export default function SettingsPage() {
     full_name: "",
     school: "",
     city: "",
+    avatar_url: "",
     grade_level: "",
     preferred_language: "ru",
     timezone: "Asia/Almaty",
   });
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -86,6 +91,7 @@ export default function SettingsPage() {
           full_name: form.full_name.trim() || null,
           school: form.school.trim() || null,
           city: form.city.trim() || null,
+          avatar_url: form.avatar_url.trim() || null,
           grade_level:
             form.grade_level.trim() === ""
               ? null
@@ -100,6 +106,38 @@ export default function SettingsPage() {
       setError(err instanceof Error ? err.message : "Не удалось сохранить настройки");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    if (!accessToken) return;
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setUploadingAvatar(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}/me/profile/avatar`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: formData,
+      });
+      const body = await response.json().catch(() => null);
+      if (!response.ok) {
+        throw new Error(body?.message ?? "Не удалось загрузить аватар");
+      }
+      setForm((s) => ({ ...s, avatar_url: body.avatar_url ?? "" }));
+      setSuccess("Аватар загружен");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось загрузить аватар");
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = "";
     }
   };
 
@@ -121,6 +159,35 @@ export default function SettingsPage() {
             <p className="text-sm text-slate-500">Загрузка...</p>
           ) : (
             <div className="space-y-3">
+              <div className="rounded-xl border border-gray-200 bg-slate-50 p-3">
+                <p className="mb-2 text-sm font-medium text-slate-700">Аватар</p>
+                <div className="flex items-center gap-3">
+                  <img
+                    src={form.avatar_url || "/images/default-avatar.png"}
+                    alt="avatar"
+                    className="h-16 w-16 rounded-2xl border border-gray-200 object-cover"
+                  />
+                  <div className="flex gap-2">
+                    <label className="cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                      {uploadingAvatar ? "Загрузка..." : "Загрузить"}
+                      <input
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={handleAvatarUpload}
+                        disabled={uploadingAvatar}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setForm((s) => ({ ...s, avatar_url: "" }))}
+                      className="rounded-lg border border-gray-300 px-3 py-2 text-sm text-slate-700 hover:bg-gray-50"
+                    >
+                      Сбросить
+                    </button>
+                  </div>
+                </div>
+              </div>
               <Field
                 label="Имя"
                 value={form.full_name}

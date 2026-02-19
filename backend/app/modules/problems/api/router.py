@@ -220,6 +220,7 @@ async def list_all_problems(
     per_page: int = Query(default=20, ge=1, le=100),
     problem_status: ProblemStatus | None = Query(default=None, alias="status"),
     subject_id: uuid.UUID | None = Query(default=None),
+    topic_id: uuid.UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user=Depends(
         require_roles(
@@ -234,6 +235,7 @@ async def list_all_problems(
     problems, total = await svc.list_all(
         status=problem_status,
         subject_id=subject_id,
+        topic_id=topic_id,
         offset=offset,
         limit=per_page,
     )
@@ -282,4 +284,3 @@ async def reject_problem(
     svc = ProblemService(session)
     problem = await svc.reject_problem(problem_id)
     return to_problem_admin_out(problem)
-

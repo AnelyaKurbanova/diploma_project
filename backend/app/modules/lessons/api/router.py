@@ -13,6 +13,7 @@ from app.modules.lessons.api.schemas import (
     ContentBlockOut,
     ContentBlockUpdate,
     LessonCreate,
+    LessonCreateIn,
     LessonDetailOut,
     LessonOut,
     LessonProgressOut,
@@ -39,7 +40,15 @@ async def list_lessons_for_topic(
     current_user=Depends(get_current_user),
 ):
     svc = LessonService(session)
-    return await svc.list_for_topic(topic_id)
+    privileged_roles = {
+        UserRole.CONTENT_MAKER,
+        UserRole.MODERATOR,
+        UserRole.ADMIN,
+    }
+    return await svc.list_for_topic(
+        topic_id,
+        only_published=current_user.role not in privileged_roles,
+    )
 
 
 @router.post(
@@ -49,16 +58,19 @@ async def list_lessons_for_topic(
 )
 async def create_lesson(
     topic_id: uuid.UUID,
-    body: LessonCreate,
+    body: LessonCreateIn,
     session: AsyncSession = Depends(get_session),
     current_user=Depends(
         require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
     ),
 ):
-    # Ensure topic_id from path is used
-    body.topic_id = topic_id
     svc = LessonService(session)
-    return await svc.create(body)
+    payload = LessonCreate(
+        topic_id=topic_id,
+        title=body.title,
+        order_no=body.order_no,
+    )
+    return await svc.create(payload)
 
 
 @router.get(
@@ -71,7 +83,15 @@ async def get_lesson_detail(
     current_user=Depends(get_current_user),
 ):
     svc = LessonService(session)
-    return await svc.get_detail(lesson_id)
+    privileged_roles = {
+        UserRole.CONTENT_MAKER,
+        UserRole.MODERATOR,
+        UserRole.ADMIN,
+    }
+    return await svc.get_detail(
+        lesson_id,
+        only_published=current_user.role not in privileged_roles,
+    )
 
 
 @router.patch(
@@ -104,6 +124,60 @@ async def delete_lesson(
     svc = LessonService(session)
     await svc.delete(lesson_id)
     return None
+
+
+@router.post(
+    "/lessons/{lesson_id}/submit-review",
+    response_model=LessonOut,
+)
+async def submit_lesson_for_review(
+    lesson_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
+    ),
+):
+    svc = LessonService(session)
+    return await svc.submit_for_review(lesson_id)
+
+
+@router.post(
+    "/lessons/{lesson_id}/publish",
+    response_model=LessonOut,
+)
+async def publish_lesson(
+    lesson_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(require_roles(UserRole.MODERATOR, UserRole.ADMIN)),
+):
+    svc = LessonService(session)
+    return await svc.publish(lesson_id)
+
+
+@router.post(
+    "/lessons/{lesson_id}/reject",
+    response_model=LessonOut,
+)
+async def reject_lesson(
+    lesson_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(require_roles(UserRole.MODERATOR, UserRole.ADMIN)),
+):
+    svc = LessonService(session)
+    return await svc.reject(lesson_id)
+
+
+@router.post(
+    "/lessons/{lesson_id}/archive",
+    response_model=LessonOut,
+)
+async def archive_lesson(
+    lesson_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(require_roles(UserRole.MODERATOR, UserRole.ADMIN)),
+):
+    svc = LessonService(session)
+    return await svc.archive(lesson_id)
 
 
 # ------------------------------------------------------------------
@@ -188,6 +262,14 @@ async def get_topic_progress(
     current_user=Depends(get_current_user),
 ):
     svc = LessonService(session)
-    lessons = await svc.list_for_topic(topic_id)
+    privileged_roles = {
+        UserRole.CONTENT_MAKER,
+        UserRole.MODERATOR,
+        UserRole.ADMIN,
+    }
+    lessons = await svc.list_for_topic(
+        topic_id,
+        only_published=current_user.role not in privileged_roles,
+    )
     lesson_ids = [l.id for l in lessons]
     return await svc.get_progress(current_user.id, lesson_ids)

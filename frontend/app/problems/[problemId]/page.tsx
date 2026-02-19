@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { apiGet } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
@@ -88,6 +88,7 @@ export default function ProblemDetailsPage() {
   const { problemId } = useParams<{ problemId: string }>();
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -224,6 +225,12 @@ export default function ProblemDetailsPage() {
 
   const userName = profile.full_name ?? user.email.split("@")[0];
   const userRole = user.role ?? "student";
+  const returnTo = searchParams.get("return_to");
+  const backHref =
+    returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+      ? returnTo
+      : "/problems";
+  const backLabel = backHref === "/problems" ? "Назад к задачам" : "Назад к лекции";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -232,10 +239,10 @@ export default function ProblemDetailsPage() {
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <button
           type="button"
-          onClick={() => router.push("/problems")}
+          onClick={() => router.push(backHref)}
           className="mb-4 text-sm font-medium text-blue-600 hover:text-blue-700"
         >
-          Назад к задачам
+          {backLabel}
         </button>
 
         {loadError && (

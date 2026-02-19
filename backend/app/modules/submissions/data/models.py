@@ -13,7 +13,6 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -76,10 +75,6 @@ class SubmissionModel(Base):
 class SubmissionChoiceMapModel(Base):
     __tablename__ = "submission_choice_map"
 
-    __table_args__ = (
-        UniqueConstraint("submission_id", "choice_id", name="uq_submission_choice"),
-    )
-
     submission_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("submissions.id", ondelete="CASCADE"),
@@ -90,4 +85,3 @@ class SubmissionChoiceMapModel(Base):
         ForeignKey("problem_choices.id", ondelete="CASCADE"),
         primary_key=True,
     )
-

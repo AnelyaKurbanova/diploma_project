@@ -9,6 +9,7 @@ import { AdminTabs } from "@/components/admin/admin-tabs";
 import { UsersTable } from "@/components/admin/users-table";
 import { SubjectsForm } from "@/components/admin/subjects-form";
 import { TopicsForm } from "@/components/admin/topics-form";
+import { LessonsForm } from "@/components/admin/lessons-form";
 import { ProblemsForm } from "@/components/admin/problems-form";
 import { ReviewQueue } from "@/components/admin/review-queue";
 import { SchoolsTab } from "@/components/admin/schools-tab";
@@ -69,6 +70,14 @@ function TasksIcon() {
   );
 }
 
+function LessonsIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+    </svg>
+  );
+}
+
 function ReviewIcon() {
   return (
     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -123,6 +132,7 @@ export default function AdminPage() {
     items.push(
       { id: "subjects", label: "Предметы", icon: <SubjectsIcon /> },
       { id: "topics", label: "Темы", icon: <TopicsIcon /> },
+      { id: "lessons", label: "Лекции", icon: <LessonsIcon /> },
       { id: "problems", label: "Задачи", icon: <TasksIcon /> },
       { id: "review", label: "На проверке", icon: <ReviewIcon /> },
     );
@@ -179,6 +189,10 @@ export default function AdminPage() {
 
         {activeTab === "topics" && (
           <TopicsForm accessToken={accessToken!} />
+        )}
+
+        {activeTab === "lessons" && (
+          <LessonsForm accessToken={accessToken!} userRole={userRole} />
         )}
 
         {activeTab === "problems" && (

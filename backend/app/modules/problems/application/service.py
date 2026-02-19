@@ -163,12 +163,14 @@ class ProblemService:
         *,
         status: ProblemStatus | None = None,
         subject_id: uuid.UUID | None = None,
+        topic_id: uuid.UUID | None = None,
         offset: int = 0,
         limit: int = 50,
     ) -> tuple[list[ProblemModel], int]:
         return await self.repo.list_problems_paginated(
             status=status,
             subject_id=subject_id,
+            topic_id=topic_id,
             offset=offset,
             limit=limit,
         )
