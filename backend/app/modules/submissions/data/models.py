@@ -10,6 +10,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Integer,
+    JSON,
     Numeric,
     String,
     Text,
@@ -70,6 +71,8 @@ class SubmissionModel(Base):
 
     answer_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     answer_numeric: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+
+    grading_trace: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class SubmissionChoiceMapModel(Base):

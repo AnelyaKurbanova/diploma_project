@@ -17,11 +17,6 @@ class ClassService:
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = ClassRepo(session)
-
-    # ------------------------------------------------------------------ #
-    # Helpers                                                            #
-    # ------------------------------------------------------------------ #
-
     @staticmethod
     def _assert_teacher(current_user) -> None:
         if current_user.role != UserRole.TEACHER:
@@ -29,7 +24,6 @@ class ClassService:
 
     async def _generate_unique_join_code(self, length: int = 8) -> str:
         alphabet = string.ascii_uppercase + string.digits
-        # Исключаем потенциально двусмысленные символы
         alphabet = alphabet.replace("O", "").replace("I", "").replace("0", "").replace("1", "")
 
         while True:
@@ -37,10 +31,6 @@ class ClassService:
             existing = await self.repo.get_by_join_code(code)
             if existing is None:
                 return code
-
-    # ------------------------------------------------------------------ #
-    # Teacher-facing operations                                          #
-    # ------------------------------------------------------------------ #
 
     async def create_class(self, current_user, name: str):
         self._assert_teacher(current_user)
@@ -75,10 +65,6 @@ class ClassService:
             raise NotFound("Класс не найден")
         return row
 
-    async def list_students_for_teacher(self, current_user, class_id: uuid.UUID):
-        cls = await self.get_class_for_teacher(current_user, class_id)
-        return await self.repo.list_students(cls.id)
-
     async def remove_student_from_class(
         self,
         current_user,
@@ -94,10 +80,6 @@ class ClassService:
         await self.repo.delete_class(cls.id)
         await self.session.commit()
 
-    # ------------------------------------------------------------------ #
-    # Student-facing operations                                          #
-    # ------------------------------------------------------------------ #
-
     async def join_by_code(self, current_user, join_code: str):
         if current_user.role != UserRole.STUDENT:
             raise Forbidden("Присоединяться к классам могут только ученики")
@@ -110,11 +92,10 @@ class ClassService:
         if not cls:
             raise NotFound("Класс с таким кодом не найден")
 
-        # Попробуем добавить ученика; если уже есть уникальное ограничение просто проглотим
         try:
             await self.repo.add_student(class_id=cls.id, student_id=current_user.id)
             await self.session.commit()
-        except Exception:  # pragma: no cover - защитный код, конкретную ошибку перехватит БД
+        except Exception:
             await self.session.rollback()
 
         return cls
@@ -129,11 +110,6 @@ class ClassService:
         current_user,
         class_id: uuid.UUID,
     ):
-        """Простая версия статистики по классу.
-
-        Сейчас считаем средний overall_progress по ученикам,
-        используя существующий DashboardService.
-        """
         cls = await self.get_class_for_teacher(current_user, class_id)
         students = await self.repo.list_students(cls.id)
         total_students = len(students)

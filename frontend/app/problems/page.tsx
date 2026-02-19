@@ -35,6 +35,16 @@ type ProfileResponse = {
   [key: string]: unknown;
 };
 
+type SubmissionProgress = {
+  has_attempt: boolean;
+  last_status: "pending" | "graded" | "needs_review" | null;
+  last_is_correct: boolean | null;
+  last_score: number | null;
+  last_answer_choice_ids: string[] | null;
+  last_answer_text: string | null;
+  last_created_at: string | null;
+};
+
 const DIFFICULTY_LABELS: Record<string, string> = {
   easy: "Легкая",
   medium: "Средняя",
@@ -55,6 +65,7 @@ export default function ProblemsPage() {
   const [problems, setProblems] = useState<Problem[]>([]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all");
   const [loadError, setLoadError] = useState<string | null>(null);
+   const [progressByProblem, setProgressByProblem] = useState<Record<string, SubmissionProgress>>({});
 
   useEffect(() => {
     if (isLoading) return;
@@ -94,10 +105,57 @@ export default function ProblemsPage() {
     })();
   }, [accessToken, profile]);
 
+  useEffect(() => {
+    if (!accessToken || !profile) return;
+    if (problems.length === 0) return;
+
+    const ids = problems.map((p) => p.id).join(",");
+    if (!ids) return;
+
+    (async () => {
+      try {
+        const res = await apiGet<{ items: Array<SubmissionProgress & { problem_id: string }> }>(
+          `/submissions/last?problem_ids=${encodeURIComponent(ids)}`,
+          accessToken,
+        );
+        const map: Record<string, SubmissionProgress> = {};
+        for (const item of res.items ?? []) {
+          const { problem_id, ...rest } = item;
+          map[problem_id] = rest;
+        }
+        setProgressByProblem(map);
+      } catch {
+      }
+    })();
+  }, [accessToken, profile, problems]);
+
   const filteredProblems = useMemo(() => {
     if (selectedDifficulty === "all") return problems;
     return problems.filter((p) => p.difficulty === selectedDifficulty);
   }, [problems, selectedDifficulty]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || filteredProblems.length === 0) return;
+    const solvedIds = filteredProblems
+      .filter(
+        (p) =>
+          progressByProblem[p.id]?.last_status === "graded" &&
+          progressByProblem[p.id]?.last_is_correct === true,
+      )
+      .map((p) => p.id);
+    try {
+      window.sessionStorage.setItem(
+        "problems_nav",
+        JSON.stringify({
+          ids: filteredProblems.map((p) => p.id),
+          filter: selectedDifficulty,
+          solvedIds,
+        }),
+      );
+    } catch {
+      // ignore
+    }
+  }, [filteredProblems, selectedDifficulty, progressByProblem]);
 
   if (isLoading || !user || !profile) {
     return (
@@ -176,6 +234,20 @@ export default function ProblemsPage() {
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
                     {problem.points} балл.
                   </span>
+                  {progressByProblem[problem.id]?.has_attempt &&
+                    progressByProblem[problem.id]?.last_status === "graded" && (
+                      <span
+                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                          progressByProblem[problem.id]?.last_is_correct
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-rose-50 text-rose-700"
+                        }`}
+                      >
+                        {progressByProblem[problem.id]?.last_is_correct
+                          ? "Решена"
+                          : "Пока неверно"}
+                      </span>
+                    )}
                 </div>
                 <h2 className="text-base font-semibold text-slate-900">
                   {problem.title}

@@ -30,13 +30,22 @@ def _cors_headers_for_request(request: Request) -> dict[str, str]:
             "Vary": "Origin",
         }
     return {}
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-# Обязательно для Google OAuth (request.session)
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SESSION_SECRET,
     same_site="lax",
-    https_only=settings.COOKIE_SECURE,  # false локально, true в prod
+    https_only=settings.COOKIE_SECURE,  
     max_age=600,
 )
 
@@ -72,6 +81,12 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "message": str(exc) if settings.DEBUG else "Internal server error",
         },
         headers=_cors_headers_for_request(request),
+async def unhandled_exception_handler(_: Request, __: Exception):
+    from app.core.i18n import tr
+
+    return JSONResponse(
+        status_code=500,
+        content={"error": "internal_server_error", "message": tr("internal_server_error")},
     )
 
 app.include_router(api_router)

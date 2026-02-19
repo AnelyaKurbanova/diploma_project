@@ -150,9 +150,6 @@ async def remove_student(
     return None
 
 
-# ------------------------- Student endpoints ------------------------- #
-
-
 @router.post("/me/join", response_model=StudentClassOut)
 async def join_class(
     body: JoinClassIn,
@@ -162,12 +159,10 @@ async def join_class(
     svc = ClassService(session)
     cls = await svc.join_by_code(current_user, body.join_code)
 
-    # Найдём запись ClassStudentModel для определения joined_at
     repo = ClassRepo(session)
     links = await repo.list_students(cls.id)
     link = next((l for l in links if l.student_id == current_user.id), None)
 
-    # teacher profile/name
     teacher = await session.get(UserModel, cls.teacher_id)
     teacher_profiles = UserProfileRepo(session)
     teacher_profile = await teacher_profiles.get_by_user_id(cls.teacher_id)
@@ -176,7 +171,6 @@ async def join_class(
         or (teacher.email if teacher else None)
     )
 
-    # Простейшая статистика для ученика в рамках класса — берём общий прогресс
     stats = await ClassService(session).get_class_stats_for_teacher(
         current_user=teacher,  # type: ignore[arg-type]
         class_id=cls.id,
@@ -205,8 +199,7 @@ async def list_my_classes_student(
     teacher_profiles = UserProfileRepo(session)
     result: list[StudentClassOut] = []
 
-    for cls in rows:
-        # Находим запись с joined_at
+    for cls in rows:    
         links = await repo.list_students(cls.id)
         link = next((l for l in links if l.student_id == current_user.id), None)
 

@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     RL_OTP_PER_EMAIL_PER_HOUR: int = 5
     RL_OTP_PER_IP_PER_HOUR: int = 20
     RL_VERIFY_PER_IP_PER_15MIN: int = 50
+    RL_SUBMISSIONS_PER_USER_PER_MINUTE: int = 30
 
     SESSION_SECRET: str
 
@@ -58,5 +59,15 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
+    # LLM answer normalization (OpenAI)
+    OPENAI_API_KEY: str | None = None
+    LLM_MODEL_NAME: str = "gpt-4o-mini"
+    LLM_NORMALIZER_TIMEOUT_SEC: float = 10.0
+
+    # AWS S3 (problem images)
+    AWS_ACCESS_KEY_ID: str | None = None
+    AWS_SECRET_ACCESS_KEY: str | None = None
+    AWS_REGION: str = "eu-north-1"
+    S3_BUCKET: str = "ph8-bucket"
 
 settings = Settings()

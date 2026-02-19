@@ -10,6 +10,7 @@ from sqlalchemy import func, select, union_all
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequest, NotFound
+from app.core.i18n import tr
 from app.core.security import verify_teacher_code
 from app.data.db.session import get_session
 from app.modules.auth.deps import get_current_user
@@ -177,16 +178,10 @@ async def get_my_profile(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    """
-    Return merged user + profile information for the current user.
-
-    If profile does not exist yet, this means onboarding has not been completed.
-    """
     profiles = UserProfileRepo(session)
     profile = await profiles.get_by_user_id(current_user.id)
     if not profile:
-        # Onboarding is required before profile can be returned
-        raise NotFound("Profile not initialized")
+        raise NotFound(tr("profile_not_initialized"))
 
     return _to_profile_out(current_user, profile)
 
@@ -205,6 +200,60 @@ async def get_my_social(
         request_repo,
         current_user.id,
         limit=20,
+    friend_ids: set = set()
+
+    if current_user.role == UserRole.STUDENT:
+        class_ids_stmt = select(ClassStudentModel.class_id).where(
+            ClassStudentModel.student_id == current_user.id,
+        )
+        class_ids = (await session.execute(class_ids_stmt)).scalars().all()
+        if class_ids:
+            classmates_stmt = select(ClassStudentModel.student_id).where(
+                ClassStudentModel.class_id.in_(class_ids),
+                ClassStudentModel.student_id != current_user.id,
+            )
+            teacher_ids_stmt = select(ClassModel.teacher_id).where(
+                ClassModel.id.in_(class_ids),
+                ClassModel.teacher_id != current_user.id,
+            )
+            friend_ids.update((await session.execute(classmates_stmt)).scalars().all())
+            friend_ids.update((await session.execute(teacher_ids_stmt)).scalars().all())
+    elif current_user.role == UserRole.TEACHER:
+        class_ids_stmt = select(ClassModel.id).where(ClassModel.teacher_id == current_user.id)
+        class_ids = (await session.execute(class_ids_stmt)).scalars().all()
+        if class_ids:
+            students_stmt = select(ClassStudentModel.student_id).where(
+                ClassStudentModel.class_id.in_(class_ids),
+            )
+            friend_ids.update((await session.execute(students_stmt)).scalars().all())
+
+    friends: list[FriendOut] = []
+    if friend_ids:
+        friend_rows_stmt = (
+            select(UserModel, UserProfileModel)
+            .outerjoin(UserProfileModel, UserProfileModel.user_id == UserModel.id)
+            .where(UserModel.id.in_(list(friend_ids)))
+            .order_by(UserModel.created_at.desc())
+            .limit(20)
+        )
+        rows = (await session.execute(friend_rows_stmt)).all()
+        for user_row, profile_row in rows:
+            display_name = (
+                profile_row.full_name
+                if profile_row and profile_row.full_name
+                else user_row.email.split("@")[0]
+            )
+            friends.append(
+                FriendOut(
+                    id=user_row.id,
+                    full_name=display_name,
+                    role=user_row.role,
+                )
+            )
+
+    sub_q = (
+        select(func.date(SubmissionModel.submitted_at).label("date"))
+        .where(SubmissionModel.user_id == current_user.id)
     )
     outgoing_requests = await request_repo.list_outgoing(current_user.id)
     outgoing_request_user_ids = [row.target_id for row in outgoing_requests]
@@ -376,15 +425,10 @@ async def update_my_profile(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    """
-    Update profile fields for the current user.
-
-    Requires that onboarding has already created a profile.
-    """
     profiles = UserProfileRepo(session)
     profile = await profiles.get_by_user_id(current_user.id)
     if not profile:
-        raise NotFound("Profile not initialized")
+        raise NotFound(tr("profile_not_initialized"))
 
     if body.full_name is not None:
         profile.full_name = body.full_name
@@ -401,8 +445,7 @@ async def update_my_profile(
     if body.timezone is not None:
         profile.timezone = body.timezone
 
-    await session.flush()
-    # Ensure all server-side defaults (e.g. updated_at) are loaded in async context
+    await session.flush()   
     await session.refresh(profile)
     await session.commit()
 
@@ -465,10 +508,6 @@ async def complete_onboarding(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    """
-    Create or update the profile for the current user based on onboarding answers.
-    For teachers: school_id and teacher_code are required; code is verified against school.
-    """
     profiles = UserProfileRepo(session)
     profile = await profiles.get_by_user_id(current_user.id)
     now = datetime.now(timezone.utc)
@@ -478,7 +517,7 @@ async def complete_onboarding(
 
     if body.is_teacher:
         school_repo = SchoolRepo(session)
-        school = await school_repo.get_by_id(body.school_id)  # type: ignore[arg-type]
+        school = await school_repo.get_by_id(body.school_id)
         if not school:
             raise BadRequest("Школа не найдена")
         if not verify_teacher_code((body.teacher_code or "").strip(), school.teacher_code_hash):
@@ -499,7 +538,6 @@ async def complete_onboarding(
         profile.intro_difficulties = body.difficulties
         profile.intro_notes = body.notes
 
-    # Default full_name from email (part before @) when not provided
     if body.full_name and body.full_name.strip():
         profile.full_name = body.full_name.strip()
     else:

@@ -81,7 +81,7 @@ async function postAuthWithCsrf<T>(path: string): Promise<T> {
     const errorBody = isJson ? await response.json().catch(() => null) : null;
     const message =
       (errorBody && (errorBody.message ?? errorBody.detail)) ??
-      `Auth request to ${path} failed with status ${response.status}`;
+      `Ошибка авторизации: запрос ${path} (статус ${response.status})`;
     const error = new Error(message) as Error & {
       status?: number;
       body?: unknown;

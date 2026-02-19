@@ -33,10 +33,10 @@ async def register_start(
         ip=request.client.host if request.client else None,
         ua=request.headers.get("user-agent"),
     )
-    # Fire-and-forget email sending in background task
     if code:
         background_tasks.add_task(send_verification_email, body.email, code, "register")
-    return MessageOut(message="If email is eligible, verification code was sent")
+    from app.core.i18n import tr
+    return MessageOut(message=tr("otp_sent_if_eligible"))
 
 
 @router.post("/register/verify", response_model=AccessTokenOut)
@@ -66,7 +66,8 @@ async def login_email_start(
     )
     if code:
         background_tasks.add_task(send_verification_email, body.email, code, "login")
-    return MessageOut(message="If email is eligible, verification code was sent")
+    from app.core.i18n import tr
+    return MessageOut(message=tr("otp_sent_if_eligible"))
 
 
 @router.post("/login/email/verify", response_model=AccessTokenOut)
@@ -123,7 +124,8 @@ async def refresh(request: Request, response: Response, session: AsyncSession = 
     refresh_token = request.cookies.get(REFRESH_COOKIE)
     if not refresh_token:
         from app.core.errors import Unauthorized
-        raise Unauthorized("Missing refresh token")
+        from app.core.i18n import tr
+        raise Unauthorized(tr("missing_refresh_token"))
 
     csrf_plain = validate_double_submit(request)
 
@@ -151,8 +153,9 @@ async def logout(request: Request, response: Response, session: AsyncSession = D
             ua=request.headers.get("user-agent"),
         )
 
+    from app.core.i18n import tr
     clear_auth_cookies(response)
-    return MessageOut(message="Logged out")
+    return MessageOut(message=tr("logged_out"))
 
 
 @router.post("/logout-all", response_model=MessageOut)
@@ -163,8 +166,9 @@ async def logout_all(request: Request, response: Response, session: AsyncSession
         ip=request.client.host if request.client else None,
         ua=request.headers.get("user-agent"),
     )
+    from app.core.i18n import tr
     clear_auth_cookies(response)
-    return MessageOut(message="Logged out from all devices")
+    return MessageOut(message=tr("logged_out_all"))
 
 
 @router.get("/me")

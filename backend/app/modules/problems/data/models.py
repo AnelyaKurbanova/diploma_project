@@ -119,6 +119,11 @@ class ProblemModel(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    images: Mapped[list["ProblemImageModel"]] = relationship(
+        back_populates="problem",
+        cascade="all, delete-orphan",
+        order_by="ProblemImageModel.order_no",
+    )
 
 
 class ProblemTagModel(Base):
@@ -193,5 +198,32 @@ class ProblemAnswerKeyModel(Base):
     text_answer: Mapped[str | None] = mapped_column(String(255), nullable=True)
     answer_pattern: Mapped[str | None] = mapped_column(String(255), nullable=True)
     tolerance: Mapped[float | None] = mapped_column(Numeric, nullable=True)
+    canonical_answer: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
     problem: Mapped[ProblemModel] = relationship(back_populates="answer_keys")
+
+
+class ProblemImageModel(Base):
+    __tablename__ = "problem_images"
+
+    __table_args__ = (
+        UniqueConstraint("problem_id", "order_no", name="uq_problem_image_order"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+    problem_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("problems.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    url: Mapped[str] = mapped_column(String(1024), nullable=False)
+    order_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    alt_text: Mapped[str | None] = mapped_column(String(255), nullable=True)
+
+    problem: Mapped[ProblemModel] = relationship(back_populates="images")
+

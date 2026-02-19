@@ -25,10 +25,6 @@ class LessonService:
         self.session = session
         self.repo = LessonsRepo(session)
 
-    # ------------------------------------------------------------------
-    # Lessons CRUD
-    # ------------------------------------------------------------------
-
     async def create(self, data: LessonCreate) -> LessonOut:
         existing = await self.repo.get_first_lesson_for_topic(data.topic_id)
         if existing is not None:

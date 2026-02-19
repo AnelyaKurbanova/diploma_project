@@ -1,12 +1,26 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from "react";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
 import { Button, buttonClasses } from "@/components/ui/button";
 
 export default function EmailVerifyPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+        </div>
+      }
+    >
+      <EmailVerifyInner />
+    </Suspense>
+  );
+}
+
+function EmailVerifyInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
 

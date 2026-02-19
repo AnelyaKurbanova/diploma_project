@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.errors import NotFound
+from app.core.i18n import tr
 from app.modules.lessons.data.models import (
     BlockProblemMapModel,
     BlockType,
@@ -22,10 +23,6 @@ from app.modules.lessons.data.models import (
 class LessonsRepo:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
-
-    # ------------------------------------------------------------------
-    # Lessons
-    # ------------------------------------------------------------------
 
     async def create_lesson(
         self,
@@ -42,7 +39,7 @@ class LessonsRepo:
     async def get_lesson(self, lesson_id: uuid.UUID) -> LessonModel:
         row = await self.session.get(LessonModel, lesson_id)
         if not row:
-            raise NotFound("Lesson not found")
+            raise NotFound(tr("lesson_not_found"))
         return row
 
     async def get_lesson_with_blocks(self, lesson_id: uuid.UUID) -> LessonModel:
@@ -58,7 +55,7 @@ class LessonsRepo:
         result = await self.session.execute(stmt)
         row = result.scalar_one_or_none()
         if not row:
-            raise NotFound("Lesson not found")
+            raise NotFound(tr("lesson_not_found"))
         return row
 
     async def list_lessons_for_topic(
@@ -117,10 +114,6 @@ class LessonsRepo:
         await self.session.delete(row)
         await self.session.flush()
 
-    # ------------------------------------------------------------------
-    # Content blocks
-    # ------------------------------------------------------------------
-
     async def create_content_block(
         self,
         *,
@@ -164,7 +157,7 @@ class LessonsRepo:
     async def get_content_block(self, block_id: uuid.UUID) -> LessonContentBlockModel:
         row = await self.session.get(LessonContentBlockModel, block_id)
         if not row:
-            raise NotFound("Content block not found")
+            raise NotFound(tr("content_block_not_found"))
         return row
 
     async def update_content_block(
@@ -185,10 +178,6 @@ class LessonsRepo:
         await self.session.delete(row)
         await self.session.flush()
 
-    # ------------------------------------------------------------------
-    # Block ↔ Problem mapping
-    # ------------------------------------------------------------------
-
     async def set_block_problems(
         self,
         block_id: uuid.UUID,
@@ -199,6 +188,7 @@ class LessonsRepo:
         unique_problem_ids: list[uuid.UUID] = list(dict.fromkeys(problem_ids))
 
         # Delete existing
+    ) -> None:      
         stmt = select(BlockProblemMapModel).where(
             BlockProblemMapModel.content_block_id == block_id
         )
@@ -209,6 +199,7 @@ class LessonsRepo:
 
         # Insert new
         for idx, pid in enumerate(unique_problem_ids):
+        for idx, pid in enumerate(problem_ids):
             self.session.add(
                 BlockProblemMapModel(
                     content_block_id=block_id,
@@ -227,10 +218,6 @@ class LessonsRepo:
         rows = (await self.session.execute(stmt)).scalars().all()
         return [r.problem_id for r in rows]
 
-    # ------------------------------------------------------------------
-    # Legacy: problem ids via old lesson_problem_map
-    # ------------------------------------------------------------------
-
     async def list_problem_ids_for_lesson(self, lesson_id: uuid.UUID) -> list[uuid.UUID]:
         stmt = (
             select(LessonProblemMapModel)
@@ -241,10 +228,6 @@ class LessonsRepo:
             await self.session.execute(stmt)
         ).scalars().all()
         return [row.problem_id for row in rows]
-
-    # ------------------------------------------------------------------
-    # Progress
-    # ------------------------------------------------------------------
 
     async def get_progress(
         self, user_id: uuid.UUID, lesson_id: uuid.UUID

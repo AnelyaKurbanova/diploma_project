@@ -57,7 +57,6 @@ class LessonModel(Base):
         index=True,
     )
 
-    # Legacy field kept for backward compatibility during migration
     theory_body: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
@@ -72,10 +71,6 @@ class LessonModel(Base):
         order_by="LessonContentBlockModel.order_no",
     )
 
-
-# ---------------------------------------------------------------------------
-# Content block types
-# ---------------------------------------------------------------------------
 
 class BlockType(str, enum.Enum):
     LECTURE = "lecture"
@@ -108,11 +103,9 @@ class LessonContentBlockModel(Base):
     )
     order_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # --- lecture fields ---
     title: Mapped[str | None] = mapped_column(String(255), nullable=True)
     body: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # --- video fields ---
     video_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     video_description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -156,10 +149,6 @@ class BlockProblemMapModel(Base):
     )
 
 
-# ---------------------------------------------------------------------------
-# Legacy mapping (kept for backward compat / migration)
-# ---------------------------------------------------------------------------
-
 class LessonProblemMapModel(Base):
     __tablename__ = "lesson_problem_map"
 
@@ -175,10 +164,6 @@ class LessonProblemMapModel(Base):
     )
     order_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-
-# ---------------------------------------------------------------------------
-# Progress
-# ---------------------------------------------------------------------------
 
 class LessonProgressModel(Base):
     __tablename__ = "lesson_progress"

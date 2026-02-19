@@ -7,6 +7,7 @@ from redis.asyncio import from_url as redis_from_url
 
 from app.settings import settings
 from app.core.errors import BadRequest, Unauthorized, TooManyRequests
+from app.core.i18n import tr
 from app.modules.users.data.repo import UserRepo, UserProfileRepo
 from app.modules.auth.data.repo import AuthRepo
 from app.modules.auth.security.tokens import (
@@ -37,13 +38,6 @@ class AuthService:
 
     @asynccontextmanager
     async def _tx(self):
-        """
-        Transaction helper.
-
-        - If a transaction is already in progress (autobegun by SQLAlchemy),
-          run the block and explicitly COMMIT/ROLLBACK on exit.
-        - Otherwise, open a new transaction with `session.begin()`.
-        """
         if self.session.in_transaction():
             try:
                 yield
@@ -57,15 +51,14 @@ class AuthService:
 
     async def register_start(self, email: str, ip: str | None, ua: str | None) -> str:
         email = email.lower().strip()
-        await self._rl.enforce(f"otp:email:{email}", settings.RL_OTP_PER_EMAIL_PER_HOUR, 3600, "Too many OTP requests")
+        await self._rl.enforce(f"otp:email:{email}", settings.RL_OTP_PER_EMAIL_PER_HOUR, 3600, tr("too_many_otp"))
         if ip:
-            await self._rl.enforce(f"otp:ip:{ip}", settings.RL_OTP_PER_IP_PER_HOUR, 3600, "Too many OTP requests from IP")
+            await self._rl.enforce(f"otp:ip:{ip}", settings.RL_OTP_PER_IP_PER_HOUR, 3600, tr("too_many_otp_ip"))
 
         async with self._tx():
             user = await self.users.get_by_email(email)
-            # If user already fully registered, do not allow re-registration
             if user and user.is_email_verified:
-                raise BadRequest("User with this email already exists")
+                raise BadRequest(tr("user_already_exists"))
 
             code = generate_otp_code()
 
@@ -74,7 +67,7 @@ class AuthService:
 
             current = await self.auth.get_latest_active_verification(user.id, "register")
             if current and current.resend_not_before and current.resend_not_before > now_utc():
-                raise TooManyRequests("Please wait before requesting a new code")
+                raise TooManyRequests(tr("wait_before_resend"))
 
             await self.auth.upsert_verification(
                 user_id=user.id,
@@ -85,31 +78,30 @@ class AuthService:
             )
             await self.audit.log("otp_sent", user.id, ip, ua, {"purpose": "register"})
 
-        # Return code for caller (API layer) to send email asynchronously
         return code
 
     async def register_verify(self, email: str, code: str, ip: str | None, ua: str | None):
         if ip:
-            await self._rl.enforce(f"verify:ip:{ip}", settings.RL_VERIFY_PER_IP_PER_15MIN, 900, "Too many verify attempts")
+            await self._rl.enforce(f"verify:ip:{ip}", settings.RL_VERIFY_PER_IP_PER_15MIN, 900, tr("too_many_verify"))
 
         email = email.lower().strip()
         user = await self.users.get_by_email(email)
         if not user:
-            raise BadRequest("Invalid code or email")
+            raise BadRequest(tr("invalid_code_or_email"))
 
         async with self._tx():
             ver = await self.auth.get_latest_active_verification(user.id, "register")
             if not ver or is_expired(ver.expires_at):
                 await self.audit.log("otp_expired_or_missing", user.id, ip, ua, {"purpose": "register"})
-                raise BadRequest("Invalid or expired code")
+                raise BadRequest(tr("invalid_or_expired_code"))
             if attempts_exceeded(ver.attempts):
                 await self.audit.log("otp_attempts_exceeded", user.id, ip, ua, {"purpose": "register"})
-                raise TooManyRequests("Too many attempts")
+                raise TooManyRequests(tr("too_many_attempts"))
 
             if not verify_otp_code(code, ver.code_hash):
                 await self.auth.inc_attempt(ver)
                 await self.audit.log("otp_verify_failed", user.id, ip, ua, {"purpose": "register"})
-                raise BadRequest("Invalid code")
+                raise BadRequest(tr("invalid_code"))
 
             await self.auth.consume_verification(ver)
             user.is_email_verified = True
@@ -119,24 +111,22 @@ class AuthService:
 
     async def login_email_start(self, email: str, ip: str | None, ua: str | None) -> str | None:
         email = email.lower().strip()
-        await self._rl.enforce(f"otp:email:{email}", settings.RL_OTP_PER_EMAIL_PER_HOUR, 3600, "Too many OTP requests")
+        await self._rl.enforce(f"otp:email:{email}", settings.RL_OTP_PER_EMAIL_PER_HOUR, 3600, tr("too_many_otp"))
         if ip:
-            await self._rl.enforce(f"otp:ip:{ip}", settings.RL_OTP_PER_IP_PER_HOUR, 3600, "Too many OTP requests from IP")
+            await self._rl.enforce(f"otp:ip:{ip}", settings.RL_OTP_PER_IP_PER_HOUR, 3600, tr("too_many_otp_ip"))
 
         user = await self.users.get_by_email(email)
-        # Если пользователя с таким email нет — сразу явная ошибка
         if not user:
-            raise BadRequest("Пользователь с таким email не найден")
-        # Для неактивных/неподтверждённых продолжаем нейтральное поведение
+            raise BadRequest(tr("user_not_found"))
         if not user.is_active or not user.is_email_verified:
-            return None  # neutral response
+            return None 
 
         code = generate_otp_code()
 
         async with self._tx():
             current = await self.auth.get_latest_active_verification(user.id, "login")
             if current and current.resend_not_before and current.resend_not_before > now_utc():
-                raise TooManyRequests("Please wait before requesting a new code")
+                raise TooManyRequests(tr("wait_before_resend"))
 
             await self.auth.upsert_verification(
                 user_id=user.id,
@@ -147,32 +137,30 @@ class AuthService:
             )
             await self.audit.log("otp_sent", user.id, ip, ua, {"purpose": "login"})
 
-        # Return code for caller (API layer) to send email asynchronously
         return code
 
     async def login_email_verify(self, email: str, code: str, ip: str | None, ua: str | None):
         if ip:
-            await self._rl.enforce(f"verify:ip:{ip}", settings.RL_VERIFY_PER_IP_PER_15MIN, 900, "Too many verify attempts")
+            await self._rl.enforce(f"verify:ip:{ip}", settings.RL_VERIFY_PER_IP_PER_15MIN, 900, tr("too_many_verify"))
 
         email = email.lower().strip()
         user = await self.users.get_by_email(email)
-        # Login is allowed only for active and email-verified users
         if not user or not user.is_active or not user.is_email_verified:
-            raise Unauthorized("Invalid credentials")
+            raise Unauthorized(tr("invalid_credentials"))
 
         async with self._tx():
             ver = await self.auth.get_latest_active_verification(user.id, "login")
             if not ver or is_expired(ver.expires_at):
                 await self.audit.log("otp_expired_or_missing", user.id, ip, ua, {"purpose": "login"})
-                raise Unauthorized("Invalid or expired code")
+                raise Unauthorized(tr("invalid_or_expired_code"))
             if attempts_exceeded(ver.attempts):
                 await self.audit.log("otp_attempts_exceeded", user.id, ip, ua, {"purpose": "login"})
-                raise TooManyRequests("Too many attempts")
+                raise TooManyRequests(tr("too_many_attempts"))
 
             if not verify_otp_code(code, ver.code_hash):
                 await self.auth.inc_attempt(ver)
                 await self.audit.log("otp_verify_failed", user.id, ip, ua, {"purpose": "login"})
-                raise Unauthorized("Invalid code")
+                raise Unauthorized(tr("invalid_code"))
 
             await self.auth.consume_verification(ver)
             access, refresh, csrf = await self._issue_session(user.id, ip, ua)
@@ -181,7 +169,7 @@ class AuthService:
 
     async def login_google(self, sub: str, email: str, email_verified: bool, ip: str | None, ua: str | None):
         if not email_verified:
-            raise Unauthorized("Google email is not verified")
+            raise Unauthorized(tr("google_email_not_verified"))
 
         email = email.lower().strip()
 
@@ -204,12 +192,12 @@ class AuthService:
     async def refresh(self, refresh_token: str, csrf_token_plain: str, ip: str | None, ua: str | None):
         payload = decode_token(refresh_token)
         if payload.get("type") != "refresh":
-            raise Unauthorized("Invalid refresh token")
+            raise Unauthorized(tr("invalid_refresh_token"))
 
         sub = payload.get("sub")
         jti = payload.get("jti")
         if not sub or not jti:
-            raise Unauthorized("Invalid refresh token")
+            raise Unauthorized(tr("invalid_refresh_token"))
 
         session_id = uuid.UUID(jti)
         user_id = uuid.UUID(sub)
@@ -217,13 +205,12 @@ class AuthService:
         async with self._tx():
             row = await self.auth.get_refresh_session(session_id)
             if not row or row.revoked_at is not None or row.expires_at < now_utc():
-                raise Unauthorized("Refresh session expired")
+                raise Unauthorized(tr("session_expired"))
 
-            # reuse detection
             if row.refresh_hash != hash_value(refresh_token):
                 await self.auth.revoke_all_user_sessions(user_id)
                 await self.audit.log("refresh_reuse_detected", user_id, ip, ua)
-                raise Unauthorized("Session compromised. Please login again.")
+                raise Unauthorized(tr("session_compromised"))
 
             validate_csrf_hash(csrf_token_plain, row.csrf_hash)
 

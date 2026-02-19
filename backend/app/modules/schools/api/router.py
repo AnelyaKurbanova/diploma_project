@@ -19,10 +19,6 @@ router = APIRouter(prefix="/schools", tags=["schools"])
 
 
 def _generate_teacher_code(length: int = 12) -> str:
-    """Generate a human-friendly random teacher code.
-
-    Uses a Base32-like alphabet without ambiguous characters (O, I, 0, 1).
-    """
     alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
     return "".join(secrets.choice(alphabet) for _ in range(length))
 
@@ -31,7 +27,6 @@ def _generate_teacher_code(length: int = 12) -> str:
 async def list_schools(
     session: AsyncSession = Depends(get_session),
 ):
-    """List all schools for onboarding dropdown. Does not expose teacher_code or hash."""
     repo = SchoolRepo(session)
     schools = await repo.list_all()
     return [SchoolOut(id=s.id, name=s.name) for s in schools]
@@ -42,11 +37,6 @@ async def list_schools_admin(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(require_roles(UserRole.ADMIN, UserRole.MODERATOR)),
 ):
-    """Admin-only list of schools. Same shape as public list but behind auth.
-
-    We intentionally do NOT expose teacher codes here, only ids and names.
-    Admin can generate a new code when needed.
-    """
     repo = SchoolRepo(session)
     schools = await repo.list_all()
     return [SchoolOut(id=s.id, name=s.name) for s in schools]
@@ -58,10 +48,6 @@ async def create_school(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(require_roles(UserRole.ADMIN, UserRole.MODERATOR)),
 ):
-    """Create a new school and generate a teacher code (admin/mod only).
-
-    Returns the plain teacher_code once so it can be securely shared with teachers.
-    """
     repo = SchoolRepo(session)
 
     code = _generate_teacher_code()
@@ -79,14 +65,11 @@ async def regenerate_school_code(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(require_roles(UserRole.ADMIN, UserRole.MODERATOR)),
 ):
-    """Generate a new teacher code for a school (admin/mod only).
-
-    Old code becomes invalid. The new plain code is returned once.
-    """
     repo = SchoolRepo(session)
     row = await repo.get_by_id(school_id)
     if not row:
-        raise NotFound("Школа не найдена")
+        from app.core.i18n import tr
+        raise NotFound(tr("school_not_found"))
 
     code = _generate_teacher_code()
     row.teacher_code_hash = hash_teacher_code(code)
