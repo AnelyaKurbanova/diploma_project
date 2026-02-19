@@ -16,6 +16,7 @@ from app.modules.lessons.data.models import (
     LessonModel,
     LessonProblemMapModel,
     LessonProgressModel,
+    LessonStatus,
 )
 
 
@@ -57,14 +58,30 @@ class LessonsRepo:
             raise NotFound(tr("lesson_not_found"))
         return row
 
-    async def list_lessons_for_topic(self, topic_id: uuid.UUID) -> list[LessonModel]:
+    async def list_lessons_for_topic(
+        self,
+        topic_id: uuid.UUID,
+        *,
+        status: LessonStatus | None = None,
+    ) -> list[LessonModel]:
         stmt = (
             select(LessonModel)
             .where(LessonModel.topic_id == topic_id)
             .order_by(LessonModel.order_no, LessonModel.created_at)
         )
+        if status is not None:
+            stmt = stmt.where(LessonModel.status == status)
         rows: Sequence[LessonModel] = (await self.session.execute(stmt)).scalars().all()
         return list(rows)
+
+    async def get_first_lesson_for_topic(self, topic_id: uuid.UUID) -> LessonModel | None:
+        stmt = (
+            select(LessonModel)
+            .where(LessonModel.topic_id == topic_id)
+            .order_by(LessonModel.order_no, LessonModel.created_at)
+            .limit(1)
+        )
+        return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def update_lesson(
         self,
@@ -78,6 +95,17 @@ class LessonsRepo:
             row.title = title
         if order_no is not None:
             row.order_no = order_no
+        await self.session.flush()
+        return row
+
+    async def change_status(
+        self,
+        lesson_id: uuid.UUID,
+        *,
+        status: LessonStatus,
+    ) -> LessonModel:
+        row = await self.get_lesson(lesson_id)
+        row.status = status
         await self.session.flush()
         return row
 
@@ -110,6 +138,22 @@ class LessonsRepo:
         await self.session.flush()
         return row
 
+    async def has_block_type(
+        self,
+        lesson_id: uuid.UUID,
+        block_type: BlockType,
+    ) -> bool:
+        stmt = (
+            select(LessonContentBlockModel.id)
+            .where(
+                LessonContentBlockModel.lesson_id == lesson_id,
+                LessonContentBlockModel.block_type == block_type,
+            )
+            .limit(1)
+        )
+        row = (await self.session.execute(stmt)).first()
+        return row is not None
+
     async def get_content_block(self, block_id: uuid.UUID) -> LessonContentBlockModel:
         row = await self.session.get(LessonContentBlockModel, block_id)
         if not row:
@@ -119,24 +163,13 @@ class LessonsRepo:
     async def update_content_block(
         self,
         block_id: uuid.UUID,
-        *,
-        order_no: int | None = None,
-        title: str | None = None,
-        body: str | None = None,
-        video_url: str | None = None,
-        video_description: str | None = None,
+        **updates: object,
     ) -> LessonContentBlockModel:
         row = await self.get_content_block(block_id)
-        if order_no is not None:
-            row.order_no = order_no
-        if title is not None:
-            row.title = title
-        if body is not None:
-            row.body = body
-        if video_url is not None:
-            row.video_url = video_url
-        if video_description is not None:
-            row.video_description = video_description
+        allowed_fields = {"order_no", "title", "body", "video_url", "video_description"}
+        for key, value in updates.items():
+            if key in allowed_fields:
+                setattr(row, key, value)
         await self.session.flush()
         return row
 
@@ -149,6 +182,12 @@ class LessonsRepo:
         self,
         block_id: uuid.UUID,
         problem_ids: list[uuid.UUID],
+    ) -> None:
+        """Replace the full set of problems for a content block."""
+        # Keep input stable and deduplicated to avoid PK/UNIQUE violations.
+        unique_problem_ids: list[uuid.UUID] = list(dict.fromkeys(problem_ids))
+
+        # Delete existing
     ) -> None:      
         stmt = select(BlockProblemMapModel).where(
             BlockProblemMapModel.content_block_id == block_id
@@ -158,6 +197,8 @@ class LessonsRepo:
             await self.session.delete(row)
         await self.session.flush()
 
+        # Insert new
+        for idx, pid in enumerate(unique_problem_ids):
         for idx, pid in enumerate(problem_ids):
             self.session.add(
                 BlockProblemMapModel(

@@ -12,13 +12,19 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.data.db.base import Base
+
+
+class LessonStatus(str, enum.Enum):
+    DRAFT = "draft"
+    PENDING_REVIEW = "pending_review"
+    PUBLISHED = "published"
+    ARCHIVED = "archived"
 
 
 class LessonModel(Base):
@@ -38,6 +44,18 @@ class LessonModel(Base):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     order_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped["LessonStatus"] = mapped_column(
+        SAEnum(
+            LessonStatus,
+            name="lesson_status",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+            validate_strings=True,
+        ),
+        nullable=False,
+        default="draft",
+        server_default="draft",
+        index=True,
+    )
 
     theory_body: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -75,7 +93,12 @@ class LessonContentBlockModel(Base):
         index=True,
     )
     block_type: Mapped[BlockType] = mapped_column(
-        SAEnum(BlockType, name="block_type"),
+        SAEnum(
+            BlockType,
+            name="block_type",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+            validate_strings=True,
+        ),
         nullable=False,
     )
     order_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -109,10 +132,6 @@ class LessonContentBlockModel(Base):
 class BlockProblemMapModel(Base):
     __tablename__ = "block_problem_map"
 
-    __table_args__ = (
-        UniqueConstraint("content_block_id", "problem_id", name="uq_block_problem"),
-    )
-
     content_block_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("lesson_content_blocks.id", ondelete="CASCADE"),
@@ -133,10 +152,6 @@ class BlockProblemMapModel(Base):
 class LessonProblemMapModel(Base):
     __tablename__ = "lesson_problem_map"
 
-    __table_args__ = (
-        UniqueConstraint("lesson_id", "problem_id", name="uq_lesson_problem"),
-    )
-
     lesson_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("lessons.id", ondelete="CASCADE"),
@@ -152,10 +167,6 @@ class LessonProblemMapModel(Base):
 
 class LessonProgressModel(Base):
     __tablename__ = "lesson_progress"
-
-    __table_args__ = (
-        UniqueConstraint("user_id", "lesson_id", name="uq_user_lesson_progress"),
-    )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
@@ -174,4 +185,3 @@ class LessonProgressModel(Base):
         server_default=func.now(),
     )
     time_spent_sec: Mapped[int | None] = mapped_column(Integer, nullable=True)
-

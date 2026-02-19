@@ -13,7 +13,6 @@ from sqlalchemy import (
     Numeric,
     String,
     Text,
-    UniqueConstraint,
     func,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -145,10 +144,6 @@ class ProblemTagModel(Base):
 
 class ProblemTagMapModel(Base):
     __tablename__ = "problem_tag_map"
-
-    __table_args__ = (
-        UniqueConstraint("problem_id", "tag_id", name="uq_problem_tag"),
-    )
 
     problem_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),

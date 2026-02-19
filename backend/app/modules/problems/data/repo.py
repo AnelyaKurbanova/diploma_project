@@ -219,6 +219,7 @@ class ProblemsRepo:
         *,
         status: ProblemStatus | None = None,
         subject_id: uuid.UUID | None = None,
+        topic_id: uuid.UUID | None = None,
         offset: int = 0,
         limit: int = 50,
     ) -> tuple[list[ProblemModel], int]:
@@ -240,6 +241,9 @@ class ProblemsRepo:
         if subject_id is not None:
             stmt = stmt.where(ProblemModel.subject_id == subject_id)
             count_stmt = count_stmt.where(ProblemModel.subject_id == subject_id)
+        if topic_id is not None:
+            stmt = stmt.where(ProblemModel.topic_id == topic_id)
+            count_stmt = count_stmt.where(ProblemModel.topic_id == topic_id)
 
         total = (await self.session.execute(count_stmt)).scalar_one()
         rows: Sequence[ProblemModel] = (
@@ -299,4 +303,3 @@ class ProblemsRepo:
         row = await self._get_problem_or_404(problem_id)
         await self.session.delete(row)
         await self.session.flush()
-

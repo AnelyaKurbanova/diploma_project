@@ -1,15 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet, apiPost } from "@/lib/api";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-
-/* ------------------------------------------------------------------ */
-/* Types                                                               */
-/* ------------------------------------------------------------------ */
 
 type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string };
@@ -37,43 +33,72 @@ type LessonDetail = {
   problem_ids: string[];
 };
 
-type ProblemChoice = {
-  id: string;
-  choice_text: string;
-  order_no: number;
-};
-
-type Problem = {
+type ProblemPreview = {
   id: string;
   title: string;
-  statement: string;
-  type: string;
-  difficulty: string;
-  points: number;
-  choices: ProblemChoice[];
+  difficulty: "easy" | "medium" | "hard";
 };
 
 type ProfileResponse = { full_name: string | null; [key: string]: unknown };
 
-/* ------------------------------------------------------------------ */
-/* Helper: difficulty badge colour                                     */
-/* ------------------------------------------------------------------ */
+function hasHtmlTags(input: string): boolean {
+  return /<[^>]+>/.test(input);
+}
 
-const DIFFICULTY_COLORS: Record<string, string> = {
-  easy: "bg-emerald-50 text-emerald-700",
-  medium: "bg-amber-50 text-amber-700",
-  hard: "bg-rose-50 text-rose-700",
-};
+function renderPlainTextWithImages(body: string): JSX.Element[] {
+  const imagePattern = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
+  const nodes: JSX.Element[] = [];
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let key = 0;
 
-const DIFFICULTY_LABELS: Record<string, string> = {
-  easy: "Лёгкая",
-  medium: "Средняя",
-  hard: "Сложная",
-};
+  const pushText = (text: string) => {
+    const chunks = text
+      .split(/\n{2,}/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    for (const chunk of chunks) {
+      const lines = chunk.split("\n");
+      nodes.push(
+        <p key={`p-${key++}`} className="mb-5 text-base leading-8 text-slate-700">
+          {lines.map((line, idx) => (
+            <span key={idx}>
+              {line}
+              {idx < lines.length - 1 && <br />}
+            </span>
+          ))}
+        </p>,
+      );
+    }
+  };
 
-/* ------------------------------------------------------------------ */
-/* Lecture block                                                        */
-/* ------------------------------------------------------------------ */
+  while ((match = imagePattern.exec(body)) !== null) {
+    const before = body.slice(lastIndex, match.index);
+    if (before.trim()) pushText(before);
+
+    nodes.push(
+      <figure key={`img-${key++}`} className="my-8 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        <img
+          src={match[2]}
+          alt={match[1] || "Lecture image"}
+          className="mx-auto max-h-[420px] w-full object-contain"
+          loading="lazy"
+        />
+        {match[1] && (
+          <figcaption className="border-t border-slate-200 bg-white px-4 py-2 text-center text-xs text-slate-500">
+            {match[1]}
+          </figcaption>
+        )}
+      </figure>,
+    );
+    lastIndex = imagePattern.lastIndex;
+  }
+
+  const tail = body.slice(lastIndex);
+  if (tail.trim()) pushText(tail);
+
+  return nodes;
+}
 
 function LectureBlock({ block }: { block: ContentBlock }) {
   return (
@@ -87,28 +112,28 @@ function LectureBlock({ block }: { block: ContentBlock }) {
         </h2>
       )}
       {block.body && (
-        <div
-          className="prose prose-slate max-w-none text-sm leading-relaxed"
-          dangerouslySetInnerHTML={{ __html: block.body }}
-        />
+        hasHtmlTags(block.body) ? (
+          <div
+            className="prose prose-slate mx-auto max-w-3xl prose-p:text-base prose-p:leading-8 prose-headings:font-bold [&_img]:mx-auto [&_img]:my-8 [&_img]:max-h-[420px] [&_img]:w-full [&_img]:rounded-2xl [&_img]:border [&_img]:border-slate-200 [&_img]:bg-white [&_img]:object-contain"
+            dangerouslySetInnerHTML={{ __html: block.body }}
+          />
+        ) : (
+          <div className="mx-auto max-w-3xl">{renderPlainTextWithImages(block.body)}</div>
+        )
       )}
     </section>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Video block                                                         */
-/* ------------------------------------------------------------------ */
-
 function VideoBlock({ block }: { block: ContentBlock }) {
-  // Try to extract YouTube embed URL
-  let embedUrl = block.video_url;
-  if (embedUrl) {
-    const ytMatch = embedUrl.match(
-      /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/,
-    );
+  let embedUrl: string | null = null;
+  let directVideoUrl: string | null = null;
+  if (block.video_url) {
+    const ytMatch = block.video_url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]+)/);
     if (ytMatch) {
       embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+    } else {
+      directVideoUrl = block.video_url;
     }
   }
 
@@ -124,60 +149,68 @@ function VideoBlock({ block }: { block: ContentBlock }) {
       )}
       {embedUrl && (
         <div className="aspect-video overflow-hidden rounded-xl bg-black">
-          <iframe
-            src={embedUrl}
-            className="h-full w-full"
-            allowFullScreen
-            title={block.title ?? "Video"}
-          />
+          <iframe src={embedUrl} className="h-full w-full" allowFullScreen title={block.title ?? "Video"} />
         </div>
       )}
-      {block.video_description && (
-        <p className="mt-3 text-sm text-slate-500">{block.video_description}</p>
+      {directVideoUrl && (
+        <div className="overflow-hidden rounded-xl bg-black">
+          <video src={directVideoUrl} className="h-auto w-full" controls preload="metadata" playsInline />
+        </div>
       )}
+      {block.video_description && <p className="mt-3 text-sm text-slate-500">{block.video_description}</p>}
     </section>
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Problem set block                                                    */
-/* ------------------------------------------------------------------ */
-
 function ProblemSetBlock({
   block,
   accessToken,
+  lessonPath,
 }: {
   block: ContentBlock;
   accessToken: string;
+  lessonPath: string;
 }) {
-  const [problems, setProblems] = useState<Problem[]>([]);
-  const [loading, setLoading] = useState(true);
+  const sortedProblems = useMemo(
+    () => [...block.problems].sort((a, b) => a.order_no - b.order_no),
+    [block.problems],
+  );
+  const [problemMeta, setProblemMeta] = useState<
+    Record<string, { title: string; difficulty: "easy" | "medium" | "hard" }>
+  >({});
+
+  const difficultyLabel: Record<"easy" | "medium" | "hard", string> = {
+    easy: "Лёгкая",
+    medium: "Средняя",
+    hard: "Сложная",
+  };
+
+  const difficultyClass: Record<"easy" | "medium" | "hard", string> = {
+    easy: "bg-emerald-50 text-emerald-700",
+    medium: "bg-amber-50 text-amber-700",
+    hard: "bg-rose-50 text-rose-700",
+  };
 
   useEffect(() => {
-    if (block.problems.length === 0) {
-      setLoading(false);
-      return;
-    }
+    if (!accessToken || block.problems.length === 0) return;
     (async () => {
-      try {
-        const loaded: Problem[] = [];
-        for (const bp of block.problems) {
+      const problemsToLoad = [...block.problems].sort((a, b) => a.order_no - b.order_no);
+      const entries = await Promise.all(
+        problemsToLoad.map(async (problem) => {
           try {
-            const p = await apiGet<Problem>(
-              `/problems/${bp.problem_id}`,
+            const data = await apiGet<ProblemPreview>(
+              `/problems/${problem.problem_id}`,
               accessToken,
             );
-            loaded.push(p);
+            return [problem.problem_id, { title: data.title, difficulty: data.difficulty }] as const;
           } catch {
-            // skip problems we can't load
+            return [problem.problem_id, { title: "Без названия", difficulty: "easy" as const }] as const;
           }
-        }
-        setProblems(loaded);
-      } finally {
-        setLoading(false);
-      }
+        }),
+      );
+      setProblemMeta(Object.fromEntries(entries));
     })();
-  }, [block.problems, accessToken]);
+  }, [accessToken, block.id, block.problems]);
 
   return (
     <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -188,64 +221,35 @@ function ProblemSetBlock({
         {block.title ?? "Задачи"}
       </h2>
 
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: block.problems.length || 2 }).map((_, i) => (
-            <div key={i} className="h-24 animate-pulse rounded-xl bg-gray-50" />
-          ))}
-        </div>
-      ) : problems.length === 0 ? (
-        <p className="py-4 text-center text-sm text-slate-400">
-          Задачи ещё не добавлены
-        </p>
+      {sortedProblems.length === 0 ? (
+        <p className="py-4 text-center text-sm text-slate-400">Задачи ещё не добавлены</p>
       ) : (
-        <div className="space-y-4">
-          {problems.map((p, idx) => (
-            <div
-              key={p.id}
-              className="rounded-xl border border-gray-100 bg-slate-50/50 p-5"
-            >
-              <div className="mb-2 flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
+        <div className="space-y-3">
+          {sortedProblems.map((problem, idx) => (
+            <div key={problem.problem_id} className="flex items-center justify-between rounded-xl border border-gray-100 bg-slate-50/50 p-4">
+              <div className="flex items-center gap-3">
+                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-blue-100 text-xs font-bold text-blue-700">
                   {idx + 1}
                 </span>
-                <h3 className="text-sm font-semibold text-slate-900">
-                  {p.title}
-                </h3>
-                <span
-                  className={`ml-auto rounded-full px-2 py-0.5 text-xs font-medium ${
-                    DIFFICULTY_COLORS[p.difficulty] ?? "bg-gray-100 text-gray-600"
-                  }`}
-                >
-                  {DIFFICULTY_LABELS[p.difficulty] ?? p.difficulty}
+                <span className="text-sm font-medium text-slate-800">
+                  {problemMeta[problem.problem_id]?.title ?? `Задача ${idx + 1}`}
                 </span>
-                <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-slate-500">
-                  {p.points} {p.points === 1 ? "балл" : "баллов"}
-                </span>
-              </div>
-              <p className="mb-3 text-sm text-slate-600">{p.statement}</p>
-
-              {/* Render choices for choice-based problems */}
-              {(p.type === "single_choice" || p.type === "multiple_choice") &&
-                p.choices.length > 0 && (
-                  <div className="space-y-2">
-                    {p.choices.map((c) => (
-                      <label
-                        key={c.id}
-                        className="flex cursor-pointer items-center gap-3 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm transition-colors hover:border-blue-300 hover:bg-blue-50/30"
-                      >
-                        <input
-                          type={
-                            p.type === "single_choice" ? "radio" : "checkbox"
-                          }
-                          name={`problem-${p.id}`}
-                          className="h-4 w-4 text-blue-600"
-                        />
-                        <span className="text-slate-700">{c.choice_text}</span>
-                      </label>
-                    ))}
-                  </div>
+                {problemMeta[problem.problem_id]?.difficulty && (
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                      difficultyClass[problemMeta[problem.problem_id].difficulty]
+                    }`}
+                  >
+                    {difficultyLabel[problemMeta[problem.problem_id].difficulty]}
+                  </span>
                 )}
+              </div>
+              <Link
+                href={`/problems/${problem.problem_id}?return_to=${encodeURIComponent(lessonPath)}`}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+              >
+                Решить
+              </Link>
             </div>
           ))}
         </div>
@@ -254,16 +258,8 @@ function ProblemSetBlock({
   );
 }
 
-/* ------------------------------------------------------------------ */
-/* Main lesson page                                                    */
-/* ------------------------------------------------------------------ */
-
 export default function LessonDetailPage() {
-  const { code, topicId, lessonId } = useParams<{
-    code: string;
-    topicId: string;
-    lessonId: string;
-  }>();
+  const { code, topicId, lessonId } = useParams<{ code: string; topicId: string; lessonId: string }>();
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
 
@@ -274,6 +270,7 @@ export default function LessonDetailPage() {
   const [loadError, setLoadError] = useState(false);
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const lessonEndRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -301,7 +298,6 @@ export default function LessonDetailPage() {
     if (!accessToken || !profile || !lessonId) return;
     (async () => {
       try {
-        // Resolve subject/topic for breadcrumbs
         const subjects = await apiGet<Subject[]>("/subjects", accessToken);
         const found = subjects.find((s) => s.code === code);
         if (found) setSubject(found);
@@ -309,11 +305,7 @@ export default function LessonDetailPage() {
         const t = await apiGet<Topic>(`/topics/${topicId}`, accessToken);
         setTopic(t);
 
-        // Load lesson
-        const l = await apiGet<LessonDetail>(
-          `/lessons/${lessonId}`,
-          accessToken,
-        );
+        const l = await apiGet<LessonDetail>(`/lessons/${lessonId}`, accessToken);
         setLesson(l);
       } catch {
         setLoadError(true);
@@ -322,17 +314,36 @@ export default function LessonDetailPage() {
   }, [accessToken, profile, lessonId, topicId, code]);
 
   const handleComplete = useCallback(async () => {
-    if (!accessToken || !lessonId || completing) return;
+    if (!accessToken || !lessonId || completing || completed) return;
     setCompleting(true);
     try {
       await apiPost(`/lessons/${lessonId}/complete`, undefined, accessToken);
       setCompleted(true);
     } catch {
-      // silently fail
+      // ignore
     } finally {
       setCompleting(false);
     }
-  }, [accessToken, lessonId, completing]);
+  }, [accessToken, lessonId, completing, completed]);
+
+  useEffect(() => {
+    if (!lesson || completed || !lessonEndRef.current) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        if (entry?.isIntersecting) {
+          handleComplete();
+        }
+      },
+      {
+        threshold: 0.9,
+      },
+    );
+
+    observer.observe(lessonEndRef.current);
+    return () => observer.disconnect();
+  }, [lesson, completed, handleComplete]);
 
   if (isLoading || !user || !profile) {
     return (
@@ -358,38 +369,22 @@ export default function LessonDetailPage() {
 
   const userName = profile.full_name ?? user.email.split("@")[0];
   const userRole = user.role ?? "student";
-
-  // Decide content: use content_blocks if available, fallback to legacy theory_body
   const hasBlocks = (lesson?.content_blocks?.length ?? 0) > 0;
+  const lessonPath = `/subjects/${code}/${topicId}/${lessonId}`;
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <DashboardHeader userName={userName} userRole={userRole} />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        {/* Breadcrumb */}
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400">
-          <Link href="/subjects" className="transition-colors hover:text-blue-600">
-            Предметы
-          </Link>
+          <Link href="/subjects" className="transition-colors hover:text-blue-600">Предметы</Link>
           <span>/</span>
-          <Link
-            href={`/subjects/${code}`}
-            className="transition-colors hover:text-blue-600"
-          >
-            {subject?.name_ru ?? code}
-          </Link>
+          <Link href={`/subjects/${code}`} className="transition-colors hover:text-blue-600">{subject?.name_ru ?? code}</Link>
           <span>/</span>
-          <Link
-            href={`/subjects/${code}/${topicId}`}
-            className="transition-colors hover:text-blue-600"
-          >
-            {topic?.title_ru ?? "..."}
-          </Link>
+          <Link href={`/subjects/${code}/${topicId}`} className="transition-colors hover:text-blue-600">{topic?.title_ru ?? "..."}</Link>
           <span>/</span>
-          <span className="font-medium text-slate-700">
-            {lesson?.title ?? "..."}
-          </span>
+          <span className="font-medium text-slate-700">{lesson?.title ?? "..."}</span>
         </nav>
 
         {loadError && (
@@ -401,12 +396,9 @@ export default function LessonDetailPage() {
         {lesson && (
           <>
             <div className="mb-8">
-              <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
-                {lesson.title}
-              </h1>
+              <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{lesson.title}</h1>
             </div>
 
-            {/* Content blocks */}
             {hasBlocks ? (
               <div className="space-y-6">
                 {lesson.content_blocks.map((block) => {
@@ -421,6 +413,7 @@ export default function LessonDetailPage() {
                           key={block.id}
                           block={block}
                           accessToken={accessToken!}
+                          lessonPath={lessonPath}
                         />
                       );
                     default:
@@ -429,22 +422,23 @@ export default function LessonDetailPage() {
                 })}
               </div>
             ) : lesson.theory_body ? (
-              /* Legacy: render theory_body directly */
               <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                <div
-                  className="prose prose-slate max-w-none text-sm leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: lesson.theory_body }}
-                />
+                {hasHtmlTags(lesson.theory_body) ? (
+                  <div
+                    className="prose prose-slate mx-auto max-w-3xl prose-p:text-base prose-p:leading-8 prose-headings:font-bold [&_img]:mx-auto [&_img]:my-8 [&_img]:max-h-[420px] [&_img]:w-full [&_img]:rounded-2xl [&_img]:border [&_img]:border-slate-200 [&_img]:bg-white [&_img]:object-contain"
+                    dangerouslySetInnerHTML={{ __html: lesson.theory_body }}
+                  />
+                ) : (
+                  <div className="mx-auto max-w-3xl">{renderPlainTextWithImages(lesson.theory_body)}</div>
+                )}
               </section>
             ) : (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 text-center">
-                <p className="text-sm text-slate-400">
-                  Содержание урока ещё не добавлено
-                </p>
+                <p className="text-sm text-slate-400">Содержание урока ещё не добавлено</p>
               </div>
             )}
 
-            {/* Complete button */}
+            <div ref={lessonEndRef} className="h-1 w-full" />
             <div className="mt-10 flex justify-center">
               {completed ? (
                 <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-6 py-3 text-sm font-semibold text-emerald-700">

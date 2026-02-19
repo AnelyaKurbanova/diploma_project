@@ -15,6 +15,7 @@ class LessonOut(BaseModel):
     topic_id: uuid.UUID
     title: str
     order_no: int
+    status: str
     created_at: datetime
 
 
@@ -51,6 +52,11 @@ class LessonDetailOut(LessonOut):
 
 class LessonCreate(BaseModel):
     topic_id: uuid.UUID
+    title: str = Field(min_length=1, max_length=255)
+    order_no: int = Field(default=0, ge=0)
+
+
+class LessonCreateIn(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     order_no: int = Field(default=0, ge=0)
 

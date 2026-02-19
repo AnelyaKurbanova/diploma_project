@@ -36,6 +36,7 @@ async function request<T>(
       ...currentOptions,
       method,
       headers,
+      cache: "no-store",
     };
 
     const response = await fetch(url, init);
@@ -244,4 +245,3 @@ export function apiListStudentClasses(
 ): Promise<StudentClass[]> {
   return apiGet<StudentClass[]>("/classes/me", accessToken);
 }
-

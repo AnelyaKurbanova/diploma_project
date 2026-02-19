@@ -1,4 +1,5 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import field_validator
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
@@ -33,6 +34,10 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
     FRONTEND_REDIRECT_AFTER_GOOGLE: str = "http://localhost:3000/auth/callback"
+    FRONTEND_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
 
     # Cookies
     COOKIE_SECURE: bool = False
@@ -48,6 +53,12 @@ class Settings(BaseSettings):
 
     SESSION_SECRET: str
 
+    @field_validator("FRONTEND_ORIGINS", mode="before")
+    @classmethod
+    def parse_frontend_origins(cls, value):
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
     # LLM answer normalization (OpenAI)
     OPENAI_API_KEY: str | None = None
     LLM_MODEL_NAME: str = "gpt-4o-mini"

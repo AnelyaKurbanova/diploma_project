@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     Text,
     Enum as SAEnum,
+    CheckConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 
@@ -94,6 +95,7 @@ class UserProfileModel(Base):
     )
     school: Mapped[str | None] = mapped_column(String(255), nullable=True)
     city: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    avatar_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
     grade_level: Mapped[int | None] = mapped_column(
         Integer,
@@ -132,4 +134,50 @@ class UserProfileModel(Base):
         nullable=False,
         server_default=func.now(),
         onupdate=func.now(),
+    )
+
+
+class UserFriendModel(Base):
+    __tablename__ = "user_friends"
+    __table_args__ = (
+        CheckConstraint("user_id <> friend_id", name="ck_user_friends_not_self"),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    friend_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    created_at: Mapped[object] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
+
+class UserFriendRequestModel(Base):
+    __tablename__ = "user_friend_requests"
+    __table_args__ = (
+        CheckConstraint("requester_id <> target_id", name="ck_user_friend_requests_not_self"),
+    )
+
+    requester_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    target_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    created_at: Mapped[object] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
     )

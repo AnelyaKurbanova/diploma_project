@@ -19,30 +19,15 @@ type Topic = {
   title_ru: string;
 };
 
-type Problem = {
+type Lesson = {
   id: string;
-  type: string;
-  difficulty: string;
   title: string;
-  statement: string;
-  points: number;
+  order_no: number;
 };
 
 type ProfileResponse = {
   full_name: string | null;
   [key: string]: unknown;
-};
-
-const DIFFICULTY_LABELS: Record<string, string> = {
-  easy: "Легкая",
-  medium: "Средняя",
-  hard: "Сложная",
-};
-
-const DIFFICULTY_COLORS: Record<string, string> = {
-  easy: "bg-emerald-50 text-emerald-700",
-  medium: "bg-amber-50 text-amber-700",
-  hard: "bg-rose-50 text-rose-700",
 };
 
 export default function TopicDetailPage() {
@@ -53,7 +38,7 @@ export default function TopicDetailPage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [subject, setSubject] = useState<Subject | null>(null);
   const [topic, setTopic] = useState<Topic | null>(null);
-  const [problems, setProblems] = useState<Problem[]>([]);
+  const [noLessons, setNoLessons] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -83,6 +68,7 @@ export default function TopicDetailPage() {
 
     (async () => {
       try {
+        setNoLessons(false);
         const subjects = await apiGet<Subject[]>("/subjects", accessToken);
         const foundSubject = subjects.find((s) => s.code === code) ?? null;
         setSubject(foundSubject);
@@ -90,16 +76,20 @@ export default function TopicDetailPage() {
         const loadedTopic = await apiGet<Topic>(`/topics/${topicId}`, accessToken);
         setTopic(loadedTopic);
 
-        const loadedProblems = await apiGet<Problem[]>(
-          `/problems?topic_id=${topicId}`,
+        const lessons = await apiGet<Lesson[]>(
+          `/topics/${topicId}/lessons`,
           accessToken,
         );
-        setProblems(loadedProblems);
+        if (lessons.length > 0) {
+          router.replace(`/subjects/${code}/${topicId}/${lessons[0].id}`);
+          return;
+        }
+        setNoLessons(true);
       } catch {
-        setLoadError("Не удалось загрузить тему и задачи.");
+        setLoadError("Не удалось открыть тему.");
       }
     })();
-  }, [accessToken, profile, topicId, code]);
+  }, [accessToken, profile, topicId, code, router]);
 
   if (isLoading || !user || !profile) {
     return (
@@ -143,7 +133,7 @@ export default function TopicDetailPage() {
             {topic?.title_ru ?? "Загрузка..."}
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Задачи по выбранной теме
+            Открываем лекцию...
           </p>
         </div>
 
@@ -153,62 +143,34 @@ export default function TopicDetailPage() {
           </div>
         )}
 
-        {problems.length > 0 ? (
-          <div className="space-y-3">
-            {problems.map((p, idx) => (
-              <Link
-                key={p.id}
-                href={`/problems/${p.id}`}
-                className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white px-6 py-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
-              >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-bold text-blue-600">
-                  {idx + 1}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-semibold text-slate-900 group-hover:text-blue-700">
-                    {p.title}
-                  </h3>
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">
-                    {p.statement}
-                  </p>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      DIFFICULTY_COLORS[p.difficulty] ??
-                      "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {DIFFICULTY_LABELS[p.difficulty] ?? p.difficulty}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                    {p.points} балл.
-                  </span>
-                </div>
-              </Link>
-            ))}
+        {!loadError && !noLessons && (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+            <p className="mt-3 text-sm text-slate-500">
+              Переходим к лекции темы
+            </p>
           </div>
-        ) : (
-          !loadError && (
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 text-center">
-              <svg
-                className="mb-4 h-12 w-12 text-slate-300"
-                fill="none"
-                viewBox="0 0 24 24"
-                strokeWidth={1.5}
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z"
-                />
-              </svg>
-              <p className="text-sm text-slate-400">
-                Для этой темы пока нет задач
-              </p>
-            </div>
-          )
+        )}
+
+        {!loadError && noLessons && (
+          <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 text-center">
+            <svg
+              className="mb-4 h-12 w-12 text-slate-300"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M3.75 6A2.25 2.25 0 0 1 6 3.75h12A2.25 2.25 0 0 1 20.25 6v12A2.25 2.25 0 0 1 18 20.25H6A2.25 2.25 0 0 1 3.75 18V6Zm3.75 3h9m-9 3h9m-9 3h5.25"
+              />
+            </svg>
+            <p className="text-sm text-slate-400">
+              Для этой темы пока нет лекций
+            </p>
+          </div>
         )}
       </main>
     </div>
