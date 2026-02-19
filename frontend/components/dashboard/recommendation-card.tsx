@@ -11,7 +11,6 @@ type RecommendationCardProps = {
 export function RecommendationCard({
   subjectCode,
   subjectName,
-  mastery,
   message,
 }: RecommendationCardProps) {
   return (

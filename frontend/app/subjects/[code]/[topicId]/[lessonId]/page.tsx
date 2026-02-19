@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import type { JSX } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
@@ -78,6 +79,7 @@ function renderPlainTextWithImages(body: string): JSX.Element[] {
 
     nodes.push(
       <figure key={`img-${key++}`} className="my-8 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
           src={match[2]}
           alt={match[1] || "Lecture image"}

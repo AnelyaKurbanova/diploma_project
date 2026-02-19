@@ -10,6 +10,8 @@
   --color-primary: #155dfc;
   --color-muted: #64748b;
   --color-card: #ffffff;
+  --font-geist-sans: system-ui;
+  --font-geist-mono: ui-monospace;
 }
 
 @theme inline {

@@ -903,6 +903,8 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     return () => {
       window.removeEventListener("keydown", handler);
     };
+    // Hotkeys intentionally depend only on visibility/mode here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showForm, mode]);
 
   const handleAction = async (problemId: string, action: "submit-review" | "publish" | "reject" | "archive") => {
@@ -1392,6 +1394,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                             <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
                           </div>
                         ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={img.url}
                             alt={img.alt_text || `Изображение ${idx + 1}`}
@@ -1476,6 +1479,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                       .filter(img => img.url)
                       .sort((a, b) => a.order_no - b.order_no)
                       .map((img, idx) => (
+                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           key={`${img.url}-${idx}`}
                           src={img.url}
@@ -1579,7 +1583,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             <div>
               <h3 className="text-base font-bold text-slate-900">Массовое создание задач (Bulk)</h3>
               <p className="mt-1 text-xs text-slate-500">
-                Одна задача — один блок с полями TITLE / TYPE / Q / A* / A / EXPL, разделённый строкой "---".
+                Одна задача — один блок с полями TITLE / TYPE / Q / A* / A / EXPL, разделённый строкой &quot;---&quot;.
               </p>
             </div>
           </div>

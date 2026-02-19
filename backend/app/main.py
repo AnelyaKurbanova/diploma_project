@@ -80,7 +80,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "error": "internal_server_error",
             "message": str(exc) if settings.DEBUG else "Internal server error",
         },
-        headers=_cors_headers_for_request(request),
+        headers=_cors_headers_for_request(request),)
 async def unhandled_exception_handler(_: Request, __: Exception):
     from app.core.i18n import tr
 

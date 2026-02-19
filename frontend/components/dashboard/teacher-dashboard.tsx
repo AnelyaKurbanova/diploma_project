@@ -16,6 +16,7 @@ type TeacherDashboardProps = {
 };
 
 export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProps) {
+  void userName;
   const router = useRouter();
   const [classes, setClasses] = useState<TeacherClass[]>([]);
   const [loading, setLoading] = useState(false);
@@ -419,4 +420,3 @@ export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProp
     </main>
   );
 }
-

@@ -218,6 +218,7 @@ export default function ProfilePage() {
             <div className="-mt-8 mb-3 flex items-end justify-between gap-3 sm:-mt-10">
               <div className="flex items-end gap-3">
                 <div className="h-20 w-20 rounded-2xl border-4 border-white bg-white p-1.5 shadow-lg sm:h-24 sm:w-24">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={avatarSrc}
                     alt={userName}
@@ -448,6 +449,7 @@ function StatCard({
     <article className={`aspect-square rounded-2xl border-4 bg-white px-4 py-4 ${palette[color]}`}>
       <div className="grid h-full grid-rows-[40px_1fr_44px] items-center">
         <div className="flex items-center justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={iconSrc} alt={iconAlt} className="h-8 w-8 object-contain" />
         </div>
         <p className="text-center text-3xl font-extrabold leading-none text-slate-800 sm:text-4xl">{value}</p>
@@ -485,6 +487,7 @@ function AchievementCard({
 function Friend({ name, role, avatarUrl }: { name: string; role: string; avatarUrl?: string | null }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={avatarUrl || "/images/default-avatar.png"}
         alt={name}
