@@ -30,16 +30,16 @@ jobs:
           fi
 
       - name: Build backend
-        run: docker build -t ghcr.io/AnelyaKurbanova/diploma-backend:${{ steps.env.outputs.TAG }} ./backend
+        run: docker build -t ghcr.io/anelyakurbanova/diploma-backend:${{ steps.env.outputs.TAG }} ./backend
 
       - name: Push backend
-        run: docker push ghcr.io/AnelyaKurbanova/diploma-backend:${{ steps.env.outputs.TAG }}
+        run: docker push ghcr.io/anelyakurbanova/diploma-backend:${{ steps.env.outputs.TAG }}
 
       - name: Build frontend
-        run: docker build -t ghcr.io/AnelyaKurbanova/diploma-frontend:${{ steps.env.outputs.TAG }} ./frontend
+        run: docker build -t ghcr.io/anelyakurbanova/diploma-frontend:${{ steps.env.outputs.TAG }} ./frontend
 
       - name: Push frontend
-        run: docker push ghcr.io/AnelyaKurbanova/diploma-frontend:${{ steps.env.outputs.TAG }}
+        run: docker push ghcr.io/anelyakurbanova/diploma-frontend:${{ steps.env.outputs.TAG }}
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.0
