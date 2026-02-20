@@ -1,0 +1,53 @@
+name: Build & Deploy
+
+on:
+  push:
+    branches: [ "dev", "main" ]
+
+jobs:
+  build_push_deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Select environment
+        id: env
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "dev" ]; then
+            echo "TAG=staging" >> $GITHUB_OUTPUT
+            echo "REMOTE_DIR=/opt/app-staging" >> $GITHUB_OUTPUT
+          else
+            echo "TAG=prod" >> $GITHUB_OUTPUT
+            echo "REMOTE_DIR=/opt/app-prod" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build backend
+        run: docker build -t ghcr.io/AnelyaKurbanova/diploma-backend:${{ steps.env.outputs.TAG }} ./backend
+
+      - name: Push backend
+        run: docker push ghcr.io/AnelyaKurbanova/diploma-backend:${{ steps.env.outputs.TAG }}
+
+      - name: Build frontend
+        run: docker build -t ghcr.io/AnelyaKurbanova/diploma-frontend:${{ steps.env.outputs.TAG }} ./frontend
+
+      - name: Push frontend
+        run: docker push ghcr.io/AnelyaKurbanova/diploma-frontend:${{ steps.env.outputs.TAG }}
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_KEY }}
+          script: |
+            cd ${{ steps.env.outputs.REMOTE_DIR }}
+            docker compose pull
+            docker compose up -d
+
