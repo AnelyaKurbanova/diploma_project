@@ -19,8 +19,8 @@ logger = logging.getLogger(__name__)
 app = FastAPI(
     title=settings.APP_NAME,
     debug=False,
-    docs_url="/api/docs",
-    openapi_url="/api/openapi.json",
+    docs_url="/docs",
+    openapi_url="/openapi.json",
     redoc_url=None,
 )
 static_dir = Path(__file__).resolve().parent / "static"
@@ -64,7 +64,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.get("/api/health")
+@app.get("/health")
 async def health():
     return {"status": "ok"}
 
@@ -95,5 +95,5 @@ async def unhandled_exception_handler(_: Request, __: Exception):
         content={"error": "internal_server_error", "message": tr("internal_server_error")},
     )
 
-app.include_router(api_router, prefix="/api")
+app.include_router(api_router)
 app.mount("/static", StaticFiles(directory=static_dir), name="static")
