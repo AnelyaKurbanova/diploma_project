@@ -16,13 +16,7 @@ from app.routers import api_router
 setup_logging()
 logger = logging.getLogger(__name__)
 
-app = FastAPI(
-    title=settings.APP_NAME,
-    debug=False,
-    docs_url="/docs",
-    openapi_url="/api/openapi.json",
-    redoc_url=None,
-)
+app = FastAPI(title=settings.APP_NAME, debug=False, root_path="/api")
 static_dir = Path(__file__).resolve().parent / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 
