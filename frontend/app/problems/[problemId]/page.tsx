@@ -37,6 +37,7 @@ type Problem = {
 
 type ProfileResponse = {
   full_name: string | null;
+  avatar_url?: string | null;
   [key: string]: unknown;
 };
 
@@ -393,7 +394,7 @@ export default function ProblemDetailsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <DashboardHeader userName={userName} userRole={userRole} />
+      <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       {/* Full-screen overlay during submission check */}
       {isSubmitting && (

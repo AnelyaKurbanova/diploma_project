@@ -40,7 +40,7 @@ type ProblemPreview = {
   difficulty: "easy" | "medium" | "hard";
 };
 
-type ProfileResponse = { full_name: string | null; [key: string]: unknown };
+type ProfileResponse = { full_name: string | null; avatar_url?: string | null; [key: string]: unknown };
 
 function hasHtmlTags(input: string): boolean {
   return /<[^>]+>/.test(input);
@@ -376,7 +376,7 @@ export default function LessonDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <DashboardHeader userName={userName} userRole={userRole} />
+      <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400">

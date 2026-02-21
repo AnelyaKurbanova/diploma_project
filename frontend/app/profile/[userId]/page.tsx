@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { ActivityHeatmap } from "@/components/profile/activity-heatmap";
 
 type Friend = {
   id: string;
@@ -139,18 +140,6 @@ export default function PublicProfilePage() {
   const viewerRole = user.role ?? "student";
   const avatarSrc = data.avatar_url || "/images/default-avatar.png";
 
-  const activityMap = new Map(data.activity.map((item) => [item.date, item.count]));
-  const activityCells = Array.from({ length: 120 }, (_, idx) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (119 - idx));
-    const key = d.toISOString().slice(0, 10);
-    const count = activityMap.get(key) ?? 0;
-    if (count <= 0) return 0;
-    if (count <= 1) return 1;
-    if (count <= 3) return 2;
-    return 3;
-  });
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
       <DashboardHeader userName={viewerName} userRole={viewerRole} />
@@ -259,27 +248,7 @@ export default function PublicProfilePage() {
               />
             </section>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-1 text-xl font-bold">Активность</h2>
-              <div className="mb-2 flex justify-end gap-2 text-[10px] text-slate-400">
-                <span>Меньше</span>
-                <span className="h-2.5 w-2.5 rounded-sm bg-slate-100" />
-                <span className="h-2.5 w-2.5 rounded-sm bg-blue-200" />
-                <span className="h-2.5 w-2.5 rounded-sm bg-blue-400" />
-                <span className="h-2.5 w-2.5 rounded-sm bg-blue-600" />
-                <span>Больше</span>
-              </div>
-              <div className="mt-3 grid grid-cols-20 gap-1">
-                {activityCells.map((level, idx) => (
-                  <span
-                    key={idx}
-                    className={`h-3 w-3 rounded-sm ${
-                      level === 0 ? "bg-slate-100" : level === 1 ? "bg-blue-200" : level === 2 ? "bg-blue-400" : "bg-blue-600"
-                    }`}
-                  />
-                ))}
-              </div>
-            </section>
+            <ActivityHeatmap activity={data.activity ?? []} />
           </div>
 
           <aside className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">

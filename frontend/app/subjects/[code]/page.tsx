@@ -26,6 +26,7 @@ type Topic = {
 
 type ProfileResponse = {
   full_name: string | null;
+  avatar_url?: string | null;
   [key: string]: unknown;
 };
 
@@ -117,7 +118,7 @@ export default function SubjectDetailPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <DashboardHeader userName={userName} userRole={userRole} />
+      <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {/* Breadcrumb */}
