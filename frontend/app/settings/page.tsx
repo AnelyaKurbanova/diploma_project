@@ -150,7 +150,7 @@ export default function SettingsPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <DashboardHeader userName={userName} userRole={userRole} />
+      <DashboardHeader userName={userName} userRole={userRole} avatarUrl={form.avatar_url || null} />
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <h1 className="mb-6 text-2xl font-extrabold">Настройки</h1>
 

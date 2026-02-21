@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { ActivityHeatmap } from "@/components/profile/activity-heatmap";
 
 type MeResponse = {
   id: string;
@@ -170,23 +171,9 @@ export default function ProfilePage() {
   const avatarSrc = profile?.avatar_url || "/images/default-avatar.png";
   const friendsCount = social?.friends?.length ?? 0;
 
-  const activityMap = new Map(
-    (social?.activity ?? []).map((item) => [item.date, item.count]),
-  );
-  const activityCells = Array.from({ length: 120 }, (_, idx) => {
-    const d = new Date();
-    d.setDate(d.getDate() - (119 - idx));
-    const key = d.toISOString().slice(0, 10);
-    const count = activityMap.get(key) ?? 0;
-    if (count <= 0) return 0;
-    if (count <= 1) return 1;
-    if (count <= 3) return 2;
-    return 3;
-  });
-
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <DashboardHeader userName={userName} userRole={userRole} />
+      <DashboardHeader userName={userName} userRole={userRole} avatarUrl={avatarSrc} />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="mb-4">
           <button
@@ -278,36 +265,7 @@ export default function ProfilePage() {
               />
             </section>
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-1 text-xl font-bold">Активность</h2>
-              <p className="mb-4 text-xs text-slate-500">
-                {(social?.activity ?? []).reduce((acc, x) => acc + x.count, 0)} активностей за последний период
-              </p>
-              <div className="mb-2 flex justify-end gap-2 text-[10px] text-slate-400">
-                <span>Меньше</span>
-                <span className="h-2.5 w-2.5 rounded-sm bg-slate-100" />
-                <span className="h-2.5 w-2.5 rounded-sm bg-blue-200" />
-                <span className="h-2.5 w-2.5 rounded-sm bg-blue-400" />
-                <span className="h-2.5 w-2.5 rounded-sm bg-blue-600" />
-                <span>Больше</span>
-              </div>
-              <div className="grid grid-cols-20 gap-1">
-                {activityCells.map((level, idx) => (
-                  <span
-                    key={idx}
-                    className={`h-3 w-3 rounded-sm ${
-                      level === 0
-                        ? "bg-slate-100"
-                        : level === 1
-                          ? "bg-blue-200"
-                          : level === 2
-                            ? "bg-blue-400"
-                            : "bg-blue-600"
-                    }`}
-                  />
-                ))}
-              </div>
-            </section>
+            <ActivityHeatmap activity={social?.activity ?? []} />
 
             <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
               <h2 className="mb-4 text-xl font-bold">Достижения</h2>

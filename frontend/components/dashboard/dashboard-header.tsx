@@ -8,6 +8,7 @@ import { useAuth } from "@/lib/auth-context";
 type DashboardHeaderProps = {
   userName: string;
   userRole: string;
+  avatarUrl?: string | null;
 };
 
 const NAV_ITEMS = [
@@ -58,12 +59,12 @@ const ROLE_LABELS: Record<string, string> = {
   content_maker: "Контент-мейкер",
 };
 
-export function DashboardHeader({ userName, userRole }: DashboardHeaderProps) {
+export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
   const { logout } = useAuth();
 
-  const initial = userName.charAt(0).toUpperCase();
+  const avatarSrc = avatarUrl || "/images/default-avatar.png";
 
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
@@ -161,9 +162,12 @@ export function DashboardHeader({ userName, userRole }: DashboardHeaderProps) {
             onClick={() => setMenuOpen((open) => !open)}
             className="flex items-center gap-3 rounded-full border border-gray-200 bg-white/70 px-2 py-1.5 pl-1.5 pr-2 text-left shadow-sm transition-all hover:border-blue-200 hover:bg-white hover:shadow-md"
           >
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
-              {initial}
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={avatarSrc}
+              alt={userName}
+              className="h-9 w-9 rounded-full border border-slate-200 object-cover"
+            />
             <div className="hidden flex-col sm:flex">
               <span className="leading-tight text-sm font-semibold text-slate-900">
                 {userName}

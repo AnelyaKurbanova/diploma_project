@@ -49,6 +49,7 @@ type DashboardStats = {
 
 type ProfileResponse = {
   full_name: string | null;
+  avatar_url?: string | null;
   onboarding_completed_at: string | null;
   [key: string]: unknown;
 };
@@ -187,7 +188,7 @@ export default function DashboardPage() {
   if (isTeacher && accessToken) {
     return (
       <div className="min-h-screen bg-slate-50 text-slate-900">
-        <DashboardHeader userName={userName} userRole={userRole} />
+        <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile?.avatar_url ?? null} />
         <TeacherDashboard userName={userName} accessToken={accessToken} />
       </div>
     );
@@ -210,7 +211,7 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
-      <DashboardHeader userName={userName} userRole={userRole} />
+      <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile?.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <div className="mb-8">
