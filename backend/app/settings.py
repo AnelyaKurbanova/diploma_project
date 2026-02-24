@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     SMTP_FROM: str = "no-reply@example.com"
     SMTP_TLS: bool = True
 
+    # EMAIL
+    EMAIL_PROVIDER: str = "log"
+    SENDGRID_API_KEY: str | None = None
+    EMAIL_FROM: str | None = None
+
     # Google OAuth
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
