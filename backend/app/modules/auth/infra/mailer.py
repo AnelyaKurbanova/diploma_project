@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.request
 import urllib.error
 
@@ -33,8 +34,8 @@ def _compose_text(code: str, purpose: str) -> str:
 
 
 def _send_via_brevo(*, to_email: str, code: str, purpose: str) -> None:
-    api_key = getattr(settings, "BREVO_API_KEY", None)
-    email_from = getattr(settings, "EMAIL_FROM", None) or getattr(settings, "SMTP_FROM", None)
+    api_key = os.getenv("BREVO_API_KEY")
+    email_from = os.getenv("EMAIL_FROM") or os.getenv("SMTP_FROM") or getattr(settings, "SMTP_FROM", None)
 
     if not api_key or not email_from:
         print(f"[DEV OTP] provider=brevo-missing-config purpose={purpose} email={to_email} code={code}")
@@ -62,9 +63,10 @@ def _send_via_brevo(*, to_email: str, code: str, purpose: str) -> None:
     )
 
     try:
-        with urllib.request.urlopen(req, timeout=15) as resp:
+        with urllib.request.urlopen(req, timeout=20) as resp:
+            body = resp.read().decode("utf-8", errors="ignore")
+            print(f"[BREVO] status={resp.status} body={body}")  # <-- важно для диагностики
             if resp.status not in (200, 201, 202):
-                body = resp.read().decode("utf-8", errors="ignore")
                 raise RuntimeError(f"Brevo send failed: {resp.status} {body}")
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", errors="ignore") if e.fp else ""
@@ -72,7 +74,7 @@ def _send_via_brevo(*, to_email: str, code: str, purpose: str) -> None:
 
 
 def send_verification_email(to_email: str, code: str, purpose: str) -> None:
-    provider = (getattr(settings, "EMAIL_PROVIDER", None) or "log").lower()
+    provider = (os.getenv("EMAIL_PROVIDER") or "log").lower()
 
     if provider == "brevo":
         _send_via_brevo(to_email=to_email, code=code, purpose=purpose)
