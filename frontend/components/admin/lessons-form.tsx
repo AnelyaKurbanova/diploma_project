@@ -751,21 +751,19 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
       {selectedLessonId && (
         <div className="space-y-6">
-          {lessonDetail?.status === "draft" && (
-            <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-              <p className="text-sm text-slate-600">
-                Сгенерировать лекцию на основе учебных материалов (RAG). Сначала загрузите docx через API.
-              </p>
-              <button
-                type="button"
-                onClick={() => handleGenerateDraft(selectedLessonId)}
-                disabled={generatingDraft === selectedLessonId}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
-              >
-                {generatingDraft === selectedLessonId ? "Генерация..." : "Сгенерировать черновик"}
-              </button>
-            </div>
-          )}
+          <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+            <p className="text-sm text-slate-600">
+              Сгенерировать лекцию на основе учебных материалов (RAG). Заменит текущий текст лекции. Сначала загрузите docx в базу знаний.
+            </p>
+            <button
+              type="button"
+              onClick={() => handleGenerateDraft(selectedLessonId)}
+              disabled={generatingDraft === selectedLessonId}
+              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            >
+              {generatingDraft === selectedLessonId ? "Генерация..." : "Сгенерировать лекцию"}
+            </button>
+          </div>
           <form onSubmit={handleBlockSubmit} className="space-y-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-slate-900">
