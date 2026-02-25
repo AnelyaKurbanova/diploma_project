@@ -47,7 +47,7 @@ class ProblemBase(BaseModel):
     statement: str = Field(min_length=1)
     explanation: str | None = None
 
-    time_limit_sec: int = Field(default=60, ge=1)
+    time_limit_sec: int = Field(default=60, ge=0)
     points: int = Field(default=1, ge=1)
 
 
@@ -75,7 +75,7 @@ class ProblemUpdate(BaseModel):
     statement: str | None = Field(default=None, min_length=1)
     explanation: str | None = None
 
-    time_limit_sec: int | None = Field(default=None, ge=1)
+    time_limit_sec: int | None = Field(default=None, ge=0)
     points: int | None = Field(default=None, ge=1)
 
     choices: list[ProblemChoiceIn] | None = None

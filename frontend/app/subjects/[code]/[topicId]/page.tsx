@@ -112,7 +112,7 @@ export default function TopicDetailPage() {
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+        <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400 animate-page-in">
           <Link href="/subjects" className="transition-colors hover:text-blue-600">
             Предметы
           </Link>
@@ -129,7 +129,7 @@ export default function TopicDetailPage() {
           </span>
         </nav>
 
-        <div className="mb-8">
+        <div className="mb-8 animate-page-in animate-stagger-1">
           <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
             {topic?.title_ru ?? "Загрузка..."}
           </h1>

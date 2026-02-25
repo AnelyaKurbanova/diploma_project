@@ -374,7 +374,7 @@ export default function ProblemDetailsPage() {
       )}
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-center gap-3 animate-page-in">
           <button
             type="button"
             onClick={() => router.push(backHref)}
@@ -388,7 +388,12 @@ export default function ProblemDetailsPage() {
           {prevProblemId != null && (
             <button
               type="button"
-              onClick={() => router.push(`/problems/${prevProblemId}`)}
+              onClick={() => {
+                const url = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+                  ? `/problems/${prevProblemId}?return_to=${encodeURIComponent(returnTo)}`
+                  : `/problems/${prevProblemId}`;
+                router.push(url);
+              }}
               className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md active:scale-[0.98]"
             >
               <svg
@@ -406,7 +411,12 @@ export default function ProblemDetailsPage() {
           {nextProblemId != null && (
             <button
               type="button"
-              onClick={() => router.push(`/problems/${nextProblemId}`)}
+              onClick={() => {
+                const url = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+                  ? `/problems/${nextProblemId}?return_to=${encodeURIComponent(returnTo)}`
+                  : `/problems/${nextProblemId}`;
+                router.push(url);
+              }}
               className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md active:scale-[0.98]"
             >
               Следующая
@@ -436,7 +446,7 @@ export default function ProblemDetailsPage() {
           </div>
         ) : (
           problem && (
-            <article className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <article className="animate-page-in animate-stagger-1 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow duration-300 hover:shadow-md">
               <div className="mb-3 flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${

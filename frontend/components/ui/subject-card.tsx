@@ -86,7 +86,7 @@ export function SubjectCard({
   return (
     <Link
       href={href}
-      className="group flex flex-col rounded-2xl border border-gray-100 bg-white p-6 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+      className="group flex flex-col rounded-2xl border border-gray-100 bg-white p-6 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-blue-100 active:scale-[0.99]"
     >
       <div className="mb-4 flex items-start justify-between">
         <div className={`flex h-12 w-12 items-center justify-center rounded-xl ${theme.bg} ${theme.color}`}>

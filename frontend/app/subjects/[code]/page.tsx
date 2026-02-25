@@ -122,7 +122,7 @@ export default function SubjectDetailPage() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         {/* Breadcrumb */}
-        <nav className="mb-6 flex items-center gap-2 text-sm text-slate-400">
+        <nav className="mb-6 flex items-center gap-2 text-sm text-slate-400 animate-page-in">
           <Link href="/subjects" className="transition-colors hover:text-blue-600">
             Предметы
           </Link>
@@ -132,7 +132,7 @@ export default function SubjectDetailPage() {
           </span>
         </nav>
 
-        <div className="mb-8">
+        <div className="mb-8 animate-page-in animate-stagger-1">
           <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
             {subject?.name_ru ?? "Загрузка..."}
           </h1>
@@ -153,7 +153,8 @@ export default function SubjectDetailPage() {
               <Link
                 key={t.id}
                 href={`/subjects/${code}/${t.id}`}
-                className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white px-6 py-5 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg"
+                className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white px-6 py-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-blue-100 animate-page-in active:scale-[0.99]"
+                style={{ animationDelay: `${Math.min(idx * 0.05, 0.35)}s` }}
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-bold text-blue-600">
                   {idx + 1}
