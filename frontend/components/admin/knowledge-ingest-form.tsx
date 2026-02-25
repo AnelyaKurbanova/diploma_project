@@ -1,12 +1,20 @@
 'use client';
 
 import { useCallback, useEffect, useState } from "react";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
 
 type Subject = {
   id: string;
   code: string;
   name_ru: string;
+};
+
+type KnowledgeDocument = {
+  id: string;
+  filename: string;
+  subject_code: string;
+  uploaded_at: string;
+  chunks_count: number;
 };
 
 type KnowledgeIngestFormProps = {
@@ -21,6 +29,23 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [documents, setDocuments] = useState<KnowledgeDocument[]>([]);
+  const [docsLoading, setDocsLoading] = useState(false);
+  const [filterCode, setFilterCode] = useState("");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  const loadDocuments = useCallback(async () => {
+    setDocsLoading(true);
+    try {
+      const url = filterCode ? `/knowledge/documents?subject_code=${encodeURIComponent(filterCode)}` : "/knowledge/documents";
+      const data = await apiGet<KnowledgeDocument[]>(url, accessToken);
+      setDocuments(data);
+    } catch {
+      setDocuments([]);
+    } finally {
+      setDocsLoading(false);
+    }
+  }, [accessToken, filterCode]);
 
   const loadSubjects = useCallback(async () => {
     setLoading(true);
@@ -40,6 +65,23 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
   useEffect(() => {
     loadSubjects();
   }, [loadSubjects]);
+
+  useEffect(() => {
+    loadDocuments();
+  }, [loadDocuments]);
+
+  const handleDelete = async (docId: string, filename: string) => {
+    if (!confirm(`Удалить документ «${filename}» и все его чанки?`)) return;
+    setDeletingId(docId);
+    try {
+      await apiDelete(`/knowledge/documents/${docId}`, accessToken);
+      setDocuments((prev) => prev.filter((d) => d.id !== docId));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Не удалось удалить документ");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,6 +115,7 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
       setFile(null);
       const input = document.getElementById("knowledge-file-input") as HTMLInputElement;
       if (input) input.value = "";
+      loadDocuments();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при загрузке документа");
     } finally {
@@ -150,6 +193,69 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
           {submitting ? "Загрузка..." : "Загрузить в базу знаний"}
         </button>
       </form>
+
+      <div className="mt-10 border-t border-gray-200 pt-8">
+        <h3 className="text-base font-bold text-slate-900">Загруженные документы</h3>
+        <p className="mt-1 text-sm text-slate-500">
+          Документы в базе знаний по предметам. Удаление удалит и все чанки.
+        </p>
+        <div className="mt-3 flex items-center gap-2">
+          <label className="text-sm text-slate-600">Предмет:</label>
+          <select
+            value={filterCode}
+            onChange={(e) => setFilterCode(e.target.value)}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-400"
+          >
+            <option value="">Все</option>
+            {subjects.map((s) => (
+              <option key={s.id} value={s.code}>
+                {s.name_ru} ({s.code})
+              </option>
+            ))}
+          </select>
+        </div>
+        {docsLoading ? (
+          <div className="mt-4 h-24 animate-pulse rounded-lg bg-gray-100" />
+        ) : documents.length === 0 ? (
+          <p className="mt-4 text-sm text-slate-500">Нет загруженных документов</p>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-lg border border-gray-200">
+            <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-4 py-2 font-medium text-slate-700">Файл</th>
+                  <th className="px-4 py-2 font-medium text-slate-700">Предмет (код)</th>
+                  <th className="px-4 py-2 font-medium text-slate-700">Чанков</th>
+                  <th className="px-4 py-2 font-medium text-slate-700">Загружен</th>
+                  <th className="px-4 py-2 font-medium text-slate-700"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200 bg-white">
+                {documents.map((doc) => (
+                  <tr key={doc.id}>
+                    <td className="px-4 py-2 text-slate-900">{doc.filename}</td>
+                    <td className="px-4 py-2 text-slate-600">{doc.subject_code}</td>
+                    <td className="px-4 py-2 text-slate-600">{doc.chunks_count}</td>
+                    <td className="px-4 py-2 text-slate-500">
+                      {new Date(doc.uploaded_at).toLocaleDateString("ru-RU")}
+                    </td>
+                    <td className="px-4 py-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(doc.id, doc.filename)}
+                        disabled={deletingId === doc.id}
+                        className="rounded px-2 py-1 text-sm text-rose-600 hover:bg-rose-50 disabled:opacity-50"
+                      >
+                        {deletingId === doc.id ? "Удаление..." : "Удалить"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

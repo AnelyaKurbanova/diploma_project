@@ -5,7 +5,9 @@ from typing import Sequence
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
+from app.core.errors import NotFound
 from app.modules.knowledge.data.models import RagChunkModel, RagDocumentModel
 
 
@@ -68,3 +70,28 @@ class KnowledgeRepo:
         result = await self.session.execute(stmt)
         rows: Sequence[RagChunkModel] = result.scalars().all()
         return list(rows)
+
+    async def list_documents(
+        self, subject_code: str | None = None
+    ) -> list[tuple[RagDocumentModel, int]]:
+        """List documents with chunks count. Returns (doc, chunks_count) per row."""
+        stmt = (
+            select(RagDocumentModel)
+            .options(selectinload(RagDocumentModel.chunks))
+            .order_by(RagDocumentModel.uploaded_at.desc())
+        )
+        if subject_code is not None:
+            stmt = stmt.where(RagDocumentModel.subject_code == subject_code)
+        result = await self.session.execute(stmt)
+        docs: Sequence[RagDocumentModel] = result.scalars().unique().all()
+        return [(doc, len(doc.chunks)) for doc in docs]
+
+    async def get_document(self, document_id: uuid.UUID) -> RagDocumentModel:
+        doc = await self.session.get(RagDocumentModel, document_id)
+        if doc is None:
+            raise NotFound("Document not found")
+        return doc
+
+    async def delete_document(self, document_id: uuid.UUID) -> None:
+        doc = await self.get_document(document_id)
+        await self.session.delete(doc)
