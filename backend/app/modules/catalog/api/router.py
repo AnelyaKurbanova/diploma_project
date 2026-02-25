@@ -32,6 +32,7 @@ def to_subject_out(row, *, topic_count: int = 0) -> SubjectOut:
         description_ru=row.description_ru,
         description_kk=row.description_kk,
         description_en=row.description_en,
+        grade_level=getattr(row, "grade_level", None),
         topic_count=topic_count,
         created_at=row.created_at,
     )

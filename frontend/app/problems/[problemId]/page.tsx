@@ -1,5 +1,6 @@
 'use client';
 
+import confetti from "canvas-confetti";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
@@ -75,8 +76,8 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 
 function fireConfetti() {
-  // Confetti is optional in this environment; keep function as safe no-op.
   if (typeof window === "undefined") return;
+  confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
 }
 
 export default function ProblemDetailsPage() {
@@ -250,26 +251,13 @@ export default function ProblemDetailsPage() {
     })();
   }, [problemId, accessToken]);
 
-  const solvedSet = useMemo(() => {
-    const set = new Set(navSolvedIds);
-    if (
-      problemId &&
-      submissionResult?.status === "graded" &&
-      submissionResult?.is_correct
-    ) {
-      set.add(problemId);
-    }
-    return set;
-  }, [navSolvedIds, problemId, submissionResult?.status, submissionResult?.is_correct]);
-
-  const unsolvedOrdered =
-    navProblemIds?.filter((id) => !solvedSet.has(id)) ?? [];
-  const navIndex = problemId ? unsolvedOrdered.indexOf(problemId) : -1;
+  const orderedIds = navProblemIds ?? [];
+  const currentIndex = problemId ? orderedIds.indexOf(problemId) : -1;
   const prevProblemId =
-    navIndex > 0 ? unsolvedOrdered[navIndex - 1]! : null;
+    currentIndex > 0 ? orderedIds[currentIndex - 1]! : null;
   const nextProblemId =
-    navIndex >= 0 && navIndex < unsolvedOrdered.length - 1
-      ? unsolvedOrdered[navIndex + 1]!
+    currentIndex >= 0 && currentIndex < orderedIds.length - 1
+      ? orderedIds[currentIndex + 1]!
       : null;
 
   const isChoiceType =
@@ -386,20 +374,13 @@ export default function ProblemDetailsPage() {
       )}
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <button
-          type="button"
-          onClick={() => router.push(backHref)}
-          className="mb-4 text-sm font-medium text-blue-600 hover:text-blue-700"
-        >
-          {backLabel}
-        </button>
         <div className="mb-6 flex flex-wrap items-center gap-3">
           <button
             type="button"
-            onClick={() => router.push("/problems")}
-            className="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-sm transition-all duration-200 hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 hover:shadow"
+            onClick={() => router.push(backHref)}
+            className="text-sm font-medium text-blue-600 hover:text-blue-700"
           >
-            Назад к задачам
+            {backLabel}
           </button>
           {(prevProblemId != null || nextProblemId != null) && (
             <span className="h-6 w-px bg-slate-200" aria-hidden />

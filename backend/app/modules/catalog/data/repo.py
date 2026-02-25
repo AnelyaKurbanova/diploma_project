@@ -26,6 +26,7 @@ class CatalogRepo:
         description_ru: str | None = None,
         description_kk: str | None = None,
         description_en: str | None = None,
+        grade_level: int | None = None,
     ) -> SubjectModel:
         row = SubjectModel(
             code=code,
@@ -35,6 +36,7 @@ class CatalogRepo:
             description_ru=description_ru,
             description_kk=description_kk,
             description_en=description_en,
+            grade_level=grade_level,
         )
         self.session.add(row)
         try:
@@ -93,6 +95,7 @@ class CatalogRepo:
         description_ru: str | None = None,
         description_kk: str | None = None,
         description_en: str | None = None,
+        grade_level: int | None = None,
     ) -> SubjectModel:
         row = await self.get_subject(subject_id)
         if code is not None:
@@ -109,6 +112,8 @@ class CatalogRepo:
             row.description_kk = description_kk
         if description_en is not None:
             row.description_en = description_en
+        if grade_level is not None:
+            row.grade_level = grade_level
         try:
             await self.session.flush()
         except IntegrityError:

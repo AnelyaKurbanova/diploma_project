@@ -125,16 +125,16 @@ const EMPTY_FORM = {
   title: "",
   statement: "",
   explanation: "",
-  time_limit_sec: "60",
   points: "1",
+  time_limit_sec: "0",
 };
 
 const MAX_IMAGES = 3;
 
-const DIFFICULTY_DEFAULTS: Record<string, { time: string; points: string }> = {
-  easy: { time: "60", points: "1" },
-  medium: { time: "90", points: "2" },
-  hard: { time: "120", points: "3" },
+const DIFFICULTY_DEFAULTS: Record<string, { points: string }> = {
+  easy: { points: "1" },
+  medium: { points: "2" },
+  hard: { points: "3" },
 };
 
 const LAST_PREFS_KEY = "admin_problems_last_prefs_v1";
@@ -145,7 +145,6 @@ type LastPreferences = {
   topic_id: string;
   type: string;
   difficulty: string;
-  time_limit_sec: string;
   points: string;
 };
 
@@ -169,7 +168,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
   const [success, setSuccess] = useState<string | null>(null);
 
   const [lastPrefs, setLastPrefs] = useState<LastPreferences | null>(null);
-  const [timeTouched, setTimeTouched] = useState(false);
   const [pointsTouched, setPointsTouched] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [restoredFromDraft, setRestoredFromDraft] = useState(false);
@@ -380,7 +378,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     setForm(prev => ({
       ...prev,
       difficulty: difficultyValue,
-      time_limit_sec: timeTouched ? prev.time_limit_sec : defaults.time,
       points: pointsTouched ? prev.points : defaults.points,
     }));
   };
@@ -473,7 +470,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       topic_id: state.topic_id,
       type: state.type,
       difficulty: state.difficulty,
-      time_limit_sec: state.time_limit_sec,
       points: state.points,
     };
     setLastPrefs(prefs);
@@ -517,7 +513,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     setImages([]);
     setError(null);
     setSuccess(null);
-    setTimeTouched(false);
     setPointsTouched(false);
     setRestoredFromDraft(false);
 
@@ -695,7 +690,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         title: form.title,
         statement: form.statement,
         explanation: form.explanation || null,
-        time_limit_sec: Number(form.time_limit_sec),
+        time_limit_sec: 0,
         points: Number(form.points),
       };
 
@@ -1332,19 +1327,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
               <div className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
-                    <label className="mb-1 block text-xs font-medium text-slate-500">Лимит времени (сек)</label>
-                    <input
-                      type="number"
-                      min={1}
-                      value={form.time_limit_sec}
-                      onChange={e => {
-                        setTimeTouched(true);
-                        setForm(f => ({ ...f, time_limit_sec: e.target.value }));
-                      }}
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
-                    />
-                  </div>
-                  <div>
                     <label className="mb-1 block text-xs font-medium text-slate-500">Баллы</label>
                     <input
                       type="number"
@@ -1463,9 +1445,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                   </span>
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
                     {Number(form.points) || 0} балл(ов)
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
-                    Лимит: {Number(form.time_limit_sec) || 0} сек.
                   </span>
                 </div>
                 <h4 className="text-lg font-bold text-slate-900">{form.title || "Без заголовка"}</h4>
@@ -1767,7 +1746,7 @@ TITLE: ...`}
                       title: item.title,
                       statement: item.statement,
                       explanation: item.explanation,
-                      time_limit_sec: Number(form.time_limit_sec),
+                      time_limit_sec: 0,
                       points: Number(form.points),
                     };
 

@@ -6,6 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet, apiPost } from "@/lib/api";
+import { useLesson, useProfile, useSubjects, useTopic } from "@/lib/swr-hooks";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { LectureContent } from "@/components/ui/lecture-content";
 
@@ -39,6 +40,12 @@ type ProblemPreview = {
   id: string;
   title: string;
   difficulty: "easy" | "medium" | "hard";
+};
+
+type SubmissionProgress = {
+  has_attempt: boolean;
+  last_status: "pending" | "graded" | "needs_review" | null;
+  last_is_correct: boolean | null;
 };
 
 type ProfileResponse = { full_name: string | null; avatar_url?: string | null; [key: string]: unknown };
@@ -125,6 +132,7 @@ function ProblemSetBlock({
   const [problemMeta, setProblemMeta] = useState<
     Record<string, { title: string; difficulty: "easy" | "medium" | "hard" }>
   >({});
+  const [solvedIds, setSolvedIds] = useState<Set<string>>(new Set());
 
   const difficultyLabel: Record<"easy" | "medium" | "hard", string> = {
     easy: "Лёгкая",
@@ -159,6 +167,29 @@ function ProblemSetBlock({
     })();
   }, [accessToken, block.id, block.problems]);
 
+  useEffect(() => {
+    if (!accessToken || block.problems.length === 0) return;
+    const ids = block.problems.map((p) => p.problem_id).join(",");
+    (async () => {
+      try {
+        const res = await apiGet<{
+          items: Array<SubmissionProgress & { problem_id: string }>;
+        }>(
+          `/submissions/last?problem_ids=${encodeURIComponent(ids)}`,
+          accessToken,
+        );
+        const solved = new Set(
+          (res.items ?? [])
+            .filter((i) => i.last_status === "graded" && i.last_is_correct === true)
+            .map((i) => i.problem_id),
+        );
+        setSolvedIds(solved);
+      } catch {
+        setSolvedIds(new Set());
+      }
+    })();
+  }, [accessToken, block.id, block.problems]);
+
   return (
     <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
@@ -190,9 +221,28 @@ function ProblemSetBlock({
                     {difficultyLabel[problemMeta[problem.problem_id].difficulty]}
                   </span>
                 )}
+                {solvedIds.has(problem.problem_id) && (
+                  <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">
+                    <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                    </svg>
+                    Решено
+                  </span>
+                )}
               </div>
               <Link
                 href={`/problems/${problem.problem_id}?return_to=${encodeURIComponent(lessonPath)}`}
+                onClick={() => {
+                  try {
+                    const ids = sortedProblems.map((p) => p.problem_id);
+                    window.sessionStorage.setItem(
+                      "problems_nav",
+                      JSON.stringify({ ids, return_to: lessonPath }),
+                    );
+                  } catch {
+                    // ignore
+                  }
+                }}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
               >
                 Решить
@@ -210,11 +260,17 @@ export default function LessonDetailPage() {
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
 
-  const [profile, setProfile] = useState<ProfileResponse | null>(null);
-  const [subject, setSubject] = useState<Subject | null>(null);
-  const [topic, setTopic] = useState<Topic | null>(null);
-  const [lesson, setLesson] = useState<LessonDetail | null>(null);
-  const [loadError, setLoadError] = useState(false);
+  const { profile, error: profileError } = useProfile();
+  const { subjects } = useSubjects();
+  const { topic } = useTopic(topicId ?? null) as { topic: Topic | null | undefined };
+  const { lesson, error: lessonError } = useLesson(lessonId ?? null) as {
+    lesson: LessonDetail | null | undefined;
+    error: unknown;
+  };
+
+  const subject = useMemo(() => subjects.find((s) => s.code === code) ?? null, [subjects, code]);
+  const loadError = !!profileError || !!lessonError;
+
   const [completing, setCompleting] = useState(false);
   const [completed, setCompleted] = useState(false);
   const lessonEndRef = useRef<HTMLDivElement | null>(null);
@@ -225,40 +281,10 @@ export default function LessonDetailPage() {
   }, [isLoading, user, router]);
 
   useEffect(() => {
-    if (!accessToken || !user) return;
-    (async () => {
-      try {
-        const p = await apiGet<ProfileResponse>("/me/profile", accessToken);
-        setProfile(p);
-      } catch (err) {
-        const status = (err as { status?: number }).status;
-        if (status === 404) {
-          router.replace("/onboarding");
-          return;
-        }
-        setLoadError(true);
-      }
-    })();
-  }, [accessToken, user, router]);
-
-  useEffect(() => {
-    if (!accessToken || !profile || !lessonId) return;
-    (async () => {
-      try {
-        const subjects = await apiGet<Subject[]>("/subjects", accessToken);
-        const found = subjects.find((s) => s.code === code);
-        if (found) setSubject(found);
-
-        const t = await apiGet<Topic>(`/topics/${topicId}`, accessToken);
-        setTopic(t);
-
-        const l = await apiGet<LessonDetail>(`/lessons/${lessonId}`, accessToken);
-        setLesson(l);
-      } catch {
-        setLoadError(true);
-      }
-    })();
-  }, [accessToken, profile, lessonId, topicId, code]);
+    if (profileError && (profileError as { status?: number }).status === 404) {
+      router.replace("/onboarding");
+    }
+  }, [profileError, router]);
 
   const handleComplete = useCallback(async () => {
     if (!accessToken || !lessonId || completing || completed) return;
