@@ -197,7 +197,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     setLoadingLessons(true);
     try {
       const data = await apiGet<Lesson[]>(
-        `/topics/${selectedTopic}/lessons`,
+        `/topics/${selectedTopic}/lessons?admin_view=1`,
         accessToken,
       );
       setLessons(data);
@@ -215,7 +215,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   const loadLessonDetail = useCallback(async (lessonId: string) => {
     setLoadingLessonDetail(true);
     try {
-      const data = await apiGet<LessonDetail>(`/lessons/${lessonId}`, accessToken);
+      const data = await apiGet<LessonDetail>(`/lessons/${lessonId}?admin_view=1`, accessToken);
       setLessonDetail(data);
     } catch (err) {
       setLessonDetail(null);

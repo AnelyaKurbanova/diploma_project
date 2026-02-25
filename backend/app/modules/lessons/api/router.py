@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session
@@ -25,24 +25,30 @@ from app.modules.users.data.models import UserRole
 router = APIRouter(tags=["lessons"])
 
 
+def _is_privileged_lesson_viewer(role: object) -> bool:
+    role_value = getattr(role, "value", role)
+    return role_value in {
+        UserRole.CONTENT_MAKER.value,
+        UserRole.MODERATOR.value,
+        UserRole.ADMIN.value,
+    }
+
+
 @router.get(
     "/topics/{topic_id}/lessons",
     response_model=list[LessonOut],
 )
 async def list_lessons_for_topic(
     topic_id: uuid.UUID,
+    admin_view: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
     svc = LessonService(session)
-    privileged_roles = {
-        UserRole.CONTENT_MAKER,
-        UserRole.MODERATOR,
-        UserRole.ADMIN,
-    }
+    is_admin_panel_view = admin_view and _is_privileged_lesson_viewer(current_user.role)
     return await svc.list_for_topic(
         topic_id,
-        only_published=current_user.role not in privileged_roles,
+        only_published=not is_admin_panel_view,
     )
 
 
@@ -59,7 +65,6 @@ async def create_lesson(
         require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
     ),
 ):
-    body.topic_id = topic_id
     svc = LessonService(session)
     payload = LessonCreate(
         topic_id=topic_id,
@@ -75,18 +80,15 @@ async def create_lesson(
 )
 async def get_lesson_detail(
     lesson_id: uuid.UUID,
+    admin_view: bool = Query(default=False),
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
     svc = LessonService(session)
-    privileged_roles = {
-        UserRole.CONTENT_MAKER,
-        UserRole.MODERATOR,
-        UserRole.ADMIN,
-    }
+    is_admin_panel_view = admin_view and _is_privileged_lesson_viewer(current_user.role)
     return await svc.get_detail(
         lesson_id,
-        only_published=current_user.role not in privileged_roles,
+        only_published=not is_admin_panel_view,
     )
 
 
@@ -253,14 +255,6 @@ async def get_topic_progress(
     current_user=Depends(get_current_user),
 ):
     svc = LessonService(session)
-    privileged_roles = {
-        UserRole.CONTENT_MAKER,
-        UserRole.MODERATOR,
-        UserRole.ADMIN,
-    }
-    lessons = await svc.list_for_topic(
-        topic_id,
-        only_published=current_user.role not in privileged_roles,
-    )
+    lessons = await svc.list_for_topic(topic_id, only_published=True)
     lesson_ids = [l.id for l in lessons]
     return await svc.get_progress(current_user.id, lesson_ids)

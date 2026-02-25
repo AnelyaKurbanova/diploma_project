@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, NotFound
+from app.core.i18n import tr
 from app.modules.lessons.api.schemas import (
     ContentBlockCreate,
     ContentBlockOut,
@@ -26,16 +28,24 @@ class LessonService:
         self.repo = LessonsRepo(session)
 
     async def create(self, data: LessonCreate) -> LessonOut:
+        if not await self.repo.topic_exists(data.topic_id):
+            raise NotFound(tr("topic_not_found"))
+
         existing = await self.repo.get_first_lesson_for_topic(data.topic_id)
         if existing is not None:
             raise Conflict("For each topic only one lesson is allowed")
 
-        row = await self.repo.create_lesson(
-            topic_id=data.topic_id,
-            title=data.title,
-            order_no=data.order_no,
-        )
-        await self.session.commit()
+        try:
+            row = await self.repo.create_lesson(
+                topic_id=data.topic_id,
+                title=data.title,
+                order_no=data.order_no,
+            )
+            await self.session.commit()
+        except IntegrityError:
+            await self.session.rollback()
+            # Convert raw DB-level violations to a stable API error for client.
+            raise Conflict("Could not create lesson for this topic")
         return LessonOut(
             id=row.id,
             topic_id=row.topic_id,

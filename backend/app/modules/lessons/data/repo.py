@@ -9,6 +9,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.errors import NotFound
 from app.core.i18n import tr
+from app.modules.catalog.data.models import TopicModel
 from app.modules.lessons.data.models import (
     BlockProblemMapModel,
     BlockType,
@@ -35,6 +36,11 @@ class LessonsRepo:
         self.session.add(row)
         await self.session.flush()
         return row
+
+    async def topic_exists(self, topic_id: uuid.UUID) -> bool:
+        stmt = select(TopicModel.id).where(TopicModel.id == topic_id).limit(1)
+        row = (await self.session.execute(stmt)).first()
+        return row is not None
 
     async def get_lesson(self, lesson_id: uuid.UUID) -> LessonModel:
         row = await self.session.get(LessonModel, lesson_id)
