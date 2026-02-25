@@ -63,8 +63,7 @@ async def generate_explanation(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=192,
-            temperature=0.6,
+            max_completion_tokens=192,
         )
         content = response.choices[0].message.content or ""
         explanation = content.strip()

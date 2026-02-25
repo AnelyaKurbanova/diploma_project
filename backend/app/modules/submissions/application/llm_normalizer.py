@@ -71,8 +71,7 @@ async def normalize_answer_via_llm(raw_answer: str) -> str | None:
                 {"role": "system", "content": _SYSTEM_PROMPT},
                 {"role": "user", "content": raw},
             ],
-            max_tokens=64,
-            temperature=0,
+            max_completion_tokens=64,
         )
         result = response.choices[0].message.content
         if result:

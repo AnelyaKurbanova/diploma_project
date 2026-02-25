@@ -133,14 +133,19 @@ class ProblemService:
         self,
         problem_id: uuid.UUID,
         data: ProblemUpdate,
+        *,
+        allow_published_edit: bool = False,
     ) -> ProblemModel:
         problem = await self.repo.get_problem(problem_id)
-        if problem.status not in (ProblemStatus.DRAFT, ProblemStatus.PENDING_REVIEW):
+        if not allow_published_edit and problem.status not in (
+            ProblemStatus.DRAFT,
+            ProblemStatus.PENDING_REVIEW,
+        ):
             from app.core.errors import Conflict
 
             raise Conflict(tr("only_draft_or_pending_edit"))
 
-        if problem.status == ProblemStatus.PENDING_REVIEW:
+        if problem.status == ProblemStatus.PENDING_REVIEW and not allow_published_edit:
             await self.repo.change_status(problem_id, status=ProblemStatus.DRAFT)
 
         problem = await self.repo.update_problem(

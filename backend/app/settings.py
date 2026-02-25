@@ -66,8 +66,8 @@ class Settings(BaseSettings):
         return value
     # LLM answer normalization (OpenAI)
     OPENAI_API_KEY: str | None = None
-    LLM_MODEL_NAME: str = "gpt-4o-mini"
-    LLM_NORMALIZER_TIMEOUT_SEC: float = 10.0
+    LLM_MODEL_NAME: str = "gpt-5-mini"
+    LLM_NORMALIZER_TIMEOUT_SEC: float = 300.00
 
     # AWS S3 (problem images)
     AWS_ACCESS_KEY_ID: str | None = None

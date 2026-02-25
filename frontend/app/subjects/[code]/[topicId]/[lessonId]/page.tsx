@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet, apiPost } from "@/lib/api";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { LectureContent } from "@/components/ui/lecture-content";
 
 type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string };
@@ -46,62 +47,6 @@ function hasHtmlTags(input: string): boolean {
   return /<[^>]+>/.test(input);
 }
 
-function renderPlainTextWithImages(body: string): JSX.Element[] {
-  const imagePattern = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)/g;
-  const nodes: JSX.Element[] = [];
-  let lastIndex = 0;
-  let match: RegExpExecArray | null;
-  let key = 0;
-
-  const pushText = (text: string) => {
-    const chunks = text
-      .split(/\n{2,}/)
-      .map((p) => p.trim())
-      .filter(Boolean);
-    for (const chunk of chunks) {
-      const lines = chunk.split("\n");
-      nodes.push(
-        <p key={`p-${key++}`} className="mb-5 text-base leading-8 text-slate-700">
-          {lines.map((line, idx) => (
-            <span key={idx}>
-              {line}
-              {idx < lines.length - 1 && <br />}
-            </span>
-          ))}
-        </p>,
-      );
-    }
-  };
-
-  while ((match = imagePattern.exec(body)) !== null) {
-    const before = body.slice(lastIndex, match.index);
-    if (before.trim()) pushText(before);
-
-    nodes.push(
-      <figure key={`img-${key++}`} className="my-8 overflow-hidden rounded-2xl border border-slate-200 bg-white">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src={match[2]}
-          alt={match[1] || "Lecture image"}
-          className="mx-auto max-h-[420px] w-full object-contain"
-          loading="lazy"
-        />
-        {match[1] && (
-          <figcaption className="border-t border-slate-200 bg-white px-4 py-2 text-center text-xs text-slate-500">
-            {match[1]}
-          </figcaption>
-        )}
-      </figure>,
-    );
-    lastIndex = imagePattern.lastIndex;
-  }
-
-  const tail = body.slice(lastIndex);
-  if (tail.trim()) pushText(tail);
-
-  return nodes;
-}
-
 function LectureBlock({ block }: { block: ContentBlock }) {
   return (
     <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
@@ -120,7 +65,7 @@ function LectureBlock({ block }: { block: ContentBlock }) {
             dangerouslySetInnerHTML={{ __html: block.body }}
           />
         ) : (
-          <div className="mx-auto max-w-3xl">{renderPlainTextWithImages(block.body)}</div>
+          <LectureContent body={block.body} />
         )
       )}
     </section>
@@ -431,7 +376,7 @@ export default function LessonDetailPage() {
                     dangerouslySetInnerHTML={{ __html: lesson.theory_body }}
                   />
                 ) : (
-                  <div className="mx-auto max-w-3xl">{renderPlainTextWithImages(lesson.theory_body)}</div>
+                  <LectureContent body={lesson.theory_body} />
                 )}
               </section>
             ) : (

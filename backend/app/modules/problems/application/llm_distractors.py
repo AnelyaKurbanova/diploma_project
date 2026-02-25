@@ -66,8 +66,7 @@ async def generate_distractors(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=96,
-            temperature=0.7,
+            max_completion_tokens=96,
         )
         content = response.choices[0].message.content or ""
         lines: Sequence[str] = [line.strip() for line in content.splitlines()]

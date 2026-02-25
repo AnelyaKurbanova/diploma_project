@@ -2,7 +2,7 @@
 
 import { ChangeEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiGet, apiPatch } from "@/lib/api";
+import { apiGet, apiPatch, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 
@@ -120,18 +120,12 @@ export default function SettingsPage() {
     setError(null);
     setSuccess(null);
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"}/me/profile/avatar`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: formData,
-      });
-      const body = await response.json().catch(() => null);
-      if (!response.ok) {
-        throw new Error(body?.message ?? "Не удалось загрузить аватар");
-      }
-      setForm((s) => ({ ...s, avatar_url: body.avatar_url ?? "" }));
+      const body = await apiPost<{ avatar_url?: string }>(
+        "/me/profile/avatar",
+        formData,
+        accessToken,
+      );
+      setForm((s) => ({ ...s, avatar_url: body?.avatar_url ?? "" }));
       setSuccess("Аватар загружен");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить аватар");
