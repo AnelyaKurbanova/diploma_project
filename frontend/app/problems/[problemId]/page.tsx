@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { apiGet } from "@/lib/api";
+import { apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 
@@ -73,33 +73,6 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   hard: "bg-rose-50 text-rose-700",
 };
 
-async function submitViaProxy(
-  accessToken: string,
-  payload: unknown,
-): Promise<SubmissionResult> {
-  const response = await fetch("/api/submissions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify(payload),
-  });
-
-  const contentType = response.headers.get("content-type") ?? "";
-  const isJson = contentType.includes("application/json");
-  const body = isJson ? await response.json().catch(() => null) : null;
-
-  if (!response.ok) {
-    const message =
-      (body && (body.message ?? body.detail)) ??
-      `Ошибка при отправке решения (статус ${response.status})`;
-    throw new Error(message);
-  }
-
-  return body as SubmissionResult;
-}
 
 function fireConfetti() {
   // Confetti is optional in this environment; keep function as safe no-op.
@@ -345,10 +318,11 @@ export default function ProblemDetailsPage() {
         answer.answer_text = answerText.trim();
       }
 
-      const result = await submitViaProxy(accessToken, {
-        problem_id: problem.id,
-        answer,
-      });
+      const result = await apiPost<SubmissionResult>(
+        "/submissions",
+        { problem_id: problem.id, answer },
+        accessToken,
+      );
 
       setSubmissionResult(result);
 

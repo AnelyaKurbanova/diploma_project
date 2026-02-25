@@ -299,8 +299,10 @@ async def update_problem(
         )
     ),
 ):
+    role_val = getattr(current_user.role, "value", current_user.role)
+    allow_pub = role_val in {UserRole.MODERATOR.value, UserRole.ADMIN.value}
     svc = ProblemService(session)
-    problem = await svc.update_draft(problem_id, body)
+    problem = await svc.update_draft(problem_id, body, allow_published_edit=allow_pub)
     return to_problem_admin_out(problem)
 
 

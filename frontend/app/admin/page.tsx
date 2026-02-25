@@ -13,6 +13,7 @@ import { LessonsForm } from "@/components/admin/lessons-form";
 import { ProblemsForm } from "@/components/admin/problems-form";
 import { ReviewQueue } from "@/components/admin/review-queue";
 import { SchoolsTab } from "@/components/admin/schools-tab";
+import { KnowledgeIngestForm } from "@/components/admin/knowledge-ingest-form";
 
 type ProfileResponse = {
   full_name: string | null;
@@ -87,6 +88,14 @@ function ReviewIcon() {
   );
 }
 
+function KnowledgeIcon() {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+    </svg>
+  );
+}
+
 export default function AdminPage() {
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
@@ -129,6 +138,9 @@ export default function AdminPage() {
         { id: "users", label: "Пользователи", icon: <UsersIcon /> },
         { id: "schools", label: "Школы", icon: <SchoolsIcon /> },
       );
+    }
+    if (userRole === "moderator" || userRole === "admin") {
+      items.push({ id: "knowledge", label: "База знаний", icon: <KnowledgeIcon /> });
     }
     items.push(
       { id: "subjects", label: "Предметы", icon: <SubjectsIcon /> },
@@ -182,6 +194,10 @@ export default function AdminPage() {
 
         {activeTab === "schools" && userRole === "admin" && (
           <SchoolsTab accessToken={accessToken!} />
+        )}
+
+        {activeTab === "knowledge" && (userRole === "moderator" || userRole === "admin") && (
+          <KnowledgeIngestForm accessToken={accessToken!} />
         )}
 
         {activeTab === "subjects" && (

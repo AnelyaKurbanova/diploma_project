@@ -7,6 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import Conflict, NotFound
 from app.core.i18n import tr
+from app.modules.catalog.data.repo import CatalogRepo
+from app.modules.knowledge.application.retrieval import search as knowledge_search
+from app.modules.lessons.application.llm_lecture import generate_lecture_from_context
 from app.modules.lessons.api.schemas import (
     ContentBlockCreate,
     ContentBlockOut,
@@ -116,9 +119,11 @@ class LessonService:
             content_blocks=blocks_out,
         )
 
-    async def update(self, lesson_id: uuid.UUID, data: LessonUpdate) -> LessonOut:
+    async def update(
+        self, lesson_id: uuid.UUID, data: LessonUpdate, *, allow_published_edit: bool = False
+    ) -> LessonOut:
         lesson = await self.repo.get_lesson(lesson_id)
-        await self._normalize_editable_status(lesson)
+        await self._normalize_editable_status(lesson, allow_published_edit=allow_published_edit)
         row = await self.repo.update_lesson(
             lesson_id,
             title=data.title,
@@ -143,10 +148,10 @@ class LessonService:
     # ------------------------------------------------------------------
 
     async def create_block(
-        self, lesson_id: uuid.UUID, data: ContentBlockCreate
+        self, lesson_id: uuid.UUID, data: ContentBlockCreate, *, allow_published_edit: bool = False
     ) -> ContentBlockOut:
         lesson = await self.repo.get_lesson(lesson_id)
-        await self._normalize_editable_status(lesson)
+        await self._normalize_editable_status(lesson, allow_published_edit=allow_published_edit)
         if data.block_type == BlockType.PROBLEM_SET.value:
             if await self.repo.has_block_type(lesson_id, BlockType.PROBLEM_SET):
                 raise Conflict("Only one problem_set block is allowed for a lesson")
@@ -188,11 +193,11 @@ class LessonService:
         )
 
     async def update_block(
-        self, block_id: uuid.UUID, data: ContentBlockUpdate
+        self, block_id: uuid.UUID, data: ContentBlockUpdate, *, allow_published_edit: bool = False
     ) -> ContentBlockOut:
         existing_block = await self.repo.get_content_block(block_id)
         lesson = await self.repo.get_lesson(existing_block.lesson_id)
-        await self._normalize_editable_status(lesson)
+        await self._normalize_editable_status(lesson, allow_published_edit=allow_published_edit)
 
         patch = data.model_dump(exclude_unset=True)
         block_field_patch = {
@@ -230,10 +235,10 @@ class LessonService:
             updated_at=block.updated_at,
         )
 
-    async def delete_block(self, block_id: uuid.UUID) -> None:
+    async def delete_block(self, block_id: uuid.UUID, *, allow_published_edit: bool = False) -> None:
         existing_block = await self.repo.get_content_block(block_id)
         lesson = await self.repo.get_lesson(existing_block.lesson_id)
-        await self._normalize_editable_status(lesson)
+        await self._normalize_editable_status(lesson, allow_published_edit=allow_published_edit)
         await self.repo.delete_content_block(block_id)
         await self.session.commit()
 
@@ -294,6 +299,52 @@ class LessonService:
             created_at=row.created_at,
         )
 
+    async def generate_draft(
+        self, lesson_id: uuid.UUID, *, allow_published_edit: bool = False
+    ) -> LessonDetailOut:
+        lesson = await self.repo.get_lesson_with_blocks(lesson_id)
+        await self._normalize_editable_status(lesson, allow_published_edit=allow_published_edit)
+
+        catalog_repo = CatalogRepo(self.session)
+        topic = await catalog_repo.get_topic(lesson.topic_id)
+        subject = await catalog_repo.get_subject(topic.subject_id)
+
+        chunks = await knowledge_search(
+            self.session,
+            lesson.title,
+            subject_code=subject.code,
+            k=12,
+        )
+        if not chunks:
+            raise NotFound("Нет учебных материалов по предмету. Сначала загрузите docx через /knowledge/ingest.")
+
+        chunk_contents = [c.content for c in chunks]
+        text = await generate_lecture_from_context(topic.title_ru, chunk_contents)
+        if not text:
+            raise Conflict("Не удалось сгенерировать лекцию. Проверьте OPENAI_API_KEY.")
+
+        lecture_blocks = [
+            b for b in lesson.content_blocks
+            if self._block_type_to_str(b.block_type) == BlockType.LECTURE.value
+        ]
+        lecture_blocks.sort(key=lambda b: b.order_no)
+
+        if lecture_blocks:
+            block = lecture_blocks[0]
+            await self.repo.update_content_block(block.id, body=text)
+        else:
+            max_order = max((b.order_no for b in lesson.content_blocks), default=-1)
+            await self.repo.create_content_block(
+                lesson_id=lesson_id,
+                block_type=BlockType.LECTURE,
+                order_no=max_order + 1,
+                title=lesson.title,
+                body=text,
+            )
+
+        await self.session.commit()
+        return await self.get_detail(lesson_id, only_published=False)
+
     # ------------------------------------------------------------------
     # Progress
     # ------------------------------------------------------------------
@@ -339,12 +390,14 @@ class LessonService:
     def _lesson_status_to_str(status: LessonStatus | str) -> str:
         return status.value if isinstance(status, LessonStatus) else str(status)
 
-    async def _normalize_editable_status(self, lesson) -> None:
+    async def _normalize_editable_status(
+        self, lesson, *, allow_published_edit: bool = False
+    ) -> None:
         current_status = self._lesson_status_to_str(lesson.status)
-        if current_status not in (
+        if not allow_published_edit and current_status not in (
             LessonStatus.DRAFT.value,
             LessonStatus.PENDING_REVIEW.value,
         ):
             raise Conflict("Only draft or pending-review lessons can be edited")
-        if current_status == LessonStatus.PENDING_REVIEW.value:
+        if current_status == LessonStatus.PENDING_REVIEW.value and not allow_published_edit:
             await self.repo.change_status(lesson.id, status=LessonStatus.DRAFT)

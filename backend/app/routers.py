@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
 from app.modules.catalog.api.router import router as catalog_router
+from app.modules.knowledge.api.router import router as knowledge_router
 from app.modules.lessons.api.router import router as lessons_router
 from app.modules.projects.api.router import router as projects_router
 from app.modules.problems.api.router import router as problems_router
@@ -15,6 +16,7 @@ from app.modules.dashboard.api.router import router as dashboard_router
 
 api_router = APIRouter()
 api_router.include_router(catalog_router)
+api_router.include_router(knowledge_router)
 api_router.include_router(schools_router)
 api_router.include_router(classes_router)
 api_router.include_router(admin_router)

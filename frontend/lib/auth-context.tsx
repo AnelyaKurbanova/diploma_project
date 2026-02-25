@@ -58,44 +58,14 @@ function getCsrfTokenFromCookies(): string | null {
 
 async function postAuthWithCsrf<T>(path: string): Promise<T> {
   const csrf = getCsrfTokenFromCookies();
-
   const headers: HeadersInit = {
-    Accept: "application/json",
     "Content-Type": "application/json",
+    ...(csrf && { "X-CSRF-Token": csrf }),
   };
-
-  if (csrf) {
-    headers["X-CSRF-Token"] = csrf;
-  }
-
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    method: "POST",
-    headers,
+  return apiPost<T>(path, undefined, undefined, {
     credentials: "include",
+    headers,
   });
-
-  const contentType = response.headers.get("Content-Type") ?? "";
-  const isJson = contentType.includes("application/json");
-
-  if (!response.ok) {
-    const errorBody = isJson ? await response.json().catch(() => null) : null;
-    const message =
-      (errorBody && (errorBody.message ?? errorBody.detail)) ??
-      `Ошибка авторизации: запрос ${path} (статус ${response.status})`;
-    const error = new Error(message) as Error & {
-      status?: number;
-      body?: unknown;
-    };
-    error.status = response.status;
-    error.body = errorBody;
-    throw error;
-  }
-
-  if (!isJson) {
-    return undefined as T;
-  }
-
-  return (await response.json()) as T;
 }
 
 type AuthProviderProps = {

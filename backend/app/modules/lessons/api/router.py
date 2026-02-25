@@ -34,6 +34,11 @@ def _is_privileged_lesson_viewer(role: object) -> bool:
     }
 
 
+def _can_edit_published(role: object) -> bool:
+    role_value = getattr(role, "value", role)
+    return role_value in {UserRole.MODERATOR.value, UserRole.ADMIN.value}
+
+
 @router.get(
     "/topics/{topic_id}/lessons",
     response_model=list[LessonOut],
@@ -105,7 +110,9 @@ async def update_lesson(
     ),
 ):
     svc = LessonService(session)
-    return await svc.update(lesson_id, body)
+    return await svc.update(
+        lesson_id, body, allow_published_edit=_can_edit_published(current_user.role)
+    )
 
 
 @router.delete(
@@ -166,6 +173,23 @@ async def reject_lesson(
 
 
 @router.post(
+    "/lessons/{lesson_id}/generate-draft",
+    response_model=LessonDetailOut,
+)
+async def generate_lesson_draft(
+    lesson_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
+    ),
+):
+    svc = LessonService(session)
+    return await svc.generate_draft(
+        lesson_id, allow_published_edit=_can_edit_published(current_user.role)
+    )
+
+
+@router.post(
     "/lessons/{lesson_id}/archive",
     response_model=LessonOut,
 )
@@ -197,7 +221,9 @@ async def create_content_block(
     ),
 ):
     svc = LessonService(session)
-    return await svc.create_block(lesson_id, body)
+    return await svc.create_block(
+        lesson_id, body, allow_published_edit=_can_edit_published(current_user.role)
+    )
 
 
 @router.patch(
@@ -213,7 +239,9 @@ async def update_content_block(
     ),
 ):
     svc = LessonService(session)
-    return await svc.update_block(block_id, body)
+    return await svc.update_block(
+        block_id, body, allow_published_edit=_can_edit_published(current_user.role)
+    )
 
 
 @router.delete(
@@ -228,7 +256,9 @@ async def delete_content_block(
     ),
 ):
     svc = LessonService(session)
-    await svc.delete_block(block_id)
+    await svc.delete_block(
+        block_id, allow_published_edit=_can_edit_published(current_user.role)
+    )
     return None
 
 
