@@ -777,7 +777,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                 >
                   Отменить редактирование
                 </button>
-              )}
+              )} 
             </div>
 
             <div className="grid gap-4 sm:grid-cols-3">
