@@ -388,7 +388,12 @@ export default function ProblemDetailsPage() {
           {prevProblemId != null && (
             <button
               type="button"
-              onClick={() => router.push(`/problems/${prevProblemId}`)}
+              onClick={() => {
+                const url = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+                  ? `/problems/${prevProblemId}?return_to=${encodeURIComponent(returnTo)}`
+                  : `/problems/${prevProblemId}`;
+                router.push(url);
+              }}
               className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md active:scale-[0.98]"
             >
               <svg
@@ -406,7 +411,12 @@ export default function ProblemDetailsPage() {
           {nextProblemId != null && (
             <button
               type="button"
-              onClick={() => router.push(`/problems/${nextProblemId}`)}
+              onClick={() => {
+                const url = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+                  ? `/problems/${nextProblemId}?return_to=${encodeURIComponent(returnTo)}`
+                  : `/problems/${nextProblemId}`;
+                router.push(url);
+              }}
               className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md active:scale-[0.98]"
             >
               Следующая

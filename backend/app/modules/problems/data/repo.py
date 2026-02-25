@@ -302,4 +302,8 @@ class ProblemsRepo:
     async def delete_problem(self, problem_id: uuid.UUID) -> None:
         row = await self._get_problem_or_404(problem_id)
         await self.session.delete(row)
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except IntegrityError:
+            await self.session.rollback()
+            raise Conflict(tr("problem_has_submissions_cannot_delete"))
