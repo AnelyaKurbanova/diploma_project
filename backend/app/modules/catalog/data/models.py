@@ -32,6 +32,12 @@ class SubjectModel(Base):
     description_kk: Mapped[str | None] = mapped_column(Text, nullable=True)
     description_en: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    grade_level: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

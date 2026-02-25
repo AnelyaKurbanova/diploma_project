@@ -72,12 +72,10 @@ type LessonsFormProps = {
 
 const EMPTY_LESSON_FORM = {
   title: "",
-  order_no: "0",
 };
 
 const EMPTY_BLOCK_FORM = {
   block_type: "lecture" as "lecture" | "video" | "problem_set",
-  order_no: "0",
   title: "",
   body: "",
   video_url: "",
@@ -314,7 +312,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     setEditingLessonId(lesson.id);
     setLessonForm({
       title: lesson.title,
-      order_no: String(lesson.order_no),
     });
     setError(null);
     setSuccess(null);
@@ -324,7 +321,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     setEditingBlockId(block.id);
     setBlockForm({
       block_type: block.block_type,
-      order_no: String(block.order_no),
       title: block.title ?? "",
       body: block.body ?? "",
       video_url: block.video_url ?? "",
@@ -353,7 +349,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     try {
       const body = {
         title: lessonForm.title,
-        order_no: Number(lessonForm.order_no),
+        order_no: 0,
       };
 
       if (editingLessonId) {
@@ -453,7 +449,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     try {
       const payload: Record<string, unknown> = {
         block_type: blockForm.block_type,
-        order_no: Number(blockForm.order_no),
+        order_no: 0,
         title: blockForm.title || null,
       };
 
@@ -585,6 +581,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
         </div>
       </div>
 
+      {(!topicHasLesson || editingLessonId) && (
       <form onSubmit={handleLessonSubmit} className="space-y-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-bold text-slate-900">
@@ -615,16 +612,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Порядок</label>
-            <input
-              type="number"
-              min={0}
-              value={lessonForm.order_no}
-              onChange={(e) => setLessonForm((f) => ({ ...f, order_no: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-            />
-          </div>
         </div>
 
         <button
@@ -641,6 +628,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                 : "Создать лекцию"}
         </button>
       </form>
+      )}
 
       <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-6 py-4">
@@ -676,7 +664,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                   >
                     <p className="truncate font-medium text-slate-900">{lesson.title}</p>
                     <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
-                      <span>Порядок: {lesson.order_no}</span>
                       <span
                         className={`rounded-full px-2 py-0.5 font-medium ${
                           LESSON_STATUS_LABELS[lesson.status].cls
@@ -805,17 +792,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                 <p className="mt-1 text-[11px] text-slate-400">
                   Для темы допускается по одному блоку лекции, видео и задач.
                 </p>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-500">Порядок</label>
-                <input
-                  type="number"
-                  min={0}
-                  value={blockForm.order_no}
-                  onChange={(e) => setBlockForm((f) => ({ ...f, order_no: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-                />
               </div>
 
               <div>
@@ -962,7 +938,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                           <p className="text-sm font-semibold text-slate-900">
                             {BLOCK_LABELS[block.block_type]} - {block.title ?? "Без названия"}
                           </p>
-                          <p className="text-xs text-slate-400">Порядок: {block.order_no}</p>
                           {block.block_type === "lecture" && block.body && (
                             <p className="mt-2 line-clamp-3 text-sm text-slate-600">{block.body}</p>
                           )}

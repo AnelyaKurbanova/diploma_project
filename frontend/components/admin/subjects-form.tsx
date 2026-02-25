@@ -12,6 +12,7 @@ type Subject = {
   description_ru: string | null;
   description_kk: string | null;
   description_en: string | null;
+  grade_level: number | null;
   topic_count: number;
   created_at: string;
 };
@@ -23,9 +24,8 @@ type SubjectsFormProps = {
 const EMPTY_FORM = {
   code: "",
   name_ru: "",
-  name_kk: "",
-  name_en: "",
   description_ru: "",
+  grade_level: "",
 };
 
 export function SubjectsForm({ accessToken }: SubjectsFormProps) {
@@ -58,9 +58,8 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
     setForm({
       code: s.code,
       name_ru: s.name_ru,
-      name_kk: s.name_kk ?? "",
-      name_en: s.name_en ?? "",
       description_ru: s.description_ru ?? "",
+      grade_level: s.grade_level != null ? String(s.grade_level) : "",
     });
     setError(null);
     setSuccess(null);
@@ -79,13 +78,18 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
     setError(null);
     setSuccess(null);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         code: form.code,
         name_ru: form.name_ru,
-        name_kk: form.name_kk || null,
-        name_en: form.name_en || null,
+        name_kk: null,
+        name_en: null,
         description_ru: form.description_ru || null,
+        description_kk: null,
+        description_en: null,
       };
+      if (form.grade_level) {
+        body.grade_level = Number(form.grade_level);
+      }
 
       if (editingId) {
         await apiPatch(`/subjects/${editingId}`, body, accessToken);
@@ -147,7 +151,7 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Название (RU)</label>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Название</label>
             <input
               type="text"
               required
@@ -160,25 +164,15 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Название (KK)</label>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Класс</label>
             <input
-              type="text"
-              maxLength={255}
-              value={form.name_kk}
-              onChange={(e) => setForm((f) => ({ ...f, name_kk: e.target.value }))}
-              placeholder="Математика"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Название (EN)</label>
-            <input
-              type="text"
-              maxLength={255}
-              value={form.name_en}
-              onChange={(e) => setForm((f) => ({ ...f, name_en: e.target.value }))}
-              placeholder="Mathematics"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              type="number"
+              min={1}
+              max={11}
+              value={form.grade_level}
+              onChange={(e) => setForm((f) => ({ ...f, grade_level: e.target.value }))}
+              placeholder="1–11 (необязательно)"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
           </div>
         </div>

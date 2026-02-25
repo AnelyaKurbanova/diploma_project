@@ -14,6 +14,7 @@ class SubjectCreate(BaseModel):
     description_ru: str | None = Field(default=None)
     description_kk: str | None = Field(default=None)
     description_en: str | None = Field(default=None)
+    grade_level: int | None = Field(default=None, ge=1, le=11)
 
 
 class SubjectUpdate(BaseModel):
@@ -24,6 +25,7 @@ class SubjectUpdate(BaseModel):
     description_ru: str | None = Field(default=None)
     description_kk: str | None = Field(default=None)
     description_en: str | None = Field(default=None)
+    grade_level: int | None = Field(default=None, ge=1, le=11)
 
 
 class SubjectOut(BaseModel):
@@ -35,6 +37,7 @@ class SubjectOut(BaseModel):
     description_ru: str | None
     description_kk: str | None
     description_en: str | None
+    grade_level: int | None = None
     topic_count: int
     created_at: datetime
 

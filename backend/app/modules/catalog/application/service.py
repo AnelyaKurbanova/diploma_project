@@ -28,6 +28,7 @@ class SubjectService:
             description_ru=data.description_ru,
             description_kk=data.description_kk,
             description_en=data.description_en,
+            grade_level=data.grade_level,
         )
         await self.session.commit()
         return row
@@ -54,6 +55,7 @@ class SubjectService:
             description_ru=data.description_ru,
             description_kk=data.description_kk,
             description_en=data.description_en,
+            grade_level=data.grade_level,
         )
         await self.session.commit()
         return row

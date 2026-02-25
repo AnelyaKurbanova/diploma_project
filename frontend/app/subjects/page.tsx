@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { apiGet } from "@/lib/api";
+import { useProfile, useSubjects } from "@/lib/swr-hooks";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { SubjectCard } from "@/components/ui/subject-card";
 
@@ -15,54 +15,23 @@ type Subject = {
   topic_count: number;
 };
 
-type ProfileResponse = {
-  full_name: string | null;
-  avatar_url?: string | null;
-  [key: string]: unknown;
-};
-
 export default function SubjectsPage() {
-  const { user, isLoading, accessToken } = useAuth();
+  const { user, isLoading } = useAuth();
   const router = useRouter();
-  const [profile, setProfile] = useState<ProfileResponse | null>(null);
-  const [subjects, setSubjects] = useState<Subject[]>([]);
-  const [loadError, setLoadError] = useState(false);
+  const { profile, error: profileError } = useProfile();
+  const { subjects, error: subjectsError } = useSubjects();
+  const loadError = !!profileError || !!subjectsError;
 
   useEffect(() => {
     if (isLoading) return;
-    if (!user) {
-      router.replace("/auth");
-    }
+    if (!user) router.replace("/auth");
   }, [isLoading, user, router]);
 
   useEffect(() => {
-    if (!accessToken || !user) return;
-    (async () => {
-      try {
-        const p = await apiGet<ProfileResponse>("/me/profile", accessToken);
-        setProfile(p);
-      } catch (err) {
-        const status = (err as { status?: number }).status;
-        if (status === 404) {
-          router.replace("/onboarding");
-          return;
-        }
-        setLoadError(true);
-      }
-    })();
-  }, [accessToken, user, router]);
-
-  useEffect(() => {
-    if (!accessToken || !profile) return;
-    (async () => {
-      try {
-        const data = await apiGet<Subject[]>("/subjects", accessToken);
-        setSubjects(data);
-      } catch {
-        setLoadError(true);
-      }
-    })();
-  }, [accessToken, profile]);
+    if (profileError && (profileError as { status?: number }).status === 404) {
+      router.replace("/onboarding");
+    }
+  }, [profileError, router]);
 
   if (isLoading || !user || !profile) {
     return (
@@ -117,8 +86,8 @@ export default function SubjectsPage() {
                 key={s.id}
                 code={s.code}
                 name={s.name_ru}
-                description={s.description_ru}
-                topicCount={s.topic_count}
+                description={typeof s.description_ru === "string" ? s.description_ru : null}
+                topicCount={typeof s.topic_count === "number" ? s.topic_count : 0}
                 href={`/subjects/${s.code}`}
               />
             ))}

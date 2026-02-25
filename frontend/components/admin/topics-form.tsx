@@ -28,10 +28,6 @@ const EMPTY_FORM = {
   subject_id: "",
   parent_topic_id: "",
   title_ru: "",
-  title_kk: "",
-  title_en: "",
-  grade_level: "",
-  order_no: "0",
 };
 
 export function TopicsForm({ accessToken }: TopicsFormProps) {
@@ -85,10 +81,6 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
       subject_id: t.subject_id,
       parent_topic_id: t.parent_topic_id ?? "",
       title_ru: t.title_ru,
-      title_kk: t.title_kk ?? "",
-      title_en: t.title_en ?? "",
-      grade_level: t.grade_level != null ? String(t.grade_level) : "",
-      order_no: String(t.order_no),
     });
     setError(null);
     setSuccess(null);
@@ -111,10 +103,10 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
         subject_id: form.subject_id,
         parent_topic_id: form.parent_topic_id || null,
         title_ru: form.title_ru,
-        title_kk: form.title_kk || null,
-        title_en: form.title_en || null,
-        grade_level: form.grade_level ? Number(form.grade_level) : null,
-        order_no: Number(form.order_no),
+        title_kk: null,
+        title_en: null,
+        grade_level: null,
+        order_no: 0,
       };
 
       if (editingId) {
@@ -196,7 +188,7 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Название (RU)</label>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Название</label>
             <input
               type="text"
               required
@@ -206,37 +198,6 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
               onChange={(e) => setForm((f) => ({ ...f, title_ru: e.target.value }))}
               placeholder="Алгебра"
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Название (KK)</label>
-            <input
-              type="text"
-              maxLength={255}
-              value={form.title_kk}
-              onChange={(e) => setForm((f) => ({ ...f, title_kk: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Класс</label>
-            <input
-              type="number"
-              min={1}
-              max={11}
-              value={form.grade_level}
-              onChange={(e) => setForm((f) => ({ ...f, grade_level: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-            />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Порядок</label>
-            <input
-              type="number"
-              min={0}
-              value={form.order_no}
-              onChange={(e) => setForm((f) => ({ ...f, order_no: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
           </div>
         </div>
@@ -305,9 +266,6 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
                 <div className="min-w-0 flex-1">
                   {t.parent_topic_id && <span className="mr-1 text-slate-300">&#x2514;</span>}
                   <span className="font-medium text-slate-900">{t.title_ru}</span>
-                  {t.grade_level != null && (
-                    <span className="ml-2 text-xs text-slate-400">{t.grade_level} класс</span>
-                  )}
                 </div>
                 <div className="ml-4 flex shrink-0 items-center gap-2">
                   <button
