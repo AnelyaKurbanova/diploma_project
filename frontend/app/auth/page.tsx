@@ -59,8 +59,8 @@ export default function AuthPage() {
       {/* Фон и карточка входа */}
       <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4 py-8">
         <div className="w-full max-w-[1143px] flex justify-center">
-          <div className="w-96 space-y-6">
-            <div className="flex flex-col gap-6 rounded-2xl bg-white shadow-[0px_8px_10px_-6px_rgba(0,0,0,0.10),0px_20px_25px_-5px_rgba(0,0,0,0.10)] outline outline-1 outline-offset-[-1px] outline-gray-200">
+          <div className="w-96 space-y-6 animate-page-in">
+            <div className="flex flex-col gap-6 rounded-2xl bg-white shadow-[0px_8px_10px_-6px_rgba(0,0,0,0.10),0px_20px_25px_-5px_rgba(0,0,0,0.10)] outline outline-1 outline-offset-[-1px] outline-gray-200 transition-shadow duration-300 hover:shadow-lg">
               {/* Заголовок */}
               <div className="w-96 px-6 pt-6">
                 <h1 className="mb-1 text-2xl font-bold leading-8 text-slate-950">

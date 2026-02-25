@@ -56,7 +56,7 @@ function hasHtmlTags(input: string): boolean {
 
 function LectureBlock({ block }: { block: ContentBlock }) {
   return (
-    <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow duration-300 hover:shadow-md">
       {block.title && (
         <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
           <svg className="h-5 w-5 text-blue-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -92,7 +92,7 @@ function VideoBlock({ block }: { block: ContentBlock }) {
   }
 
   return (
-    <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow duration-300 hover:shadow-md">
       {block.title && (
         <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
           <svg className="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -191,7 +191,7 @@ function ProblemSetBlock({
   }, [accessToken, block.id, block.problems]);
 
   return (
-    <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+    <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow duration-300 hover:shadow-md">
       <h2 className="mb-4 flex items-center gap-2 text-lg font-bold text-slate-900">
         <svg className="h-5 w-5 text-emerald-500" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 5.25h.008v.008H12v-.008Z" />
@@ -243,7 +243,7 @@ function ProblemSetBlock({
                     // ignore
                   }
                 }}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98]"
               >
                 Решить
               </Link>
@@ -350,7 +350,7 @@ export default function LessonDetailPage() {
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400">
+        <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400 animate-page-in">
           <Link href="/subjects" className="transition-colors hover:text-blue-600">Предметы</Link>
           <span>/</span>
           <Link href={`/subjects/${code}`} className="transition-colors hover:text-blue-600">{subject?.name_ru ?? code}</Link>
@@ -368,34 +368,33 @@ export default function LessonDetailPage() {
 
         {lesson && (
           <>
-            <div className="mb-8">
+            <div className="mb-8 animate-page-in animate-stagger-1">
               <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">{lesson.title}</h1>
             </div>
 
             {hasBlocks ? (
               <div className="space-y-6">
-                {lesson.content_blocks.map((block) => {
-                  switch (block.block_type) {
-                    case "lecture":
-                      return <LectureBlock key={block.id} block={block} />;
-                    case "video":
-                      return <VideoBlock key={block.id} block={block} />;
-                    case "problem_set":
-                      return (
-                        <ProblemSetBlock
-                          key={block.id}
-                          block={block}
-                          accessToken={accessToken!}
-                          lessonPath={lessonPath}
-                        />
-                      );
-                    default:
-                      return null;
-                  }
+                {lesson.content_blocks.map((block, idx) => {
+                  const content =
+                    block.block_type === "lecture" ? <LectureBlock block={block} /> :
+                    block.block_type === "video" ? <VideoBlock block={block} /> :
+                    block.block_type === "problem_set" ? (
+                      <ProblemSetBlock block={block} accessToken={accessToken!} lessonPath={lessonPath} />
+                    ) : null;
+                  if (!content) return null;
+                  return (
+                    <div
+                      key={block.id}
+                      className="animate-page-in"
+                      style={{ animationDelay: `${Math.min(idx * 0.08, 0.4)}s` }}
+                    >
+                      {content}
+                    </div>
+                  );
                 })}
               </div>
             ) : lesson.theory_body ? (
-              <section className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+              <section className="animate-page-in animate-stagger-2 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
                 {hasHtmlTags(lesson.theory_body) ? (
                   <div
                     className="prose prose-slate mx-auto max-w-3xl prose-p:text-base prose-p:leading-8 prose-headings:font-bold [&_img]:mx-auto [&_img]:my-8 [&_img]:max-h-[420px] [&_img]:w-full [&_img]:rounded-2xl [&_img]:border [&_img]:border-slate-200 [&_img]:bg-white [&_img]:object-contain"

@@ -214,7 +214,7 @@ export default function DashboardPage() {
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile?.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="mb-8">
+        <div className="mb-8 animate-page-in">
           <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
             Моя панель управления
           </h1>
@@ -224,31 +224,22 @@ export default function DashboardPage() {
         </div>
 
         <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Общий прогресс"
-            value={`${stats?.overall_progress ?? 0}%`}
-            icon={<TrendIcon className="h-7 w-7 text-blue-500" />}
-          />
-          <StatCard
-            label="Завершено лекций"
-            value={String(stats?.completed_lectures ?? 0)}
-            subValue={`из ${stats?.total_lectures ?? 0}`}
-            icon={<BookOpenIcon className="h-7 w-7 text-blue-500" />}
-          />
-          <StatCard
-            label="Решено задач"
-            value={`${completedTasks}/${stats?.total_tasks ?? 0}`}
-            icon={<CheckCircleIcon className="h-7 w-7 text-emerald-500" />}
-          />
-          <StatCard
-            label="Точность"
-            value={`${stats?.accuracy ?? 0}%`}
-            icon={<TargetIcon className="h-7 w-7 text-rose-500" />}
-          />
+          <div className="animate-page-in" style={{ animationDelay: "0s" }}>
+            <StatCard label="Общий прогресс" value={`${stats?.overall_progress ?? 0}%`} icon={<TrendIcon className="h-7 w-7 text-blue-500" />} />
+          </div>
+          <div className="animate-page-in" style={{ animationDelay: "0.06s" }}>
+            <StatCard label="Завершено лекций" value={String(stats?.completed_lectures ?? 0)} subValue={`из ${stats?.total_lectures ?? 0}`} icon={<BookOpenIcon className="h-7 w-7 text-blue-500" />} />
+          </div>
+          <div className="animate-page-in" style={{ animationDelay: "0.12s" }}>
+            <StatCard label="Решено задач" value={`${completedTasks}/${stats?.total_tasks ?? 0}`} icon={<CheckCircleIcon className="h-7 w-7 text-emerald-500" />} />
+          </div>
+          <div className="animate-page-in" style={{ animationDelay: "0.18s" }}>
+            <StatCard label="Точность" value={`${stats?.accuracy ?? 0}%`} icon={<TargetIcon className="h-7 w-7 text-rose-500" />} />
+          </div>
         </div>
 
         <div className="mb-8 grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-gray-100 bg-white p-6">
+          <section className="animate-page-in animate-stagger-3 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
             <h2 className="mb-1 text-base font-bold text-slate-900">
               Уровень освоения по предметам
             </h2>
@@ -264,7 +255,7 @@ export default function DashboardPage() {
             )}
           </section>
 
-          <section className="rounded-2xl border border-gray-100 bg-white p-6">
+          <section className="animate-page-in animate-stagger-4 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
             <h2 className="mb-1 text-base font-bold text-slate-900">
               Статистика выполнения заданий
             </h2>
@@ -276,7 +267,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid gap-6 lg:grid-cols-2">
-          <section className="rounded-2xl border border-gray-100 bg-white p-6">
+          <section className="animate-page-in animate-stagger-5 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
             <h2 className="mb-1 text-base font-bold text-slate-900">
               Прогресс по предметам
             </h2>
@@ -302,7 +293,7 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-gray-100 bg-white p-6">
+          <section className="animate-page-in animate-stagger-6 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
             <h2 className="mb-1 text-base font-bold text-slate-900">
               Рекомендации
             </h2>
@@ -361,7 +352,7 @@ export default function DashboardPage() {
         {/* Student classes section */}
         {userRole === "student" && (
           <section className="mt-8 grid gap-6 lg:grid-cols-2">
-            <div className="rounded-2xl border border-gray-100 bg-white p-6">
+            <div className="animate-page-in animate-stagger-4 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
               <h2 className="mb-1 text-base font-bold text-slate-900">
                 Мои классы
               </h2>
@@ -428,7 +419,7 @@ export default function DashboardPage() {
               </form>
             </div>
 
-            <div className="rounded-2xl border border-gray-100 bg-white p-6">
+            <div className="animate-page-in animate-stagger-5 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
               <h2 className="mb-1 text-base font-bold text-slate-900">
                 Классы, в которых вы учитесь
               </h2>

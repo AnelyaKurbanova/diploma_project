@@ -178,20 +178,20 @@ export default function ProblemsPage() {
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="mb-8 flex items-start justify-between gap-4">
+        <div className="mb-8 flex items-start justify-between gap-4 animate-page-in">
           <div>
             <h1 className="text-2xl font-extrabold sm:text-3xl">Все задачи</h1>
             <p className="mt-1 text-sm text-slate-500">
               Практикуйтесь на задачах разной сложности
             </p>
           </div>
-          <div className="rounded-xl bg-white p-1 shadow-sm">
+          <div className="rounded-xl bg-white p-1 shadow-sm animate-page-in" style={{ animationDelay: "0.06s" }}>
             {["all", "easy", "medium", "hard"].map((difficulty) => (
               <button
                 key={difficulty}
                 type="button"
                 onClick={() => setSelectedDifficulty(difficulty)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
                   selectedDifficulty === difficulty
                     ? "bg-blue-600 text-white"
                     : "text-slate-600 hover:bg-slate-100"
@@ -217,11 +217,12 @@ export default function ProblemsPage() {
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredProblems.map((problem) => (
+            {filteredProblems.map((problem, idx) => (
               <Link
                 key={problem.id}
                 href={`/problems/${problem.id}`}
-                className="block rounded-2xl border border-gray-100 bg-white p-5 transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                className="block animate-page-in rounded-2xl border border-gray-100 bg-white p-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-blue-100 active:scale-[0.99]"
+                style={{ animationDelay: `${Math.min(idx * 0.04, 0.3)}s` }}
               >
                 <div className="mb-2 flex items-center gap-2">
                   <span

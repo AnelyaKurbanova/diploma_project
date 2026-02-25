@@ -151,8 +151,8 @@ export default function OnboardingPage() {
       <EntHeader />
 
       <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4 py-8">
-        <div className="w-full max-w-[600px]">
-          <div className="rounded-2xl bg-white p-8 shadow-[0px_8px_10px_-6px_rgba(0,0,0,0.10),0px_20px_25px_-5px_rgba(0,0,0,0.10)] outline outline-1 outline-offset-[-1px] outline-gray-200">
+        <div className="w-full max-w-[600px] animate-page-in">
+          <div className="rounded-2xl bg-white p-8 shadow-[0px_8px_10px_-6px_rgba(0,0,0,0.10),0px_20px_25px_-5px_rgba(0,0,0,0.10)] outline outline-1 outline-offset-[-1px] outline-gray-200 transition-shadow duration-300 hover:shadow-lg">
             {/* Icon + Welcome */}
             <div className="mb-6 flex justify-center">
               <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">

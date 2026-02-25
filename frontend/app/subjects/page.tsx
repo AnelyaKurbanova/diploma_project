@@ -64,7 +64,7 @@ export default function SubjectsPage() {
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="mb-8">
+        <div className="mb-8 animate-page-in">
           <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
             Предметы
           </h1>
@@ -81,15 +81,20 @@ export default function SubjectsPage() {
 
         {subjects.length > 0 ? (
           <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {subjects.map((s) => (
-              <SubjectCard
+            {subjects.map((s, idx) => (
+              <div
                 key={s.id}
+                className="animate-page-in"
+                style={{ animationDelay: `${Math.min(idx * 0.06, 0.4)}s` }}
+              >
+              <SubjectCard
                 code={s.code}
                 name={s.name_ru}
                 description={typeof s.description_ru === "string" ? s.description_ru : null}
                 topicCount={typeof s.topic_count === "number" ? s.topic_count : 0}
                 href={`/subjects/${s.code}`}
               />
+              </div>
             ))}
           </div>
         ) : (

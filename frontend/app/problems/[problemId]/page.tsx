@@ -374,7 +374,7 @@ export default function ProblemDetailsPage() {
       )}
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
-        <div className="mb-6 flex flex-wrap items-center gap-3">
+        <div className="mb-6 flex flex-wrap items-center gap-3 animate-page-in">
           <button
             type="button"
             onClick={() => router.push(backHref)}
@@ -446,7 +446,7 @@ export default function ProblemDetailsPage() {
           </div>
         ) : (
           problem && (
-            <article className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
+            <article className="animate-page-in animate-stagger-1 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow duration-300 hover:shadow-md">
               <div className="mb-3 flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${
