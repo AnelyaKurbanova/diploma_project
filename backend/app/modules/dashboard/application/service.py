@@ -145,14 +145,16 @@ class DashboardService:
                 continue
 
             completed_topics_stmt = (
-                select(func.count(distinct(ProblemModel.topic_id)))
-                .select_from(SubmissionModel)
-                .join(ProblemModel, SubmissionModel.problem_id == ProblemModel.id)
+                select(func.count(distinct(LessonModel.topic_id)))
+                .select_from(LessonProgressModel)
+                .join(LessonModel, LessonProgressModel.lesson_id == LessonModel.id)
                 .where(
-                    SubmissionModel.user_id == user_id,
-                    SubmissionModel.is_correct.is_(True),
-                    ProblemModel.subject_id == subject.id,
-                    ProblemModel.topic_id.isnot(None),
+                    LessonProgressModel.user_id == user_id,
+                    LessonProgressModel.completed.is_(True),
+                    LessonModel.topic_id.isnot(None),
+                    LessonModel.topic_id.in_(
+                        select(TopicModel.id).where(TopicModel.subject_id == subject.id)
+                    ),
                 )
             )
             completed_topics_result = await self.session.execute(completed_topics_stmt)
