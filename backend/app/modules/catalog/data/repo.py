@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import Conflict, NotFound
 from app.core.i18n import tr
 from app.modules.catalog.data.models import SubjectModel, TopicModel
+from app.modules.lessons.data.models import LessonModel, LessonStatus
 
 
 class CatalogRepo:
@@ -23,20 +24,12 @@ class CatalogRepo:
         name_ru: str,
         name_kk: str | None,
         name_en: str | None,
-        description_ru: str | None = None,
-        description_kk: str | None = None,
-        description_en: str | None = None,
-        grade_level: int | None = None,
     ) -> SubjectModel:
         row = SubjectModel(
             code=code,
             name_ru=name_ru,
             name_kk=name_kk,
             name_en=name_en,
-            description_ru=description_ru,
-            description_kk=description_kk,
-            description_en=description_en,
-            grade_level=grade_level,
         )
         self.session.add(row)
         try:
@@ -92,10 +85,6 @@ class CatalogRepo:
         name_ru: str | None,
         name_kk: str | None,
         name_en: str | None,
-        description_ru: str | None = None,
-        description_kk: str | None = None,
-        description_en: str | None = None,
-        grade_level: int | None = None,
     ) -> SubjectModel:
         row = await self.get_subject(subject_id)
         if code is not None:
@@ -106,14 +95,6 @@ class CatalogRepo:
             row.name_kk = name_kk
         if name_en is not None:
             row.name_en = name_en
-        if description_ru is not None:
-            row.description_ru = description_ru
-        if description_kk is not None:
-            row.description_kk = description_kk
-        if description_en is not None:
-            row.description_en = description_en
-        if grade_level is not None:
-            row.grade_level = grade_level
         try:
             await self.session.flush()
         except IntegrityError:
@@ -175,6 +156,52 @@ class CatalogRepo:
         if grade_level is not None:
             stmt = stmt.where(TopicModel.grade_level == grade_level)
 
+        rows: Sequence[TopicModel] = (await self.session.execute(stmt)).scalars().all()
+        return list(rows)
+
+    async def list_distinct_grades_for_subject(self, subject_code: str) -> list[int]:
+        """Return sorted distinct grade levels for published lessons of a subject."""
+        stmt = (
+            select(LessonModel.grade_level)
+            .join(TopicModel, LessonModel.topic_id == TopicModel.id)
+            .join(SubjectModel, TopicModel.subject_id == SubjectModel.id)
+            .where(
+                SubjectModel.code == subject_code,
+                LessonModel.status == LessonStatus.PUBLISHED,
+                LessonModel.grade_level.is_not(None),
+            )
+            .distinct()
+            .order_by(LessonModel.grade_level)
+        )
+        result = await self.session.execute(stmt)
+        grades = [row[0] for row in result.all() if row[0] is not None]
+        return grades
+
+    async def list_topics_for_subject_and_grade(
+        self,
+        *,
+        subject_code: str,
+        grade_level: int,
+    ) -> list[TopicModel]:
+        """Return topics for subject+grade that have at least one published lesson."""
+        lesson_subq = (
+            select(LessonModel.topic_id)
+            .join(TopicModel, LessonModel.topic_id == TopicModel.id)
+            .join(SubjectModel, TopicModel.subject_id == SubjectModel.id)
+            .where(
+                SubjectModel.code == subject_code,
+                LessonModel.status == LessonStatus.PUBLISHED,
+                LessonModel.grade_level == grade_level,
+            )
+            .group_by(LessonModel.topic_id)
+            .subquery()
+        )
+
+        stmt: Select[TopicModel] = (
+            select(TopicModel)
+            .where(TopicModel.id.in_(select(lesson_subq.c.topic_id)))
+            .order_by(TopicModel.created_at)
+        )
         rows: Sequence[TopicModel] = (await self.session.execute(stmt)).scalars().all()
         return list(rows)
 

@@ -5,6 +5,7 @@ import logging
 from openai import AsyncOpenAI
 
 from app.settings import settings
+from app.modules.problems.application.canonicalize import normalize_for_storage
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +68,18 @@ async def generate_explanation(
         )
         content = response.choices[0].message.content or ""
         explanation = content.strip()
-        # обрезаем возможные лишние переводы строк в конце
-        return explanation or None
+        if not explanation:
+            return None
+
+        # Добавляем в конец объяснения явный текстовый ответ без форматирования LaTeX,
+        # чтобы автор и ученик ясно видели, какое значение ожидает система.
+        canonical_answer = normalize_for_storage(correct_answer) or correct_answer.strip()
+        if canonical_answer:
+            suffix = f" (Ожидаемый ответ от ученика: {canonical_answer})"
+            if suffix not in explanation:
+                explanation = f"{explanation.rstrip()}{suffix}"
+
+        return explanation
     except Exception as exc:  # pragma: no cover - защитный код
         logger.warning("LLM explanation generation failed: %s", exc)
         return None

@@ -6,22 +6,13 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet } from "@/lib/api";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { useSubjectGrades } from "@/lib/swr-hooks";
 
 type Subject = {
   id: string;
   code: string;
   name_ru: string;
-  description_ru: string | null;
   topic_count: number;
-};
-
-type Topic = {
-  id: string;
-  subject_id: string;
-  parent_topic_id: string | null;
-  title_ru: string;
-  grade_level: number | null;
-  order_no: number;
 };
 
 type ProfileResponse = {
@@ -37,8 +28,9 @@ export default function SubjectDetailPage() {
 
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [subject, setSubject] = useState<Subject | null>(null);
-  const [topics, setTopics] = useState<Topic[]>([]);
   const [loadError, setLoadError] = useState(false);
+
+  const { grades, error: gradesError } = useSubjectGrades(code ?? null);
 
   useEffect(() => {
     if (isLoading) return;
@@ -76,14 +68,6 @@ export default function SubjectDetailPage() {
           return;
         }
         setSubject(found);
-
-        // Load root-level topics for this subject
-        const topicsData = await apiGet<Topic[]>(
-          `/topics?subject_id=${found.id}`,
-          accessToken,
-        );
-        // Flat topic list for simplified flow: subject -> topic -> tasks
-        setTopics(topicsData);
       } catch {
         setLoadError(true);
       }
@@ -136,57 +120,59 @@ export default function SubjectDetailPage() {
           <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
             {subject?.name_ru ?? "Загрузка..."}
           </h1>
-          {subject?.description_ru && (
-            <p className="mt-1 text-sm text-slate-500">{subject.description_ru}</p>
-          )}
+          <p className="mt-1 text-sm text-slate-500">
+            Выберите класс, чтобы посмотреть темы и уроки по этому предмету.
+          </p>
         </div>
 
-        {loadError && (
+        {(loadError || gradesError) && (
           <div className="mb-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">
             Не удалось загрузить данные. Попробуйте обновить страницу.
           </div>
         )}
 
-        {topics.length > 0 ? (
-          <div className="space-y-3">
-            {topics.map((t, idx) => (
+        {grades.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {grades.map((g, idx) => (
               <Link
-                key={t.id}
-                href={`/subjects/${code}/${t.id}`}
-                className="group flex items-center gap-4 rounded-2xl border border-gray-100 bg-white px-6 py-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-blue-100 animate-page-in active:scale-[0.99]"
-                style={{ animationDelay: `${Math.min(idx * 0.05, 0.35)}s` }}
+                key={g}
+                href={`/subjects/${code}/grade/${g}`}
+                className="group flex flex-col justify-between rounded-2xl border border-gray-100 bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-xl animate-page-in"
+                style={{ animationDelay: `${Math.min(idx * 0.06, 0.4)}s` }}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-sm font-bold text-blue-600">
-                  {idx + 1}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Класс
+                  </p>
+                  <h2 className="mt-2 text-xl font-extrabold text-slate-900 group-hover:text-blue-700">
+                    {g} класс
+                  </h2>
+                  <p className="mt-1 text-xs text-slate-500">
+                    Темы и уроки по предмету для {g} класса.
+                  </p>
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="text-base font-semibold text-slate-900 group-hover:text-blue-700">
-                    {t.title_ru}
-                  </h3>
-                  {t.grade_level != null && (
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      {t.grade_level} класс
-                    </p>
-                  )}
+                <div className="mt-4 flex items-center justify-between text-sm font-medium text-blue-600">
+                  <span>Перейти к темам</span>
+                  <svg
+                    className="h-4 w-4 text-blue-400 transition-transform group-hover:translate-x-1"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.5}
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="m8.25 4.5 7.5 7.5-7.5 7.5"
+                    />
+                  </svg>
                 </div>
-                <svg
-                  className="h-5 w-5 shrink-0 text-slate-300 transition-colors group-hover:text-blue-500"
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.5}
-                  stroke="currentColor"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="m8.25 4.5 7.5 7.5-7.5 7.5"
-                  />
-                </svg>
               </Link>
             ))}
           </div>
         ) : (
-          !loadError && (
+          !loadError &&
+          !gradesError && (
             <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 text-center">
               <svg
                 className="mb-4 h-12 w-12 text-slate-300"
@@ -202,7 +188,7 @@ export default function SubjectDetailPage() {
                 />
               </svg>
               <p className="text-sm text-slate-400">
-                Темы для этого предмета ещё не добавлены
+                Для этого предмета пока нет уроков с привязкой к классам
               </p>
             </div>
           )

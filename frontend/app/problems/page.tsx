@@ -6,6 +6,7 @@ import Link from "next/link";
 import { apiGet } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { ProblemContent } from "@/components/ui/problem-content";
 
 type Problem = {
   id: string;
@@ -252,11 +253,12 @@ export default function ProblemsPage() {
                     )}
                 </div>
                 <h2 className="text-base font-semibold text-slate-900">
-                  {problem.title}
+                  <ProblemContent body={problem.title} variant="inline" />
                 </h2>
-                <p className="mt-2 line-clamp-2 text-sm text-slate-600">
-                  {problem.statement}
-                </p>
+                <ProblemContent
+                  body={problem.statement}
+                  className="mt-2 line-clamp-2 text-sm text-slate-600"
+                />
               </Link>
             ))}
           </div>

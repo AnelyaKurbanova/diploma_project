@@ -137,16 +137,24 @@ class SubmissionService:
 
         if answer_key.canonical_answer:
             user_canonical = normalize_for_storage(ua_norm)
-            if user_canonical and user_canonical == answer_key.canonical_answer:
-                return (
-                    True,
-                    points,
-                    {
-                        "kind": "canonical_match",
-                        "user_canonical": user_canonical,
-                        "stored_canonical": answer_key.canonical_answer,
-                    },
-                )
+            if user_canonical:
+                stored = answer_key.canonical_answer
+                # Сравниваем канонические ответы без учёта пробелов,
+                # чтобы не наказывать за разные форматирования формул.
+                if (
+                    user_canonical == stored
+                    or user_canonical.replace(" ", "")
+                    == stored.replace(" ", "")
+                ):
+                    return (
+                        True,
+                        points,
+                        {
+                            "kind": "canonical_match",
+                            "user_canonical": user_canonical,
+                            "stored_canonical": stored,
+                        },
+                    )
 
         if answer_key.numeric_answer is not None:
             parsed = _try_parse_number(ua_norm)

@@ -12,12 +12,8 @@ type Subject = {
 type Topic = {
   id: string;
   subject_id: string;
-  parent_topic_id: string | null;
-  title_ru: string;
-  title_kk: string | null;
-  title_en: string | null;
   grade_level: number | null;
-  order_no: number;
+  title_ru: string;
 };
 
 type TopicsFormProps = {
@@ -26,7 +22,7 @@ type TopicsFormProps = {
 
 const EMPTY_FORM = {
   subject_id: "",
-  parent_topic_id: "",
+  grade_level: "",
   title_ru: "",
 };
 
@@ -79,7 +75,7 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
     setEditingId(t.id);
     setForm({
       subject_id: t.subject_id,
-      parent_topic_id: t.parent_topic_id ?? "",
+      grade_level: t.grade_level != null ? String(t.grade_level) : "",
       title_ru: t.title_ru,
     });
     setError(null);
@@ -99,15 +95,16 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
     setError(null);
     setSuccess(null);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         subject_id: form.subject_id,
-        parent_topic_id: form.parent_topic_id || null,
         title_ru: form.title_ru,
         title_kk: null,
         title_en: null,
-        grade_level: null,
-        order_no: 0,
       };
+
+      if (form.grade_level) {
+        body.grade_level = Number(form.grade_level);
+      }
 
       if (editingId) {
         await apiPatch(`/topics/${editingId}`, body, accessToken);
@@ -157,34 +154,19 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
             </button>
           )}
         </div>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-3">
           <div>
             <label className="mb-1 block text-xs font-medium text-slate-500">Предмет</label>
             <select
               required
               value={form.subject_id}
-              onChange={(e) => setForm((f) => ({ ...f, subject_id: e.target.value, parent_topic_id: "" }))}
+              onChange={(e) => setForm((f) => ({ ...f, subject_id: e.target.value }))}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
             >
               <option value="">Выберите предмет</option>
               {subjects.map((s) => (
                 <option key={s.id} value={s.id}>{s.name_ru}</option>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-slate-500">Родительская тема</label>
-            <select
-              value={form.parent_topic_id}
-              onChange={(e) => setForm((f) => ({ ...f, parent_topic_id: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-            >
-              <option value="">Без родителя (корневая)</option>
-              {topics
-                .filter((t) => t.subject_id === form.subject_id && t.id !== editingId)
-                .map((t) => (
-                  <option key={t.id} value={t.id}>{t.title_ru}</option>
-                ))}
             </select>
           </div>
           <div>
@@ -198,6 +180,18 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
               onChange={(e) => setForm((f) => ({ ...f, title_ru: e.target.value }))}
               placeholder="Алгебра"
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-500">Класс (1–11)</label>
+            <input
+              type="number"
+              min={1}
+              max={11}
+              value={form.grade_level}
+              onChange={(e) => setForm((f) => ({ ...f, grade_level: e.target.value }))}
+              placeholder="Например, 7"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
             />
           </div>
         </div>
@@ -258,13 +252,11 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
             {topics.map((t) => (
               <div
                 key={t.id}
-                className={`flex items-center justify-between py-3 transition-colors ${
+                className={`flex items-center justify-between px-6 py-3 transition-colors ${
                   editingId === t.id ? "bg-blue-50/50" : "hover:bg-gray-50/50"
                 }`}
-                style={{ paddingLeft: t.parent_topic_id ? "3rem" : "1.5rem", paddingRight: "1.5rem" }}
               >
                 <div className="min-w-0 flex-1">
-                  {t.parent_topic_id && <span className="mr-1 text-slate-300">&#x2514;</span>}
                   <span className="font-medium text-slate-900">{t.title_ru}</span>
                 </div>
                 <div className="ml-4 flex shrink-0 items-center gap-2">

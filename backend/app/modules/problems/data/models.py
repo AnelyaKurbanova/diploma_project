@@ -46,6 +46,14 @@ class ProblemStatus(str, enum.Enum):
 class ProblemModel(Base):
     __tablename__ = "problems"
 
+    __table_args__ = (
+        UniqueConstraint(
+            "topic_id",
+            "statement_normalized",
+            name="uq_problem_topic_statement_norm",
+        ),
+    )
+
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -83,6 +91,7 @@ class ProblemModel(Base):
 
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     statement: Mapped[str] = mapped_column(Text, nullable=False)
+    statement_normalized: Mapped[str] = mapped_column(Text, nullable=False)
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     time_limit_sec: Mapped[int] = mapped_column(Integer, nullable=False, default=60)

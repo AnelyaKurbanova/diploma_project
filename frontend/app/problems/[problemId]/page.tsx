@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
+import { ProblemContent } from "@/components/ui/problem-content";
 
 type Problem = {
   id: string;
@@ -263,6 +264,8 @@ export default function ProblemDetailsPage() {
   const isChoiceType =
     problem?.type === "single_choice" || problem?.type === "multiple_choice";
   const isTextType = problem != null && !isChoiceType;
+  const isHardShortText =
+    problem?.type === "short_text" && problem?.difficulty === "hard";
 
   const canSubmit =
     problem != null &&
@@ -461,11 +464,11 @@ export default function ProblemDetailsPage() {
                 </span>
               </div>
               <h1 className="text-2xl font-extrabold text-slate-900">
-                {problem.title}
+                <ProblemContent body={problem.title} variant="inline" />
               </h1>
-              <p className="mt-4 whitespace-pre-wrap text-sm text-slate-700">
-                {problem.statement}
-              </p>
+              <div className="mt-4 text-sm text-slate-700">
+                <ProblemContent body={problem.statement} />
+              </div>
 
               {/* Problem images */}
               {problem.images && problem.images.length > 0 && (
@@ -593,7 +596,12 @@ export default function ProblemDetailsPage() {
                           disabled={isSubmitting}
                           className="h-4 w-4 text-blue-600"
                         />
-                        {choice.choice_text}
+                        <span>
+                          <ProblemContent
+                            body={choice.choice_text}
+                            variant="inline"
+                          />
+                        </span>
                       </label>
                     ))}
                   </div>
@@ -622,6 +630,12 @@ export default function ProblemDetailsPage() {
                       }
                     }}
                   />
+                  {isHardShortText && (
+                    <p className="mt-1 text-xs text-slate-400">
+                      Ответ без специальных математических символов — только числа, буквы и простые
+                      знаки вроде +, -, /, точка и запятая.
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -730,9 +744,9 @@ export default function ProblemDetailsPage() {
                   <h2 className="text-sm font-semibold text-slate-900">
                     Объяснение
                   </h2>
-                  <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">
-                    {problem.explanation}
-                  </p>
+                  <div className="mt-2 text-sm text-slate-600">
+                    <ProblemContent body={problem.explanation} />
+                  </div>
                 </section>
               )}
             </article>

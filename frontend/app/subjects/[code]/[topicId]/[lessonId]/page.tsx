@@ -9,6 +9,7 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useLesson, useProfile, useSubjects, useTopic } from "@/lib/swr-hooks";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { LectureContent } from "@/components/ui/lecture-content";
+import { ProblemContent } from "@/components/ui/problem-content";
 
 type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string };
@@ -210,7 +211,10 @@ function ProblemSetBlock({
                   {idx + 1}
                 </span>
                 <span className="text-sm font-medium text-slate-800">
-                  {problemMeta[problem.problem_id]?.title ?? `Задача ${idx + 1}`}
+                  <ProblemContent
+                    body={problemMeta[problem.problem_id]?.title ?? `Задача ${idx + 1}`}
+                    variant="inline"
+                  />
                 </span>
                 {problemMeta[problem.problem_id]?.difficulty && (
                   <span
