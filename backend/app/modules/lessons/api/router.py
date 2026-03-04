@@ -15,6 +15,7 @@ from app.modules.lessons.api.schemas import (
     LessonCreate,
     LessonCreateIn,
     LessonDetailOut,
+    LessonGenerateProblemsIn,
     LessonOut,
     LessonProgressOut,
     LessonUpdate,
@@ -186,6 +187,27 @@ async def generate_lesson_draft(
     svc = LessonService(session)
     return await svc.generate_draft(
         lesson_id, allow_published_edit=_can_edit_published(current_user.role)
+    )
+
+
+@router.post(
+    "/lessons/{lesson_id}/generate-problems",
+    response_model=LessonDetailOut,
+)
+async def generate_lesson_problems(
+    lesson_id: uuid.UUID,
+    body: LessonGenerateProblemsIn,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
+    ),
+):
+    svc = LessonService(session)
+    return await svc.generate_problems_from_rag(
+        lesson_id,
+        count=body.count,
+        created_by=current_user.id,
+        allow_published_edit=_can_edit_published(current_user.role),
     )
 
 

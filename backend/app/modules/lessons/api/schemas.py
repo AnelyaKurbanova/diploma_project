@@ -91,3 +91,10 @@ class LessonProgressOut(BaseModel):
     completed: bool
     completed_at: datetime
     time_spent_sec: int | None = None
+
+
+class LessonGenerateProblemsIn(BaseModel):
+    """Параметры ИИ‑генерации задач для урока (RAG)."""
+
+    # Можно просить больше 30 задач; на бэкенде генерация пойдёт батчами.
+    count: int = Field(default=10, ge=1, le=100)

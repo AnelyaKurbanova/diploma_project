@@ -134,41 +134,42 @@ class DashboardService:
         progress_list: list[SubjectProgressOut] = []
 
         for subject in subjects:
-            total_topics_stmt = (
+            total_lessons_stmt = (
                 select(func.count())
-                .select_from(TopicModel)
+                .select_from(LessonModel)
+                .join(TopicModel, LessonModel.topic_id == TopicModel.id)
                 .where(TopicModel.subject_id == subject.id)
             )
-            total_topics_result = await self.session.execute(total_topics_stmt)
-            total_topics = total_topics_result.scalar_one()
-            if total_topics == 0:
+            total_lessons_result = await self.session.execute(total_lessons_stmt)
+            total_lessons = total_lessons_result.scalar_one()
+            if total_lessons == 0:
                 continue
 
-            completed_topics_stmt = (
-                select(func.count(distinct(LessonModel.topic_id)))
+            completed_lessons_stmt = (
+                select(func.count(distinct(LessonProgressModel.lesson_id)))
                 .select_from(LessonProgressModel)
                 .join(LessonModel, LessonProgressModel.lesson_id == LessonModel.id)
+                .join(TopicModel, LessonModel.topic_id == TopicModel.id)
                 .where(
                     LessonProgressModel.user_id == user_id,
                     LessonProgressModel.completed.is_(True),
-                    LessonModel.topic_id.isnot(None),
-                    LessonModel.topic_id.in_(
-                        select(TopicModel.id).where(TopicModel.subject_id == subject.id)
-                    ),
+                    TopicModel.subject_id == subject.id,
                 )
             )
-            completed_topics_result = await self.session.execute(completed_topics_stmt)
-            completed_topics = completed_topics_result.scalar_one()
+            completed_lessons_result = await self.session.execute(completed_lessons_stmt)
+            completed_lessons = completed_lessons_result.scalar_one()
 
-            mastery = round(completed_topics / total_topics * 100) if total_topics > 0 else 0
+            mastery = (
+                round(completed_lessons / total_lessons * 100) if total_lessons > 0 else 0
+            )
 
             progress_list.append(
                 SubjectProgressOut(
                     code=subject.code,
                     name=subject.name_ru,
                     mastery=mastery,
-                    completed_topics=completed_topics,
-                    total_topics=total_topics,
+                    completed_topics=completed_lessons,
+                    total_topics=total_lessons,
                 )
             )
 

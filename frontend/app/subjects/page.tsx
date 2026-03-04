@@ -11,7 +11,6 @@ type Subject = {
   id: string;
   code: string;
   name_ru: string;
-  description_ru: string | null;
   topic_count: number;
 };
 
@@ -90,7 +89,7 @@ export default function SubjectsPage() {
               <SubjectCard
                 code={s.code}
                 name={s.name_ru}
-                description={typeof s.description_ru === "string" ? s.description_ru : null}
+                description={null}
                 topicCount={typeof s.topic_count === "number" ? s.topic_count : 0}
                 href={`/subjects/${s.code}`}
               />

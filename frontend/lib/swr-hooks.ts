@@ -53,8 +53,43 @@ export function useLessonsForTopic(topicId: string | null, adminView?: boolean) 
   const { accessToken } = useAuth();
   const path = topicId ? `/topics/${topicId}/lessons${adminView ? "?admin_view=1" : ""}` : null;
   const key = accessToken && path ? [path, accessToken] : null;
-  const { data, error, isLoading, mutate } = useSWR(key, ([p, token]) => fetcher(p, token), SWR_CONFIG);
-  return { lessons: data ?? [], error, isLoading, mutate };
+  const { data, error, isLoading, mutate } = useSWR<
+    Array<{ id: string; title: string; order_no: number; [key: string]: unknown }>
+  >(
+    key,
+    ([p, token]) => fetcher(p, token),
+    SWR_CONFIG,
+  );
+  return {
+    lessons: (data ?? []) as Array<{ id: string; title: string; order_no: number; [key: string]: unknown }>,
+    error,
+    isLoading,
+    mutate,
+  };
+}
+
+export function useSubjectGrades(code: string | null) {
+  const { accessToken } = useAuth();
+  const path = code ? `/subjects/${code}/grades` : null;
+  const key = accessToken && path ? [path, accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR(
+    key,
+    ([p, token]) => fetcher<number[]>(p, token),
+    SWR_CONFIG,
+  );
+  return { grades: (data ?? []) as number[], error, isLoading, mutate };
+}
+
+export function useTopicsForSubjectGrade(code: string | null, grade: number | null) {
+  const { accessToken } = useAuth();
+  const path = code && grade != null ? `/subjects/${code}/grades/${grade}/topics` : null;
+  const key = accessToken && path ? [path, accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR(
+    key,
+    ([p, token]) => fetcher<Array<{ id: string; title_ru: string }>>(p, token),
+    SWR_CONFIG,
+  );
+  return { topics: (data ?? []) as Array<{ id: string; title_ru: string }>, error, isLoading, mutate };
 }
 
 export function useLesson(lessonId: string | null, adminView?: boolean) {
@@ -63,6 +98,33 @@ export function useLesson(lessonId: string | null, adminView?: boolean) {
   const key = accessToken && path ? [path, accessToken] : null;
   const { data, error, isLoading, mutate } = useSWR(key, ([p, token]) => fetcher(p, token), SWR_CONFIG);
   return { lesson: data, error, isLoading, mutate };
+}
+
+export type TopicLessonProgress = {
+  user_id: string;
+  lesson_id: string;
+  completed: boolean;
+  completed_at: string;
+  time_spent_sec?: number | null;
+};
+
+export function useTopicProgress(topicId: string | null) {
+  const { accessToken } = useAuth();
+  const path = topicId ? `/topics/${topicId}/progress` : null;
+  const key = accessToken && path ? [path, accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR(
+    key,
+    ([p, token]) => fetcher<TopicLessonProgress[]>(p, token),
+    SWR_CONFIG,
+  );
+
+  const raw = (data ?? []) as TopicLessonProgress[];
+  const progressByLessonId: Record<string, TopicLessonProgress> = {};
+  for (const item of raw) {
+    progressByLessonId[item.lesson_id] = item;
+  }
+
+  return { progress: raw, progressByLessonId, error, isLoading, mutate };
 }
 
 export function useProblems() {

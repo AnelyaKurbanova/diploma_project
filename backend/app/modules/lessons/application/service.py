@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,26 +24,29 @@ from app.modules.lessons.api.schemas import (
 )
 from app.modules.lessons.data.models import BlockType, LessonStatus
 from app.modules.lessons.data.repo import LessonsRepo
+from app.modules.problems.application.service import ProblemService
+from app.modules.problems.data.models import ProblemModel, ProblemStatus
 
 
 class LessonService:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
         self.repo = LessonsRepo(session)
+        self.catalog_repo = CatalogRepo(session)
 
     async def create(self, data: LessonCreate) -> LessonOut:
         if not await self.repo.topic_exists(data.topic_id):
             raise NotFound(tr("topic_not_found"))
 
-        existing = await self.repo.get_first_lesson_for_topic(data.topic_id)
-        if existing is not None:
-            raise Conflict("For each topic only one lesson is allowed")
+        # Наследуем класс (grade_level) от темы.
+        topic = await self.catalog_repo.get_topic(data.topic_id)
 
         try:
             row = await self.repo.create_lesson(
                 topic_id=data.topic_id,
                 title=data.title,
                 order_no=data.order_no,
+                grade_level=topic.grade_level,
             )
             await self.session.commit()
         except IntegrityError:
@@ -86,12 +90,50 @@ class LessonService:
             raise NotFound("Lesson not found")
         legacy_problem_ids = await self.repo.list_problem_ids_for_lesson(lesson_id)
 
+        # Собираем все задачи, привязанные к блокам урока.
+        all_problem_ids: list[uuid.UUID] = []
+        for block in lesson.content_blocks:
+            for link in block.problem_links:
+                all_problem_ids.append(link.problem_id)
+
+        # По умолчанию разрешаем задачи в черновике/на проверке/опубликованные,
+        # а в публичном режиме — только опубликованные.
+        allowed_statuses: set[ProblemStatus] = {
+            ProblemStatus.DRAFT,
+            ProblemStatus.PENDING_REVIEW,
+            ProblemStatus.PUBLISHED,
+        }
+        if only_published:
+            allowed_statuses = {ProblemStatus.PUBLISHED}
+
+        status_by_id: dict[uuid.UUID, ProblemStatus] = {}
+        if all_problem_ids:
+            stmt = (
+                select(ProblemModel.id, ProblemModel.status)
+                .where(ProblemModel.id.in_(set(all_problem_ids)))
+            )
+            result = await self.session.execute(stmt)
+            for pid, status in result.all():
+                status_by_id[pid] = status
+
         blocks_out: list[ContentBlockOut] = []
         for block in lesson.content_blocks:
-            problems = [
-                ContentBlockProblemOut(problem_id=link.problem_id, order_no=link.order_no)
-                for link in block.problem_links
-            ]
+            filtered_links: list[ContentBlockProblemOut] = []
+            for link in block.problem_links:
+                status = status_by_id.get(link.problem_id)
+                if status is None:
+                    # Задача удалена или не найдена — пропускаем.
+                    continue
+                if status not in allowed_statuses:
+                    # Архивные и прочие запрещённые статусы исключаем.
+                    continue
+                filtered_links.append(
+                    ContentBlockProblemOut(
+                        problem_id=link.problem_id,
+                        order_no=len(filtered_links),
+                    )
+                )
+
             blocks_out.append(
                 ContentBlockOut(
                     id=block.id,
@@ -101,7 +143,7 @@ class LessonService:
                     body=block.body,
                     video_url=block.video_url,
                     video_description=block.video_description,
-                    problems=problems,
+                    problems=filtered_links,
                     created_at=block.created_at,
                     updated_at=block.updated_at,
                 )
@@ -341,6 +383,98 @@ class LessonService:
                 title=lesson.title,
                 body=text,
             )
+
+        await self.session.commit()
+        return await self.get_detail(lesson_id, only_published=False)
+
+    async def generate_problems_from_rag(
+        self,
+        lesson_id: uuid.UUID,
+        *,
+        count: int = 10,
+        created_by: uuid.UUID | None = None,
+        allow_published_edit: bool = False,
+    ) -> LessonDetailOut:
+        """Сгенерировать задачи по материалам темы и привязать их к уроку.
+
+        Поддерживает запрос большого числа задач: генерация идёт батчами,
+        по ~30 задач за один вызов ProblemService.generate_from_rag.
+        """
+
+        lesson = await self.repo.get_lesson_with_blocks(lesson_id)
+        await self._normalize_editable_status(
+            lesson,
+            allow_published_edit=allow_published_edit,
+        )
+
+        # Получаем предмет и тему для RAG-генерации (аналогично ProblemService.generate_from_rag).
+        topic = await self.catalog_repo.get_topic(lesson.topic_id)
+        subject = await self.catalog_repo.get_subject(topic.subject_id)
+
+        requested_total = max(1, count)
+        remaining = requested_total
+        batch_size = 30
+
+        problem_svc = ProblemService(self.session)
+        all_created: list["ProblemModel"] = []
+
+        while remaining > 0:
+            current_batch = min(remaining, batch_size)
+
+            try:
+                problems, _skipped = await problem_svc.generate_from_rag(
+                    subject_id=subject.id,
+                    topic_id=topic.id,
+                    count=current_batch,
+                    created_by=created_by,
+                    difficulty_quota=None,
+                )
+            except Conflict:
+                # Если хотя бы часть задач уже создана в предыдущих батчах —
+                # считаем, что достигли «потолка» по уникальным задачам.
+                if all_created:
+                    break
+                raise
+
+            if not problems:
+                break
+
+            all_created.extend(problems)
+            remaining -= len(problems)
+
+            # Если модель вернула меньше задач, чем просили в батче,
+            # скорее всего дальше уникальные задачи уже не появятся.
+            if len(problems) < current_batch:
+                break
+
+        # Найти или создать блок задач для урока.
+        problem_blocks = [
+            b
+            for b in lesson.content_blocks
+            if self._block_type_to_str(b.block_type) == BlockType.PROBLEM_SET.value
+        ]
+
+        if problem_blocks:
+            block = problem_blocks[0]
+        else:
+            max_order = max((b.order_no for b in lesson.content_blocks), default=-1)
+            block = await self.repo.create_content_block(
+                lesson_id=lesson_id,
+                block_type=BlockType.PROBLEM_SET,
+                order_no=max_order + 1,
+                title="Задачи",
+                body=None,
+            )
+
+        # Дополняем существующий список задач новыми.
+        from app.modules.lessons.data.repo import LessonsRepo  # local import to avoid cycles
+
+        repo: LessonsRepo = self.repo
+        existing_ids = await repo.list_block_problem_ids(block.id)
+        new_ids = [p.id for p in all_created]
+
+        all_ids: list[uuid.UUID] = list(dict.fromkeys(existing_ids + new_ids))
+        await repo.set_block_problems(block.id, all_ids)
 
         await self.session.commit()
         return await self.get_detail(lesson_id, only_published=False)

@@ -3,6 +3,7 @@
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
+import { ProblemContent } from "@/components/ui/problem-content";
 
 /* ── Types ─────────────────────────────────────────────────────── */
 
@@ -188,6 +189,13 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
   const [batchPoints, setBatchPoints] = useState<string>("");
   const [batchTopicId, setBatchTopicId] = useState<string>("");
   const [batchUpdating, setBatchUpdating] = useState(false);
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
+  const [generatingFromRag, setGeneratingFromRag] = useState(false);
+  const [ragCount, setRagCount] = useState(10);
+  const [ragEasyCount, setRagEasyCount] = useState(0);
+  const [ragMediumCount, setRagMediumCount] = useState(0);
+  const [ragHardCount, setRagHardCount] = useState(0);
 
   const [problems, setProblems] = useState<AdminProblem[]>([]);
   const [total, setTotal] = useState(0);
@@ -198,6 +206,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
   const [actionInProgress, setActionInProgress] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showSpecialChars, setShowSpecialChars] = useState(false);
+  const [previewProblem, setPreviewProblem] = useState<AdminProblem | null>(null);
 
   const statementRef = useRef<HTMLTextAreaElement>(null);
   const canonicalTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -349,20 +358,30 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
   }, [showForm, form, choices, textAnswer, images]);
 
   /* ── Load problems list ─────────────────────────────────────── */
-  const loadProblems = useCallback(async () => {
-    setListLoading(true);
-    try {
-      const params = new URLSearchParams();
-      params.set("page", String(page));
-      params.set("per_page", String(perPage));
-      if (statusFilter) params.set("status", statusFilter);
-      if (subjectFilter) params.set("subject_id", subjectFilter);
-      const data = await apiGet<ProblemListResponse>(`/admin/problems?${params.toString()}`, accessToken);
-      setProblems(data.items);
-      setTotal(data.total);
-    } catch { setProblems([]); }
-    finally { setListLoading(false); }
-  }, [accessToken, page, statusFilter, subjectFilter]);
+  const loadProblems = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) {
+        setListLoading(true);
+      }
+      try {
+        const params = new URLSearchParams();
+        params.set("page", String(page));
+        params.set("per_page", String(perPage));
+        if (statusFilter) params.set("status", statusFilter);
+        if (subjectFilter) params.set("subject_id", subjectFilter);
+        const data = await apiGet<ProblemListResponse>(`/admin/problems?${params.toString()}`, accessToken);
+        setProblems(data.items);
+        setTotal(data.total);
+      } catch {
+        setProblems([]);
+      } finally {
+        if (!opts?.silent) {
+          setListLoading(false);
+        }
+      }
+    },
+    [accessToken, page, statusFilter, subjectFilter],
+  );
 
   useEffect(() => { loadProblems(); }, [loadProblems]);
 
@@ -411,56 +430,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       }
       return arr.map((c, index) => ({ ...c, order_no: index }));
     });
-  };
-
-  const renderInlinePow = (segment: string): React.ReactNode[] => {
-    const nodes: React.ReactNode[] = [];
-    const regex = /(\d+)\^(\d+)/g;
-    let lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = regex.exec(segment)) !== null) {
-      if (match.index > lastIndex) {
-        nodes.push(segment.slice(lastIndex, match.index));
-      }
-      const base = match[1];
-      const exp = match[2];
-      nodes.push(
-        <span key={`${match.index}-${base}-${exp}`}>
-          {base}
-          <sup className="align-super text-[0.7em]">{exp}</sup>
-        </span>,
-      );
-      lastIndex = regex.lastIndex;
-    }
-
-    if (lastIndex < segment.length) {
-      nodes.push(segment.slice(lastIndex));
-    }
-
-    return nodes;
-  };
-
-  const renderMathInText = (text: string): React.ReactNode => {
-    // Разбиваем по $...$ и подсвечиваем содержимое как "формулу"
-    const parts = text.split("$");
-    if (parts.length === 1) {
-      return renderInlinePow(text);
-    }
-    const result: React.ReactNode[] = [];
-    parts.forEach((part, index) => {
-      const rendered = renderInlinePow(part);
-      if (index % 2 === 0) {
-        result.push(...rendered);
-      } else {
-        result.push(
-          <span key={`math-${index}`} className="font-mono text-indigo-700">
-            {rendered}
-          </span>,
-        );
-      }
-    });
-    return result;
   };
 
   const persistLastPrefs = (state: typeof EMPTY_FORM = form) => {
@@ -741,7 +710,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         setShowForm(false);
       }
       onCreated?.();
-      await loadProblems();
+      await loadProblems({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при сохранении");
     } finally {
@@ -906,7 +875,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     setActionInProgress(problemId);
     try {
       await apiPost(`/problems/${problemId}/${action}`, undefined, accessToken);
-      await loadProblems();
+      await loadProblems({ silent: true });
       onCreated?.();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при выполнении действия");
@@ -921,7 +890,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     try {
       await apiDelete(`/problems/${problemId}`, accessToken);
       if (editingId === problemId) resetForm();
-      await loadProblems();
+      await loadProblems({ silent: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при удалении");
     } finally {
@@ -935,6 +904,65 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     editingId && form.type === "numeric"
       ? [...PROBLEM_TYPES, { value: "numeric", label: "Числовой (устаревший)" }]
       : PROBLEM_TYPES;
+
+  const handleGenerateFromRag = async () => {
+    if (!form.subject_id || !form.topic_id) {
+      setError("Сначала выберите предмет и тему для задач.");
+      return;
+    }
+
+    const totalByLevels = ragEasyCount + ragMediumCount + ragHardCount;
+
+    const body: Record<string, unknown> = {
+      subject_id: form.subject_id,
+      topic_id: form.topic_id,
+    };
+
+    if (totalByLevels > 0) {
+      if (totalByLevels > 30) {
+        setError("Суммарное количество задач по уровням сложности не должно превышать 30.");
+        return;
+      }
+      body.easy_count = ragEasyCount;
+      body.medium_count = ragMediumCount;
+      body.hard_count = ragHardCount;
+    } else {
+      if (!Number.isFinite(ragCount) || ragCount <= 0 || ragCount > 30) {
+        setError("Введите корректное количество задач (от 1 до 30).");
+        return;
+      }
+      body.count = ragCount;
+    }
+
+    setError(null);
+    setSuccess(null);
+    setGeneratingFromRag(true);
+    try {
+      const res = await apiPost<{ items: AdminProblem[]; created_count: number; skipped_duplicates: number }>(
+        "/admin/problems/generate-from-rag",
+        body,
+        accessToken,
+      );
+      const created = typeof res.created_count === "number" ? res.created_count : (res.items?.length ?? 0);
+      const skipped = typeof res.skipped_duplicates === "number" ? res.skipped_duplicates : 0;
+
+      if (created === 0 && skipped > 0) {
+        setError("Все сгенерированные задачИ уже существуют по этой теме. Попробуйте изменить параметры генерации.");
+      } else if (skipped > 0) {
+        setSuccess(
+          `Сгенерированы задачи‑черновики по выбранной теме (RAG). Создано: ${created}, пропущено как дубликаты: ${skipped}.`,
+        );
+      } else {
+        setSuccess(`Сгенерированы задачи‑черновики по выбранной теме (RAG). Создано: ${created}.`);
+      }
+      await loadProblems({ silent: true });
+      onCreated?.();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка при генерации задач через ИИ");
+    } finally {
+      setGeneratingFromRag(false);
+    }
+  };
 
   /* ── Render ─────────────────────────────────────────────────── */
   return (
@@ -1017,6 +1045,98 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-700">
               Восстановлен несохранённый черновик задачи.
             </p>
+          )}
+
+          {form.subject_id && form.topic_id ? (
+            <div className="flex flex-col gap-3 rounded-lg border border-blue-50 bg-blue-50/70 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1 text-sm text-slate-700">
+                <p>
+                  Сгенерировать набор задач по выбранной теме на основе загруженных учебных материалов (RAG).
+                  Будут созданы новые черновики задач с автоматическими ответами, которые можно отредактировать.
+                </p>
+                <div className="mt-2 flex flex-col gap-2 text-xs text-slate-600">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>Количество по сложностям (опционально):</span>
+                    <label className="flex items-center gap-1">
+                      <span className="text-[11px] text-slate-500">Лёгких</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={30}
+                        value={ragEasyCount}
+                        onChange={e => {
+                          const raw = e.target.value.replace(/[^\d]/g, "");
+                          const num = raw ? Number(raw) : 0;
+                          const clamped = Math.max(0, Math.min(30, num));
+                          setRagEasyCount(clamped);
+                        }}
+                        className="w-16 rounded border border-blue-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <span className="text-[11px] text-slate-500">Средних</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={30}
+                        value={ragMediumCount}
+                        onChange={e => {
+                          const raw = e.target.value.replace(/[^\d]/g, "");
+                          const num = raw ? Number(raw) : 0;
+                          const clamped = Math.max(0, Math.min(30, num));
+                          setRagMediumCount(clamped);
+                        }}
+                        className="w-16 rounded border border-blue-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                      />
+                    </label>
+                    <label className="flex items-center gap-1">
+                      <span className="text-[11px] text-slate-500">Сложных</span>
+                      <input
+                        type="number"
+                        min={0}
+                        max={30}
+                        value={ragHardCount}
+                        onChange={e => {
+                          const raw = e.target.value.replace(/[^\d]/g, "");
+                          const num = raw ? Number(raw) : 0;
+                          const clamped = Math.max(0, Math.min(30, num));
+                          setRagHardCount(clamped);
+                        }}
+                        className="w-16 rounded border border-blue-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                      />
+                    </label>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span>Или общее количество задач:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={ragCount}
+                      onChange={e => {
+                        const value = Number(e.target.value.replace(/[^\d]/g, "")) || 1;
+                        const clamped = Math.max(1, Math.min(30, value));
+                        setRagCount(clamped);
+                      }}
+                      className="w-20 rounded border border-blue-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                    />
+                    <span className="text-[11px] text-slate-400">(от 1 до 30 задач за один запуск)</span>
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleGenerateFromRag}
+                disabled={generatingFromRag}
+                className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              >
+                {generatingFromRag ? "Генерация задач..." : "Сгенерировать задачи по теме"}
+              </button>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-blue-100 bg-blue-50/40 px-4 py-3 text-xs text-slate-600">
+              Чтобы использовать ИИ‑генерацию задач по теме, выберите выше и предмет, и конкретную тему.
+            </div>
           )}
 
           {/* ── Section 1: Metadata ─────────────────────────────── */}
@@ -1168,9 +1288,9 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                     : "Отметьте все варианты, которые являются правильными."}
                 </p>
                 <p className="text-[11px] text-slate-400">
-                  Можно использовать мини-синтаксис формул: например,{" "}
+                  Можно использовать markdown и LaTeX как в лекциях: например{" "}
                   <span className="font-mono">$x^2$</span>,{" "}
-                  <span className="font-mono">$a/b$</span> — в предпросмотре они будут подсвечены.
+                  <span className="font-mono">$\\frac{1}{2}$</span> или формулы в блоке $$...$$.
                 </p>
                 {choices.map((c, idx) => (
                   <div key={idx} className="flex items-center gap-2">
@@ -1448,9 +1568,9 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                   </span>
                 </div>
                 <h4 className="text-lg font-bold text-slate-900">{form.title || "Без заголовка"}</h4>
-                <p className="whitespace-pre-wrap text-sm text-slate-700">
-                  {renderMathInText(form.statement || "Условие задачи...")}
-                </p>
+                <div className="text-sm text-slate-700">
+                  <ProblemContent body={form.statement || "Условие задачи..."} />
+                </div>
 
                 {images.length > 0 && (
                   <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -1487,7 +1607,10 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                           className="h-4 w-4 text-blue-600"
                         />
                         <span>
-                          {renderMathInText(choice.choice_text || "Вариант ответа")}
+                          <ProblemContent
+                            body={choice.choice_text || "Вариант ответа"}
+                            variant="inline"
+                          />
                         </span>
                       </label>
                     ))}
@@ -1843,7 +1966,7 @@ TITLE: ...`}
                         setBatchDifficulty("");
                         setBatchPoints("");
                         setBatchTopicId("");
-                        await loadProblems();
+                        await loadProblems({ silent: true });
                       } catch (err) {
                         setError(err instanceof Error ? err.message : "Ошибка при массовом обновлении задач");
                       } finally {
@@ -1861,6 +1984,39 @@ TITLE: ...`}
                   >
                     Сбросить выбор
                   </button>
+                  {isModerator && (
+                    <button
+                      type="button"
+                      disabled={batchDeleting}
+                      onClick={async () => {
+                        if (!selectedIds.length) return;
+                        if (!confirm("Удалить выбранные задачи? Это действие нельзя отменить.")) return;
+                        setBatchDeleting(true);
+                        setError(null);
+                        try {
+                          await Promise.all(
+                            selectedIds.map(id =>
+                              apiDelete(`/problems/${id}`, accessToken),
+                            ),
+                          );
+                          setSuccess("Выбранные задачи удалены.");
+                          setSelectedIds([]);
+                          await loadProblems({ silent: true });
+                        } catch (err) {
+                          setError(
+                            err instanceof Error
+                              ? err.message
+                              : "Ошибка при массовом удалении задач",
+                          );
+                        } finally {
+                          setBatchDeleting(false);
+                        }
+                      }}
+                      className="text-xs text-rose-700 underline-offset-2 hover:underline disabled:opacity-50"
+                    >
+                      {batchDeleting ? "Удаление..." : "Удалить выбранные"}
+                    </button>
+                  )}
                 </div>
               </div>
             )}
@@ -1899,7 +2055,10 @@ TITLE: ...`}
                         </span>
                       )}
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-slate-500">{p.statement}</p>
+                    <ProblemContent
+                      body={p.statement}
+                      className="mt-1 line-clamp-2 text-sm text-slate-500"
+                    />
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                       <span>{TYPE_LABELS[p.type] ?? p.type}</span>
                       <span>{DIFFICULTY_LABELS[p.difficulty] ?? p.difficulty}</span>
@@ -1909,6 +2068,13 @@ TITLE: ...`}
                   </div>
 
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setPreviewProblem(p)}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-gray-50"
+                    >
+                      Просмотр
+                    </button>
                     {canEdit && (
                       <button
                         onClick={() => startEdit(p)}
@@ -1998,6 +2164,131 @@ TITLE: ...`}
           >
             Далее
           </button>
+        </div>
+      )}
+
+      {previewProblem && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div
+            className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-xl"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Просмотр задачи
+                </p>
+                <h3 className="text-lg font-bold text-slate-900">
+                  {previewProblem.title || "Без заголовка"}
+                </h3>
+                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                    {TYPE_LABELS[previewProblem.type] ?? previewProblem.type}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                    {DIFFICULTY_LABELS[previewProblem.difficulty] ?? previewProblem.difficulty}
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                    {previewProblem.points} б.
+                  </span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5">
+                    {(STATUS_LABELS[previewProblem.status] ?? STATUS_LABELS.draft).label}
+                  </span>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewProblem(null)}
+                className="rounded-full bg-slate-100 px-2 py-1 text-sm text-slate-600 hover:bg-slate-200"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <p className="mb-1 text-xs font-medium text-slate-500">Условие</p>
+                <div className="text-sm text-slate-800">
+                  <ProblemContent body={previewProblem.statement} />
+                </div>
+              </div>
+
+              {previewProblem.images && previewProblem.images.length > 0 && (
+                <div>
+                  <p className="mb-1 text-xs font-medium text-slate-500">Изображения</p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {previewProblem.images
+                      .slice()
+                      .sort((a, b) => a.order_no - b.order_no)
+                      .map(img => (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          key={img.id}
+                          src={img.url}
+                          alt={img.alt_text || "Изображение"}
+                          className="h-32 w-full rounded-lg border border-gray-200 object-cover"
+                        />
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {(previewProblem.type === "single_choice" || previewProblem.type === "multiple_choice") && (
+                <div>
+                  <p className="mb-1 text-xs font-medium text-slate-500">Варианты ответа</p>
+                  <div className="space-y-1.5">
+                    {previewProblem.choices
+                      .slice()
+                      .sort((a, b) => a.order_no - b.order_no)
+                      .map(choice => (
+                        <div
+                          key={choice.id}
+                          className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-sm ${
+                            choice.is_correct
+                              ? "border-emerald-200 bg-emerald-50"
+                              : "border-gray-200 bg-slate-50"
+                          }`}
+                        >
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[11px] ${
+                              choice.is_correct
+                                ? "bg-emerald-600 text-white"
+                                : "bg-gray-200 text-slate-600"
+                            }`}
+                          >
+                            {choice.is_correct ? "Правильный" : "Вариант"}
+                          </span>
+                          <span className="text-slate-800">
+                            <ProblemContent
+                              body={choice.choice_text}
+                              variant="inline"
+                            />
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {previewProblem.type === "short_text" && previewProblem.answer_key?.text_answer && (
+                <div>
+                  <p className="mb-1 text-xs font-medium text-slate-500">Правильный ответ</p>
+                  <p className="rounded-lg border border-gray-200 bg-slate-50 px-3 py-2 text-sm font-mono text-slate-800">
+                    {previewProblem.answer_key.text_answer}
+                  </p>
+                </div>
+              )}
+
+              {previewProblem.explanation && (
+                <div>
+                  <p className="mb-1 text-xs font-medium text-slate-500">Объяснение</p>
+                  <div className="text-sm text-slate-700">
+                    <ProblemContent body={previewProblem.explanation} />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -17,7 +17,7 @@ def set_auth_cookies(response: Response, refresh_token: str, csrf_token: str):
         httponly=True,
         secure=settings.COOKIE_SECURE,
         samesite=settings.COOKIE_SAMESITE,
-        path="/auth",
+        path="/",
         domain=settings.COOKIE_DOMAIN,
     )
     response.set_cookie(
@@ -33,5 +33,7 @@ def set_auth_cookies(response: Response, refresh_token: str, csrf_token: str):
 
 
 def clear_auth_cookies(response: Response):
+    # Clear for both old and new paths to avoid leftover cookies
     response.delete_cookie(REFRESH_COOKIE, path="/auth", domain=settings.COOKIE_DOMAIN)
+    response.delete_cookie(REFRESH_COOKIE, path="/", domain=settings.COOKIE_DOMAIN)
     response.delete_cookie(CSRF_COOKIE, path="/", domain=settings.COOKIE_DOMAIN)

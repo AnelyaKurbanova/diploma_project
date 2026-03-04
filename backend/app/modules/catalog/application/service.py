@@ -25,10 +25,6 @@ class SubjectService:
             name_ru=data.name_ru,
             name_kk=data.name_kk,
             name_en=data.name_en,
-            description_ru=data.description_ru,
-            description_kk=data.description_kk,
-            description_en=data.description_en,
-            grade_level=data.grade_level,
         )
         await self.session.commit()
         return row
@@ -52,10 +48,6 @@ class SubjectService:
             name_ru=data.name_ru,
             name_kk=data.name_kk,
             name_en=data.name_en,
-            description_ru=data.description_ru,
-            description_kk=data.description_kk,
-            description_en=data.description_en,
-            grade_level=data.grade_level,
         )
         await self.session.commit()
         return row
@@ -73,12 +65,12 @@ class TopicService:
     async def create(self, data: TopicCreate) -> TopicModel:
         row = await self.repo.create_topic(
             subject_id=data.subject_id,
-            parent_topic_id=data.parent_topic_id,
             title_ru=data.title_ru,
             title_kk=data.title_kk,
             title_en=data.title_en,
+            parent_topic_id=None,
             grade_level=data.grade_level,
-            order_no=data.order_no,
+            order_no=0,
         )
         await self.session.commit()
         return row
@@ -102,13 +94,13 @@ class TopicService:
     async def update(self, topic_id: uuid.UUID, data: TopicUpdate) -> TopicModel:
         row = await self.repo.update_topic(
             topic_id,
-            subject_id=data.subject_id,
-            parent_topic_id=data.parent_topic_id,
             title_ru=data.title_ru,
             title_kk=data.title_kk,
             title_en=data.title_en,
+            subject_id=None,
+            parent_topic_id=None,
             grade_level=data.grade_level,
-            order_no=data.order_no,
+            order_no=None,
         )
         await self.session.commit()
         return row
@@ -116,3 +108,24 @@ class TopicService:
     async def delete(self, topic_id: uuid.UUID) -> None:
         await self.repo.delete_topic(topic_id)
         await self.session.commit()
+
+
+class CurriculumService:
+    """Service for grade-based navigation over subjects, topics, and lessons."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self.session = session
+        self.repo = CatalogRepo(session)
+
+    async def list_grades_for_subject(self, subject_code: str) -> list[int]:
+        return await self.repo.list_distinct_grades_for_subject(subject_code)
+
+    async def list_topics_for_subject_and_grade(
+        self,
+        subject_code: str,
+        grade_level: int,
+    ) -> list[TopicModel]:
+        return await self.repo.list_topics_for_subject_and_grade(
+            subject_code=subject_code,
+            grade_level=grade_level,
+        )

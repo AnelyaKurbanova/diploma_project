@@ -52,6 +52,7 @@ class ProblemsRepo:
         difficulty: ProblemDifficulty,
         title: str,
         statement: str,
+        statement_normalized: str,
         explanation: str | None,
         time_limit_sec: int,
         points: int,
@@ -64,6 +65,7 @@ class ProblemsRepo:
             difficulty=difficulty,
             title=title,
             statement=statement,
+            statement_normalized=statement_normalized,
             explanation=explanation,
             time_limit_sec=time_limit_sec,
             points=points,
@@ -260,6 +262,7 @@ class ProblemsRepo:
         difficulty: ProblemDifficulty | None,
         title: str | None,
         statement: str | None,
+        statement_normalized: str | None,
         explanation: str | None,
         time_limit_sec: int | None,
         points: int | None,
@@ -275,6 +278,8 @@ class ProblemsRepo:
             row.title = title
         if statement is not None:
             row.statement = statement
+        if statement_normalized is not None:
+            row.statement_normalized = statement_normalized
         if explanation is not None:
             row.explanation = explanation
         if time_limit_sec is not None:
@@ -287,6 +292,18 @@ class ProblemsRepo:
         except IntegrityError as exc:
             raise Conflict(tr("failed_to_update_problem")) from exc
         return row
+
+    async def list_normalized_statements_for_topic(
+        self,
+        *,
+        topic_id: uuid.UUID,
+    ) -> set[str]:
+        """Return a set of normalized statements for a given topic."""
+        stmt: Select[str] = select(ProblemModel.statement_normalized).where(
+            ProblemModel.topic_id == topic_id
+        )
+        rows: Sequence[str] = (await self.session.execute(stmt)).scalars().all()
+        return set(rows)
 
     async def change_status(
         self,

@@ -42,6 +42,12 @@ class LessonModel(Base):
         index=True,
     )
 
+    grade_level: Mapped[int | None] = mapped_column(
+        Integer,
+        nullable=True,
+        index=True,
+    )
+
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     order_no: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped["LessonStatus"] = mapped_column(

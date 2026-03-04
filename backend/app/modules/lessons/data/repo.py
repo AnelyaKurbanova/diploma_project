@@ -31,8 +31,14 @@ class LessonsRepo:
         topic_id: uuid.UUID,
         title: str,
         order_no: int = 0,
+        grade_level: int | None = None,
     ) -> LessonModel:
-        row = LessonModel(topic_id=topic_id, title=title, order_no=order_no)
+        row = LessonModel(
+            topic_id=topic_id,
+            title=title,
+            order_no=order_no,
+            grade_level=grade_level,
+        )
         self.session.add(row)
         await self.session.flush()
         return row
@@ -95,12 +101,15 @@ class LessonsRepo:
         *,
         title: str | None = None,
         order_no: int | None = None,
+        grade_level: int | None = None,
     ) -> LessonModel:
         row = await self.get_lesson(lesson_id)
         if title is not None:
             row.title = title
         if order_no is not None:
             row.order_no = order_no
+        if grade_level is not None:
+            row.grade_level = grade_level
         await self.session.flush()
         return row
 

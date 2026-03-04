@@ -1,7 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useState } from "react";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiDelete, apiGet, apiPost } from "@/lib/api";
+import { ProblemEditorModal, type ProblemEditorResult } from "@/components/admin/problem-editor-modal";
+import { ProblemContent } from "@/components/ui/problem-content";
 
 type AdminProblem = {
   id: string;
@@ -63,6 +65,11 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
   const perPage = 20;
   const isModerator = userRole === "moderator" || userRole === "admin";
 
+  const [selectedProblem, setSelectedProblem] = useState<AdminProblem | null>(null);
+  const [modalMode, setModalMode] = useState<"view" | "edit">("view");
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [batchDeleting, setBatchDeleting] = useState(false);
+
   const loadProblems = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -77,6 +84,8 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
       );
       setProblems(data.items);
       setTotal(data.total);
+      // Сбрасываем выбор при смене списка
+      setSelectedIds([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить задачи");
       setProblems([]);
@@ -125,6 +134,47 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
         <p className="rounded-lg bg-rose-50 px-4 py-2 text-sm text-rose-600">{error}</p>
       )}
 
+      {selectedIds.length > 0 && isModerator && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-100 bg-amber-50/70 px-3 py-2 text-xs text-amber-800">
+          <span>Выбрано задач: {selectedIds.length}</span>
+          <button
+            type="button"
+            disabled={batchDeleting}
+            onClick={async () => {
+              if (!selectedIds.length) return;
+              if (!confirm("Удалить выбранные задачи? Это действие нельзя отменить.")) return;
+              setBatchDeleting(true);
+              setError(null);
+              try {
+                await Promise.all(
+                  selectedIds.map((id) => apiDelete(`/problems/${id}`, accessToken)),
+                );
+                setSelectedIds([]);
+                await loadProblems();
+              } catch (err) {
+                setError(
+                  err instanceof Error
+                    ? err.message
+                    : "Ошибка при массовом удалении задач",
+                );
+              } finally {
+                setBatchDeleting(false);
+              }
+            }}
+            className="rounded bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-700 disabled:opacity-50"
+          >
+            {batchDeleting ? "Удаление..." : "Удалить выбранные"}
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedIds([])}
+            className="text-xs text-amber-700 underline-offset-2 hover:underline"
+          >
+            Сбросить выбор
+          </button>
+        </div>
+      )}
+
       <div className="space-y-3">
         {loading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -137,6 +187,7 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
         ) : (
           problems.map((p) => {
             const statusInfo = STATUS_LABELS[p.status] ?? STATUS_LABELS.draft;
+            const checked = selectedIds.includes(p.id);
             return (
               <div
                 key={p.id}
@@ -145,12 +196,28 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
+                      {isModerator && (
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(e) => {
+                            const isNowChecked = e.target.checked;
+                            setSelectedIds((prev) =>
+                              isNowChecked ? [...prev, p.id] : prev.filter((id) => id !== p.id),
+                            );
+                          }}
+                          className="h-4 w-4 accent-amber-600"
+                        />
+                      )}
                       <h4 className="truncate font-bold text-slate-900">{p.title}</h4>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.cls}`}>
                         {statusInfo.label}
                       </span>
                     </div>
-                    <p className="mt-1 line-clamp-2 text-sm text-slate-500">{p.statement}</p>
+                    <ProblemContent
+                      body={p.statement}
+                      className="mt-1 line-clamp-2 text-sm text-slate-500"
+                    />
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-400">
                       <span>{TYPE_LABELS[p.type] ?? p.type}</span>
                       <span>{DIFFICULTY_LABELS[p.difficulty] ?? p.difficulty}</span>
@@ -160,6 +227,26 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
                   </div>
 
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProblem(p);
+                        setModalMode("view");
+                      }}
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-gray-50"
+                    >
+                      Просмотр
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedProblem(p);
+                        setModalMode("edit");
+                      }}
+                      className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                    >
+                      Редактировать
+                    </button>
                     {p.status === "draft" && (
                       <button
                         onClick={() => handleAction(p.id, "submit-review")}
@@ -224,6 +311,26 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
             Далее
           </button>
         </div>
+      )}
+
+      {selectedProblem && (
+        <ProblemEditorModal
+          accessToken={accessToken}
+          isOpen={true}
+          mode={modalMode}
+          subjectId={selectedProblem.subject_id}
+          topicId={selectedProblem.topic_id}
+          problemId={selectedProblem.id}
+          userRole={userRole}
+          allowStatusActions
+          onClose={() => setSelectedProblem(null)}
+          onSaved={(_p: ProblemEditorResult) => {
+            void loadProblems();
+          }}
+          onStatusChanged={() => {
+            void loadProblems();
+          }}
+        />
       )}
     </div>
   );

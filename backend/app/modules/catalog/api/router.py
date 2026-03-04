@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, Path, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session
@@ -15,7 +15,11 @@ from app.modules.catalog.api.schemas import (
     TopicOut,
     TopicUpdate,
 )
-from app.modules.catalog.application.service import SubjectService, TopicService
+from app.modules.catalog.application.service import (
+    SubjectService,
+    TopicService,
+    CurriculumService,
+)
 from app.modules.users.data.models import UserRole
 
 
@@ -29,10 +33,6 @@ def to_subject_out(row, *, topic_count: int = 0) -> SubjectOut:
         name_ru=row.name_ru,
         name_kk=row.name_kk,
         name_en=row.name_en,
-        description_ru=row.description_ru,
-        description_kk=row.description_kk,
-        description_en=row.description_en,
-        grade_level=getattr(row, "grade_level", None),
         topic_count=topic_count,
         created_at=row.created_at,
     )
@@ -42,12 +42,10 @@ def to_topic_out(row) -> TopicOut:
     return TopicOut(
         id=row.id,
         subject_id=row.subject_id,
-        parent_topic_id=row.parent_topic_id,
+        grade_level=row.grade_level,
         title_ru=row.title_ru,
         title_kk=row.title_kk,
         title_en=row.title_en,
-        grade_level=row.grade_level,
-        order_no=row.order_no,
         created_at=row.created_at,
     )
 
@@ -213,4 +211,33 @@ async def delete_topic(
     svc = TopicService(session)
     await svc.delete(topic_id)
     return None
+
+
+@router.get(
+    "/subjects/{code}/grades",
+    response_model=list[int],
+)
+async def list_subject_grades(
+    code: str,
+    session: AsyncSession = Depends(get_session),
+):
+    svc = CurriculumService(session)
+    return await svc.list_grades_for_subject(code)
+
+
+@router.get(
+    "/subjects/{code}/grades/{grade}/topics",
+    response_model=list[TopicOut],
+)
+async def list_topics_for_subject_grade(
+    code: str,
+    grade: int = Path(..., ge=1, le=11),
+    session: AsyncSession = Depends(get_session),
+):
+    svc = CurriculumService(session)
+    rows = await svc.list_topics_for_subject_and_grade(
+        subject_code=code,
+        grade_level=grade,
+    )
+    return [to_topic_out(r) for r in rows]
 
