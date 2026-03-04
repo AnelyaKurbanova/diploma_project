@@ -33,7 +33,7 @@ const SUBJECT_OPTIONS: { code: string; label: string }[] = [
 ];
 
 export default function OnboardingPage() {
-  const { user, isLoading, accessToken } = useAuth();
+  const { user, isLoading, accessToken, reloadUser } = useAuth();
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [is_teacher, setIsTeacher] = useState<boolean | null>(null);
@@ -103,6 +103,7 @@ export default function OnboardingPage() {
         },
         accessToken
       );
+      await reloadUser();
       router.replace("/dashboard");
     } catch (err) {
       const message = (err as Error & { body?: { message?: string } }).body?.message ?? (err as Error).message;
@@ -126,6 +127,7 @@ export default function OnboardingPage() {
         },
         accessToken
       );
+      await reloadUser();
       router.replace("/dashboard");
     } catch (err) {
       const message = (err as Error & { body?: { message?: string } }).body?.message ?? (err as Error).message;

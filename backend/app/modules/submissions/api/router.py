@@ -98,11 +98,16 @@ async def submit_answer(
 )
 async def get_last_submission(
     problem_id: str,
+    assessment_id: uuid.UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
     svc = SubmissionService(session)
-    progress = await svc.get_last_progress(current_user.id, uuid.UUID(problem_id))
+    progress = await svc.get_last_progress(
+        current_user.id,
+        uuid.UUID(problem_id),
+        assessment_id,
+    )
     return progress
 
 
@@ -112,6 +117,7 @@ async def get_last_submission(
 )
 async def get_last_submissions_batch(
     problem_ids: str = Query(..., alias="problem_ids", description="Comma-separated problem UUIDs"),
+    assessment_id: uuid.UUID | None = Query(default=None),
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
@@ -123,6 +129,5 @@ async def get_last_submissions_batch(
         except ValueError:
             continue
     svc = SubmissionService(session)
-    items = await svc.get_progress_batch(current_user.id, ids)
+    items = await svc.get_progress_batch(current_user.id, ids, assessment_id)
     return SubmissionProgressBatchOut(items=items)
-

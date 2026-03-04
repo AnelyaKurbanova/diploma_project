@@ -28,6 +28,7 @@ type AuthContextValue = {
   accessToken: string | null;
   isLoading: boolean;
   error: string | null;
+  reloadUser: () => Promise<void>;
   loginWithGoogle: () => void;
   logout: () => Promise<void>;
   refreshToken: () => Promise<string | null>;
@@ -157,6 +158,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
     if (typeof window === "undefined") return;
     window.location.href = `${API_BASE_URL}/auth/google/login`;
   }, []);
+
+  const reloadUser = useCallback(async () => {
+    if (!accessToken) return;
+    await loadUser(accessToken);
+  }, [accessToken, loadUser]);
 
   const startEmailLogin = useCallback(
     async (email: string) => {
@@ -299,6 +305,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       accessToken,
       isLoading,
       error,
+      reloadUser,
       loginWithGoogle,
       logout,
       refreshToken,
@@ -316,6 +323,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
       accessToken,
       isLoading,
       error,
+      reloadUser,
       loginWithGoogle,
       logout,
       refreshToken,
@@ -340,4 +348,3 @@ export function useAuth(): AuthContextValue {
   }
   return ctx;
 }
-

@@ -3,7 +3,7 @@
 import confetti from "canvas-confetti";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { apiGet, apiPost } from "@/lib/api";
+import { apiGet, apiGetStudentAssessmentDetail, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 
@@ -85,6 +85,7 @@ export default function ProblemDetailsPage() {
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const assessmentId = searchParams.get("assessmentId");
 
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [problem, setProblem] = useState<Problem | null>(null);
@@ -153,7 +154,9 @@ export default function ProblemDetailsPage() {
     (async () => {
       try {
         const progress = await apiGet<SubmissionProgress>(
-          `/submissions/last/${problem.id}`,
+          assessmentId
+            ? `/submissions/last/${problem.id}?assessment_id=${encodeURIComponent(assessmentId)}`
+            : `/submissions/last/${problem.id}`,
           accessToken,
         );
         setInitialProgressLoaded(true);
@@ -194,7 +197,7 @@ export default function ProblemDetailsPage() {
         // ignore
       }
     })();
-  }, [accessToken, problem, initialProgressLoaded]);
+  }, [accessToken, problem, initialProgressLoaded, assessmentId]);
 
   useEffect(() => {
     if (imageLightboxIndex === null) return;
@@ -207,6 +210,38 @@ export default function ProblemDetailsPage() {
 
   useEffect(() => {
     if (!problemId || typeof window === "undefined") return;
+    if (assessmentId) {
+      if (!accessToken) return;
+      (async () => {
+        try {
+          const assessment = await apiGetStudentAssessmentDetail(assessmentId, accessToken);
+          const ids = assessment.items
+            .slice()
+            .sort((a, b) => a.order_no - b.order_no)
+            .map((i) => i.problem_id);
+          setNavProblemIds(ids);
+          if (ids.length === 0) {
+            setNavSolvedIds([]);
+            return;
+          }
+          const res = await apiGet<{
+            items: Array<SubmissionProgress & { problem_id: string }>;
+          }>(
+            `/submissions/last?problem_ids=${encodeURIComponent(ids.join(","))}&assessment_id=${encodeURIComponent(assessmentId)}`,
+            accessToken,
+          );
+          const solved = (res.items ?? [])
+            .filter((i) => i.last_status === "graded" && i.last_is_correct === true)
+            .map((i) => i.problem_id);
+          setNavSolvedIds(solved);
+        } catch {
+          setNavProblemIds(null);
+          setNavSolvedIds([]);
+        }
+      })();
+      return;
+    }
+
     try {
       const raw = window.sessionStorage.getItem("problems_nav");
       if (raw) {
@@ -235,7 +270,9 @@ export default function ProblemDetailsPage() {
         const res = await apiGet<{
           items: Array<SubmissionProgress & { problem_id: string }>;
         }>(
-          `/submissions/last?problem_ids=${encodeURIComponent(ids.join(","))}`,
+          assessmentId
+            ? `/submissions/last?problem_ids=${encodeURIComponent(ids.join(","))}&assessment_id=${encodeURIComponent(assessmentId)}`
+            : `/submissions/last?problem_ids=${encodeURIComponent(ids.join(","))}`,
           accessToken,
         );
         const solved = (res.items ?? [])
@@ -249,7 +286,7 @@ export default function ProblemDetailsPage() {
         setNavSolvedIds([]);
       }
     })();
-  }, [problemId, accessToken]);
+  }, [problemId, accessToken, assessmentId]);
 
   const orderedIds = navProblemIds ?? [];
   const currentIndex = problemId ? orderedIds.indexOf(problemId) : -1;
@@ -308,7 +345,7 @@ export default function ProblemDetailsPage() {
 
       const result = await apiPost<SubmissionResult>(
         "/submissions",
-        { problem_id: problem.id, answer },
+        { problem_id: problem.id, assessment_id: assessmentId, answer },
         accessToken,
       );
 
@@ -331,7 +368,7 @@ export default function ProblemDetailsPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [problem, accessToken, canSubmit, isChoiceType, selectedChoiceIds, answerText]);
+  }, [problem, accessToken, canSubmit, isChoiceType, selectedChoiceIds, answerText, assessmentId]);
 
   if (isLoading || !user || !profile) {
     return (
@@ -348,11 +385,16 @@ export default function ProblemDetailsPage() {
   const userName = profile.full_name ?? user.email.split("@")[0];
   const userRole = user.role ?? "student";
   const returnTo = searchParams.get("return_to");
-  const backHref =
-    returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+  const backHref = assessmentId
+    ? `/assessments/${assessmentId}`
+    : returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
       ? returnTo
       : "/problems";
-  const backLabel = backHref === "/problems" ? "Назад к задачам" : "Назад к лекции";
+  const backLabel = assessmentId
+    ? "Назад к контрольной"
+    : backHref === "/problems"
+      ? "Назад к задачам"
+      : "Назад к лекции";
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900">
@@ -389,8 +431,16 @@ export default function ProblemDetailsPage() {
             <button
               type="button"
               onClick={() => {
-                const url = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
-                  ? `/problems/${prevProblemId}?return_to=${encodeURIComponent(returnTo)}`
+                const params = new URLSearchParams();
+                if (assessmentId) {
+                  params.set("assessmentId", assessmentId);
+                }
+                if (returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
+                  params.set("return_to", returnTo);
+                }
+                const qs = params.toString();
+                const url = qs
+                  ? `/problems/${prevProblemId}?${qs}`
                   : `/problems/${prevProblemId}`;
                 router.push(url);
               }}
@@ -412,8 +462,16 @@ export default function ProblemDetailsPage() {
             <button
               type="button"
               onClick={() => {
-                const url = returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
-                  ? `/problems/${nextProblemId}?return_to=${encodeURIComponent(returnTo)}`
+                const params = new URLSearchParams();
+                if (assessmentId) {
+                  params.set("assessmentId", assessmentId);
+                }
+                if (returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")) {
+                  params.set("return_to", returnTo);
+                }
+                const qs = params.toString();
+                const url = qs
+                  ? `/problems/${nextProblemId}?${qs}`
                   : `/problems/${nextProblemId}`;
                 router.push(url);
               }}

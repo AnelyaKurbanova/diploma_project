@@ -3,7 +3,14 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { apiGet, apiJoinClassByCode, apiListStudentClasses, type StudentClass } from "@/lib/api";
+import {
+  apiGet,
+  apiJoinClassByCode,
+  apiListStudentAssessments,
+  apiListStudentClasses,
+  type StudentAssessment,
+  type StudentClass,
+} from "@/lib/api";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { BarChart } from "@/components/ui/bar-chart";
@@ -49,6 +56,7 @@ type DashboardStats = {
 
 type ProfileResponse = {
   full_name: string | null;
+  role?: string;
   avatar_url?: string | null;
   onboarding_completed_at: string | null;
   [key: string]: unknown;
@@ -105,6 +113,8 @@ export default function DashboardPage() {
   const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
+  const [studentAssessments, setStudentAssessments] = useState<StudentAssessment[]>([]);
+  const [assessmentsLoading, setAssessmentsLoading] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -146,7 +156,8 @@ export default function DashboardPage() {
 
   // Load classes for students
   useEffect(() => {
-    if (!accessToken || !profile || !user || user.role !== "student") return;
+    const role = profile?.role ?? user?.role ?? "student";
+    if (!accessToken || !profile || role !== "student") return;
 
     (async () => {
       setClassesLoading(true);
@@ -162,8 +173,26 @@ export default function DashboardPage() {
     })();
   }, [accessToken, profile, user]);
 
+  useEffect(() => {
+    const role = profile?.role ?? user?.role ?? "student";
+    if (!accessToken || !profile || role !== "student") return;
+
+    (async () => {
+      setAssessmentsLoading(true);
+      try {
+        const list = await apiListStudentAssessments(accessToken);
+        setStudentAssessments(list);
+      } catch {
+        setStudentAssessments([]);
+      } finally {
+        setAssessmentsLoading(false);
+      }
+    })();
+  }, [accessToken, profile, user]);
+
   const userName = profile?.full_name ?? user?.email.split("@")[0] ?? "";
-  const userRole = user?.role ?? "student";
+  const userRoleFromProfile = profile?.role ?? user?.role ?? "student";
+  const userRole = userRoleFromProfile;
   const isTeacher = userRole === "teacher";
 
   if (isLoading || !user || !profile || (!isTeacher && !stats && !loadError)) {
@@ -382,6 +411,12 @@ export default function DashboardPage() {
                       }
                       return [joined, ...prev];
                     });
+                    try {
+                      const assessments = await apiListStudentAssessments(accessToken);
+                      setStudentAssessments(assessments);
+                    } catch {
+                      setStudentAssessments([]);
+                    }
                   } catch (err) {
                     const msg =
                       err instanceof Error
@@ -463,6 +498,59 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
+          </section>
+        )}
+
+        {userRole === "student" && (
+          <section className="mt-6 animate-page-in rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
+            <h2 className="mb-1 text-base font-bold text-slate-900">
+              Мои контрольные
+            </h2>
+            <p className="mb-4 text-xs text-slate-400">
+              Контрольные, назначенные в ваших классах
+            </p>
+            {assessmentsLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-50" />
+                ))}
+              </div>
+            ) : studentAssessments.length === 0 ? (
+              <p className="py-3 text-sm text-slate-400">
+                Пока нет доступных контрольных.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {studentAssessments.map((a) => (
+                  <div
+                    key={a.id}
+                    className="rounded-2xl border border-gray-100 bg-slate-50/60 px-4 py-3"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-900">{a.title}</p>
+                      <span className="text-xs text-slate-500">{a.class_name}</span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {a.items_count} задач, {a.total_points} баллов
+                      {a.time_limit_min ? `, лимит ${a.time_limit_min} мин` : ""}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {a.due_at
+                        ? `Дедлайн: ${new Date(a.due_at).toLocaleString("ru-RU")}`
+                        : "Без дедлайна"}
+                    </p>
+                    <div className="mt-2">
+                      <Link
+                        href={`/assessments/${a.id}`}
+                        className={buttonClasses({ variant: "outline", size: "sm" })}
+                      >
+                        Открыть контрольную
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </section>
         )}
       </main>

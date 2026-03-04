@@ -17,10 +17,16 @@ class SubmissionsRepo:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    async def next_attempt_no(self, user_id: uuid.UUID, problem_id: uuid.UUID) -> int:
+    async def next_attempt_no(
+        self,
+        user_id: uuid.UUID,
+        problem_id: uuid.UUID,
+        assessment_id: uuid.UUID | None = None,
+    ) -> int:
         stmt: Select[SubmissionModel] = select(SubmissionModel.attempt_no).where(
             SubmissionModel.user_id == user_id,
             SubmissionModel.problem_id == problem_id,
+            SubmissionModel.assessment_id == assessment_id,
         )
         rows: Sequence[int] = (await self.session.execute(stmt)).scalars().all()
         return (max(rows) + 1) if rows else 1
@@ -30,6 +36,7 @@ class SubmissionsRepo:
         *,
         user_id: uuid.UUID,
         problem_id: uuid.UUID,
+        assessment_id: uuid.UUID | None,
         attempt_no: int,
         status: SubmissionStatus,
         is_correct: bool | None,
@@ -41,6 +48,7 @@ class SubmissionsRepo:
         submission = SubmissionModel(
             user_id=user_id,
             problem_id=problem_id,
+            assessment_id=assessment_id,
             attempt_no=attempt_no,
             status=status.value,
             is_correct=is_correct,
@@ -71,12 +79,14 @@ class SubmissionsRepo:
         self,
         user_id: uuid.UUID,
         problem_id: uuid.UUID,
+        assessment_id: uuid.UUID | None = None,
     ) -> SubmissionModel | None:
         stmt: Select[SubmissionModel] = (
             select(SubmissionModel)
             .where(
                 SubmissionModel.user_id == user_id,
                 SubmissionModel.problem_id == problem_id,
+                SubmissionModel.assessment_id == assessment_id,
             )
             .order_by(SubmissionModel.submitted_at.desc())
             .limit(1)
@@ -97,6 +107,7 @@ class SubmissionsRepo:
         self,
         user_id: uuid.UUID,
         problem_ids: Sequence[uuid.UUID],
+        assessment_id: uuid.UUID | None = None,
     ) -> list[SubmissionModel]:
         if not problem_ids:
             return []
@@ -105,6 +116,7 @@ class SubmissionsRepo:
             .where(
                 SubmissionModel.user_id == user_id,
                 SubmissionModel.problem_id.in_(problem_ids),
+                SubmissionModel.assessment_id == assessment_id,
             )
             .order_by(SubmissionModel.submitted_at.desc())
         )
@@ -132,4 +144,3 @@ class SubmissionsRepo:
         for submission_id, choice_id in rows:
             out[submission_id].append(choice_id)
         return out
-
