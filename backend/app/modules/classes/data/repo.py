@@ -5,7 +5,13 @@ import uuid
 from sqlalchemy import Select, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.classes.data.models import ClassModel, ClassStudentModel
+from app.modules.classes.data.models import (
+  ClassAssessmentItemModel,
+  ClassAssessmentModel,
+  ClassModel,
+  ClassStudentModel,
+)
+from app.modules.problems.data.models import ProblemModel, ProblemStatus
 
 
 class ClassRepo:
@@ -111,3 +117,107 @@ class ClassRepo:
     if row is not None:
       await self.session.delete(row)
 
+  async def create_assessment(
+    self,
+    *,
+    class_id: uuid.UUID,
+    created_by: uuid.UUID | None,
+    title: str,
+    description: str | None,
+    due_at,
+    time_limit_min: int | None,
+  ) -> ClassAssessmentModel:
+    row = ClassAssessmentModel(
+      class_id=class_id,
+      created_by=created_by,
+      title=title,
+      description=description,
+      due_at=due_at,
+      time_limit_min=time_limit_min,
+    )
+    self.session.add(row)
+    await self.session.flush()
+    return row
+
+  async def add_assessment_items(
+    self,
+    *,
+    assessment_id: uuid.UUID,
+    items: list[tuple[uuid.UUID, int, int]],
+  ) -> list[ClassAssessmentItemModel]:
+    rows: list[ClassAssessmentItemModel] = []
+    for problem_id, order_no, points in items:
+      row = ClassAssessmentItemModel(
+        assessment_id=assessment_id,
+        problem_id=problem_id,
+        order_no=order_no,
+        points=points,
+      )
+      self.session.add(row)
+      rows.append(row)
+    await self.session.flush()
+    return rows
+
+  async def list_assessments_by_class(
+    self,
+    class_id: uuid.UUID,
+  ) -> list[ClassAssessmentModel]:
+    stmt: Select[tuple[ClassAssessmentModel]] = (
+      select(ClassAssessmentModel)
+      .where(ClassAssessmentModel.class_id == class_id)
+      .order_by(ClassAssessmentModel.created_at.desc())
+    )
+    result = await self.session.execute(stmt)
+    return list(result.scalars().all())
+
+  async def list_assessments_by_class_ids(
+    self,
+    class_ids: list[uuid.UUID],
+    *,
+    only_published: bool = False,
+  ) -> list[ClassAssessmentModel]:
+    if not class_ids:
+      return []
+    stmt: Select[tuple[ClassAssessmentModel]] = (
+      select(ClassAssessmentModel)
+      .where(ClassAssessmentModel.class_id.in_(class_ids))
+      .order_by(ClassAssessmentModel.created_at.desc())
+    )
+    if only_published:
+      stmt = stmt.where(ClassAssessmentModel.is_published.is_(True))
+    result = await self.session.execute(stmt)
+    return list(result.scalars().all())
+
+  async def get_assessment_by_id(
+    self,
+    assessment_id: uuid.UUID,
+  ) -> ClassAssessmentModel | None:
+    return await self.session.get(ClassAssessmentModel, assessment_id)
+
+  async def list_assessment_items(
+    self,
+    assessment_id: uuid.UUID,
+  ) -> list[ClassAssessmentItemModel]:
+    stmt: Select[tuple[ClassAssessmentItemModel]] = (
+      select(ClassAssessmentItemModel)
+      .where(ClassAssessmentItemModel.assessment_id == assessment_id)
+      .order_by(ClassAssessmentItemModel.order_no.asc())
+    )
+    result = await self.session.execute(stmt)
+    return list(result.scalars().all())
+
+  async def list_published_problems_by_ids(
+    self,
+    problem_ids: list[uuid.UUID],
+  ) -> list[ProblemModel]:
+    if not problem_ids:
+      return []
+    stmt: Select[tuple[ProblemModel]] = (
+      select(ProblemModel)
+      .where(
+        ProblemModel.id.in_(problem_ids),
+        ProblemModel.status == ProblemStatus.PUBLISHED,
+      )
+    )
+    result = await self.session.execute(stmt)
+    return list(result.scalars().all())

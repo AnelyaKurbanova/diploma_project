@@ -198,6 +198,90 @@ export type StudentClass = {
   overall_progress: number | null;
 };
 
+export type StudentAssessment = {
+  id: string;
+  class_id: string;
+  class_name: string;
+  title: string;
+  description: string | null;
+  due_at: string | null;
+  time_limit_min: number | null;
+  items_count: number;
+  total_points: number;
+};
+
+export type StudentAssessmentItem = {
+  id: string;
+  problem_id: string;
+  problem_title: string | null;
+  order_no: number;
+  points: number;
+};
+
+export type StudentAssessmentDetail = StudentAssessment & {
+  items: StudentAssessmentItem[];
+};
+
+export type ClassAssessmentItem = {
+  id: string;
+  problem_id: string;
+  problem_title: string | null;
+  order_no: number;
+  points: number;
+};
+
+export type ClassAssessment = {
+  id: string;
+  class_id: string;
+  title: string;
+  description: string | null;
+  due_at: string | null;
+  time_limit_min: number | null;
+  is_published: boolean;
+  created_at: string;
+  items_count: number;
+  total_points: number;
+};
+
+export type ClassAssessmentDetail = ClassAssessment & {
+  items: ClassAssessmentItem[];
+};
+
+export type TeacherAssessmentStudentProgress = {
+  student_id: string;
+  email: string;
+  full_name: string | null;
+  attempted_count: number;
+  solved_count: number;
+  total_items: number;
+  progress_percent: number;
+  score: number;
+  total_points: number;
+};
+
+export type TeacherAssessmentProgress = {
+  assessment_id: string;
+  class_id: string;
+  class_name: string;
+  assessment_title: string;
+  total_items: number;
+  total_points: number;
+  avg_progress_percent: number;
+  avg_score: number;
+  students: TeacherAssessmentStudentProgress[];
+};
+
+export type CreateClassAssessmentPayload = {
+  title: string;
+  description?: string | null;
+  due_at?: string | null;
+  time_limit_min?: number | null;
+  items: Array<{
+    problem_id: string;
+    points: number;
+  }>;
+};
+
 export function apiListTeacherClasses(
   accessToken: string,
 ): Promise<TeacherClass[]> {
@@ -244,4 +328,57 @@ export function apiListStudentClasses(
   accessToken: string,
 ): Promise<StudentClass[]> {
   return apiGet<StudentClass[]>("/classes/me", accessToken);
+}
+
+export function apiListStudentAssessments(
+  accessToken: string,
+): Promise<StudentAssessment[]> {
+  return apiGet<StudentAssessment[]>("/classes/me/assessments", accessToken);
+}
+
+export function apiGetStudentAssessmentDetail(
+  assessmentId: string,
+  accessToken: string,
+): Promise<StudentAssessmentDetail> {
+  return apiGet<StudentAssessmentDetail>(
+    `/classes/me/assessments/${assessmentId}`,
+    accessToken,
+  );
+}
+
+export function apiListClassAssessments(
+  classId: string,
+  accessToken: string,
+): Promise<ClassAssessment[]> {
+  return apiGet<ClassAssessment[]>(`/classes/${classId}/assessments`, accessToken);
+}
+
+export function apiCreateClassAssessment(
+  classId: string,
+  payload: CreateClassAssessmentPayload,
+  accessToken: string,
+): Promise<ClassAssessment> {
+  return apiPost<ClassAssessment>(`/classes/${classId}/assessments`, payload, accessToken);
+}
+
+export function apiGetClassAssessmentDetail(
+  classId: string,
+  assessmentId: string,
+  accessToken: string,
+): Promise<ClassAssessmentDetail> {
+  return apiGet<ClassAssessmentDetail>(
+    `/classes/${classId}/assessments/${assessmentId}`,
+    accessToken,
+  );
+}
+
+export function apiGetClassAssessmentProgress(
+  classId: string,
+  assessmentId: string,
+  accessToken: string,
+): Promise<TeacherAssessmentProgress> {
+  return apiGet<TeacherAssessmentProgress>(
+    `/classes/${classId}/assessments/${assessmentId}/progress`,
+    accessToken,
+  );
 }

@@ -17,6 +17,7 @@ class SubmissionAnswer(BaseModel):
 
 class SubmissionCreate(BaseModel):
     problem_id: uuid.UUID
+    assessment_id: uuid.UUID | None = None
     answer: SubmissionAnswer
 
 
@@ -46,4 +47,3 @@ class SubmissionProgressItemOut(SubmissionProgressOut):
 
 class SubmissionProgressBatchOut(BaseModel):
     items: list[SubmissionProgressItemOut]
-

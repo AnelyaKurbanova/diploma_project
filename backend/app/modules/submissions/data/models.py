@@ -49,6 +49,12 @@ class SubmissionModel(Base):
         nullable=False,
         index=True,
     )
+    assessment_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("class_assessments.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     status: Mapped[SubmissionStatus] = mapped_column(
         String(32),

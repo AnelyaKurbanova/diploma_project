@@ -10,7 +10,9 @@ from contextlib import asynccontextmanager
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import NotFound
+from app.core.errors import Forbidden, BadRequest
 from app.core.i18n import tr
+from app.modules.classes.data.repo import ClassRepo
 from app.modules.problems.application.canonicalize import normalize_for_storage
 from app.modules.problems.data.models import (
     ProblemAnswerKeyModel,
@@ -177,6 +179,20 @@ class SubmissionService:
         if problem.status != ProblemStatus.PUBLISHED:
             raise NotFound(tr("problem_not_available"))
 
+        if data.assessment_id is not None:
+            class_repo = ClassRepo(self.session)
+            assessment = await class_repo.get_assessment_by_id(data.assessment_id)
+            if assessment is None or not assessment.is_published:
+                raise NotFound("Контрольная не найдена")
+            if assessment.due_at is not None and datetime.now(timezone.utc) > assessment.due_at:
+                raise BadRequest("Дедлайн контрольной истек")
+            student_classes = await class_repo.list_for_student(user_id)
+            if not any(c.id == assessment.class_id for c in student_classes):
+                raise Forbidden("Контрольная недоступна")
+            assessment_items = await class_repo.list_assessment_items(assessment.id)
+            if not any(item.problem_id == data.problem_id for item in assessment_items):
+                raise BadRequest("Задача не входит в эту контрольную")
+
         answer: SubmissionAnswer = data.answer
         is_correct: bool | None = None
         score: int | None = None
@@ -278,10 +294,12 @@ class SubmissionService:
             attempt_no = await self.submissions_repo.next_attempt_no(
                 user_id,
                 data.problem_id,
+                data.assessment_id,
             )
             submission: SubmissionModel = await self.submissions_repo.create_submission(
                 user_id=user_id,
                 problem_id=data.problem_id,
+                assessment_id=data.assessment_id,
                 attempt_no=attempt_no,
                 status=status,
                 is_correct=is_correct,
@@ -320,8 +338,13 @@ class SubmissionService:
         self,
         user_id: uuid.UUID,
         problem_id: uuid.UUID,
+        assessment_id: uuid.UUID | None = None,
     ) -> SubmissionProgressOut:
-        sub = await self.submissions_repo.get_last_for_user_problem(user_id, problem_id)
+        sub = await self.submissions_repo.get_last_for_user_problem(
+            user_id,
+            problem_id,
+            assessment_id,
+        )
         if sub is None:
             return SubmissionProgressOut(has_attempt=False)
 
@@ -340,10 +363,15 @@ class SubmissionService:
         self,
         user_id: uuid.UUID,
         problem_ids: list[uuid.UUID],
+        assessment_id: uuid.UUID | None = None,
     ) -> list[SubmissionProgressItemOut]:
         if not problem_ids:
             return []
-        subs = await self.submissions_repo.get_last_for_user_problems(user_id, problem_ids)
+        subs = await self.submissions_repo.get_last_for_user_problems(
+            user_id,
+            problem_ids,
+            assessment_id,
+        )
         if not subs:
             return [
                 SubmissionProgressItemOut(problem_id=pid, has_attempt=False)

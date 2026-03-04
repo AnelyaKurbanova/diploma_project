@@ -8,10 +8,19 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.data.db.session import get_session
 from app.modules.auth.deps import get_current_user, require_roles
 from app.modules.classes.api.schemas import (
+    ClassAssessmentCreateIn,
+    ClassAssessmentDetailOut,
+    ClassAssessmentItemOut,
+    ClassAssessmentOut,
     ClassDetailOut,
     ClassStatsOut,
     ClassStudentOut,
     JoinClassIn,
+    StudentAssessmentOut,
+    StudentAssessmentDetailOut,
+    StudentAssessmentItemOut,
+    TeacherAssessmentProgressOut,
+    TeacherAssessmentStudentProgressOut,
     StudentClassOut,
     TeacherClassOut,
 )
@@ -31,6 +40,21 @@ def _to_teacher_class_out(row, *, students_count: int) -> TeacherClassOut:
         join_code=row.join_code,
         created_at=row.created_at,
         students_count=students_count,
+    )
+
+
+def _to_assessment_out(row, *, items_count: int, total_points: int) -> ClassAssessmentOut:
+    return ClassAssessmentOut(
+        id=row.id,
+        class_id=row.class_id,
+        title=row.title,
+        description=row.description,
+        due_at=row.due_at,
+        time_limit_min=row.time_limit_min,
+        is_published=row.is_published,
+        created_at=row.created_at,
+        items_count=items_count,
+        total_points=total_points,
     )
 
 
@@ -67,7 +91,7 @@ async def list_my_classes(
     return result
 
 
-@router.get("/{class_id}", response_model=ClassDetailOut)
+@router.get("/{class_id:uuid}", response_model=ClassDetailOut)
 async def get_class_detail(
     class_id: uuid.UUID,
     session: AsyncSession = Depends(get_session),
@@ -117,8 +141,120 @@ async def get_class_detail(
     )
 
 
+@router.post(
+    "/{class_id:uuid}/assessments",
+    response_model=ClassAssessmentOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_assessment(
+    class_id: uuid.UUID,
+    body: ClassAssessmentCreateIn,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(require_roles(UserRole.TEACHER)),
+):
+    svc = ClassService(session)
+    row = await svc.create_assessment_for_teacher(
+        current_user,
+        class_id=class_id,
+        title=body.title,
+        description=body.description,
+        due_at=body.due_at,
+        time_limit_min=body.time_limit_min,
+        items=[(item.problem_id, item.points) for item in body.items],
+    )
+    total_points = sum(item.points for item in body.items)
+    return _to_assessment_out(
+        row,
+        items_count=len(body.items),
+        total_points=total_points,
+    )
+
+
+@router.get(
+    "/{class_id:uuid}/assessments",
+    response_model=list[ClassAssessmentOut],
+)
+async def list_assessments(
+    class_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(require_roles(UserRole.TEACHER)),
+):
+    svc = ClassService(session)
+    rows = await svc.list_assessments_for_teacher(current_user, class_id=class_id)
+
+    out: list[ClassAssessmentOut] = []
+    for row in rows:
+        items = await ClassRepo(session).list_assessment_items(row.id)
+        out.append(
+            _to_assessment_out(
+                row,
+                items_count=len(items),
+                total_points=sum(item.points for item in items),
+            )
+        )
+    return out
+
+
+@router.get(
+    "/{class_id:uuid}/assessments/{assessment_id:uuid}",
+    response_model=ClassAssessmentDetailOut,
+)
+async def get_assessment_detail(
+    class_id: uuid.UUID,
+    assessment_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(require_roles(UserRole.TEACHER)),
+):
+    svc = ClassService(session)
+    assessment, items, problem_titles = await svc.get_assessment_detail_for_teacher(
+        current_user,
+        class_id=class_id,
+        assessment_id=assessment_id,
+    )
+    total_points = sum(item.points for item in items)
+    return ClassAssessmentDetailOut(
+        **_to_assessment_out(
+            assessment,
+            items_count=len(items),
+            total_points=total_points,
+        ).model_dump(),
+        items=[
+            ClassAssessmentItemOut(
+                id=item.id,
+                problem_id=item.problem_id,
+                problem_title=problem_titles.get(item.problem_id),
+                order_no=item.order_no,
+                points=item.points,
+            )
+            for item in items
+        ],
+    )
+
+
+@router.get(
+    "/{class_id:uuid}/assessments/{assessment_id:uuid}/progress",
+    response_model=TeacherAssessmentProgressOut,
+)
+async def get_assessment_progress(
+    class_id: uuid.UUID,
+    assessment_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(require_roles(UserRole.TEACHER)),
+):
+    svc = ClassService(session)
+    data = await svc.get_assessment_progress_for_teacher(
+        current_user,
+        class_id=class_id,
+        assessment_id=assessment_id,
+    )
+    return TeacherAssessmentProgressOut(
+        **{k: v for k, v in data.items() if k != "students"},
+        students=[TeacherAssessmentStudentProgressOut(**row) for row in data["students"]],
+    )
+
+
 @router.delete(
-    "/{class_id}",
+    "/{class_id:uuid}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def delete_class(
@@ -132,7 +268,7 @@ async def delete_class(
 
 
 @router.delete(
-    "/{class_id}/students/{student_id}",
+    "/{class_id:uuid}/students/{student_id:uuid}",
     status_code=status.HTTP_204_NO_CONTENT,
 )
 async def remove_student(
@@ -222,3 +358,32 @@ async def list_my_classes_student(
 
     return result
 
+
+@router.get("/me/assessments", response_model=list[StudentAssessmentOut])
+async def list_my_assessments_student(
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    svc = ClassService(session)
+    rows = await svc.list_assessments_for_student(current_user)
+    return [StudentAssessmentOut(**row) for row in rows]
+
+
+@router.get(
+    "/me/assessments/{assessment_id:uuid}",
+    response_model=StudentAssessmentDetailOut,
+)
+async def get_my_assessment_detail_student(
+    assessment_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    svc = ClassService(session)
+    row = await svc.get_assessment_detail_for_student(
+        current_user,
+        assessment_id=assessment_id,
+    )
+    return StudentAssessmentDetailOut(
+        **{k: v for k, v in row.items() if k != "items"},
+        items=[StudentAssessmentItemOut(**item) for item in row["items"]],
+    )
