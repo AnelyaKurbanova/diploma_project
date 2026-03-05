@@ -17,10 +17,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-COPY requirements.txt /app/requirements.txt
+# Сборка из корня репозитория: docker build -f video_worker/Dockerfile .
+COPY video_worker/requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r /app/requirements.txt
 
-COPY . /app
+COPY video_worker/ /app/video_worker/
 
 CMD ["python", "-m", "video_worker.app.main"]
 
