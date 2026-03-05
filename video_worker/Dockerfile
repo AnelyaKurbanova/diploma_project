@@ -12,7 +12,7 @@ RUN apt-get update \
         ffmpeg \
         libcairo2 \
         libpango-1.0-0 \
-        libgdk-pixbuf2.0-0 \
+        libgdk-pixbuf-xlib-2.0-0 \
         latexmk \
         texlive-latex-base \
         texlive-latex-extra \
