@@ -427,6 +427,7 @@ class ProblemService:
             )
 
             try:
+                # 1) Создаём задачу в статусе draft.
                 created = await self.create_draft_problem(
                     problem_create,
                     created_by=created_by,
@@ -437,6 +438,16 @@ class ProblemService:
                 await self.session.rollback()
                 skipped_duplicates += 1
                 continue
+
+            # 2) Автоматически отправляем ИИ-задачу на проверку,
+            #    чтобы не требовалось ручное нажатие "На проверку".
+            try:
+                created = await self.submit_for_review(created.id)
+            except Conflict:
+                # Если по каким-то причинам перевести в pending_review не удалось,
+                # оставляем задачу как есть в текущем статусе.
+                await self.session.rollback()
+                created = await self.repo.get_problem(created.id)
 
             created_problems.append(created)
             seen_norms.add(normalized_statement)

@@ -1,0 +1,72 @@
+# Production compose: положите на сервер в /opt/app-staging или /opt/app-prod.
+# Использование:
+#   export IMAGE_TAG=staging   # или prod
+#   docker compose -f docker-compose.prod.yml --env-file .env up -d
+#
+# На сервере нужен .env с переменными для api, frontend, video_worker (см. deploy/README.md).
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-app}
+      POSTGRES_USER: ${POSTGRES_USER:-app}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app} -d ${POSTGRES_DB:-app}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-app}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-app}
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    image: ghcr.io/anelyakurbanova/diploma-backend:${IMAGE_TAG:-staging}
+    env_file: [.env]
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    command: >
+      sh -c "
+      alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port 8000
+      "
+    restart: unless-stopped
+
+  frontend:
+    image: ghcr.io/anelyakurbanova/diploma-frontend:${IMAGE_TAG:-staging}
+    env_file: [.env]
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  video-worker:
+    image: ghcr.io/anelyakurbanova/diploma-video-worker:${IMAGE_TAG:-staging}
+    env_file: [.env]
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

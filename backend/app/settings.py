@@ -75,4 +75,7 @@ class Settings(BaseSettings):
     AWS_REGION: str = "eu-north-1"
     S3_BUCKET: str = "ph8-bucket"
 
+    # RabbitMQ (for video jobs publishing)
+    RABBIT_URL: str | None = None
+
 settings = Settings()

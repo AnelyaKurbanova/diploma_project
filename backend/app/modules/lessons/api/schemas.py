@@ -98,3 +98,12 @@ class LessonGenerateProblemsIn(BaseModel):
 
     # Можно просить больше 30 задач; на бэкенде генерация пойдёт батчами.
     count: int = Field(default=10, ge=1, le=100)
+
+
+class LessonGenerateProblemsAcceptedOut(BaseModel):
+    """Ответ при асинхронном запуске генерации задач (202)."""
+
+    status: str = "accepted"
+    message: str = (
+        "Генерация задач запущена. Задачи появятся в блоке урока после завершения процесса."
+    )
