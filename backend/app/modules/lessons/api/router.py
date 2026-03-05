@@ -15,6 +15,7 @@ from app.modules.lessons.api.schemas import (
     LessonCreate,
     LessonCreateIn,
     LessonDetailOut,
+    LessonGenerateDraftAcceptedOut,
     LessonGenerateProblemsAcceptedOut,
     LessonGenerateProblemsIn,
     LessonOut,
@@ -37,6 +38,19 @@ async def _run_generate_problems(
             lesson_id,
             count=count,
             created_by=created_by,
+            allow_published_edit=allow_published_edit,
+        )
+
+
+async def _run_generate_draft(
+    lesson_id: uuid.UUID,
+    allow_published_edit: bool,
+) -> None:
+    """Фоновая задача: генерация черновика лекции в отдельной сессии."""
+    async with SessionLocal() as session:
+        svc = LessonService(session)
+        await svc.generate_draft(
+            lesson_id,
             allow_published_edit=allow_published_edit,
         )
 
@@ -193,19 +207,23 @@ async def reject_lesson(
 
 @router.post(
     "/lessons/{lesson_id}/generate-draft",
-    response_model=LessonDetailOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=LessonGenerateDraftAcceptedOut,
 )
 async def generate_lesson_draft(
     lesson_id: uuid.UUID,
-    session: AsyncSession = Depends(get_session),
+    background_tasks: BackgroundTasks,
     current_user=Depends(
         require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
     ),
 ):
-    svc = LessonService(session)
-    return await svc.generate_draft(
-        lesson_id, allow_published_edit=_can_edit_published(current_user.role)
+    """Запускает генерацию черновика лекции в фоне; ответ 202 без ожидания завершения."""
+    background_tasks.add_task(
+        _run_generate_draft,
+        lesson_id,
+        _can_edit_published(current_user.role),
     )
+    return LessonGenerateDraftAcceptedOut()
 
 
 @router.post(

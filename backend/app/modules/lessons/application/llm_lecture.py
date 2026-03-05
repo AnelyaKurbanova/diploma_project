@@ -58,8 +58,19 @@ async def generate_lecture_from_context(
             ],
             max_completion_tokens=4096,
         )
-        content = response.choices[0].message.content or ""
-        return content.strip() or None
+        choice = response.choices[0] if response.choices else None
+        if not choice:
+            logger.warning("LLM lecture: API returned no choices")
+            return None
+        content = choice.message.content or ""
+        finish_reason = getattr(choice, "finish_reason", None)
+        result = content.strip() or None
+        if not result:
+            logger.warning(
+                "LLM lecture: empty or whitespace-only content, finish_reason=%s",
+                finish_reason,
+            )
+        return result
     except Exception as exc:
         logger.warning("LLM lecture generation failed: %s", exc)
         return None

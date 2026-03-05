@@ -363,7 +363,10 @@ class LessonService:
         chunk_contents = [c.content for c in chunks]
         text = await generate_lecture_from_context(topic.title_ru, chunk_contents)
         if not text:
-            raise Conflict("Не удалось сгенерировать лекцию. Проверьте OPENAI_API_KEY.")
+            raise Conflict(
+                "Модель вернула пустой текст лекции. Попробуйте ещё раз; "
+                "если повторяется — проверьте наличие учебных материалов по теме и имя модели (LLM_MODEL_NAME)."
+            )
 
         lecture_blocks = [
             b for b in lesson.content_blocks

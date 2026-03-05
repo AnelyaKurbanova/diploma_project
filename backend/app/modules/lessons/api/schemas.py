@@ -107,3 +107,12 @@ class LessonGenerateProblemsAcceptedOut(BaseModel):
     message: str = (
         "Генерация задач запущена. Задачи появятся в блоке урока после завершения процесса."
     )
+
+
+class LessonGenerateDraftAcceptedOut(BaseModel):
+    """Ответ при асинхронном запуске генерации черновика лекции (202)."""
+
+    status: str = "accepted"
+    message: str = (
+        "Генерация лекции запущена. Черновик появится в блоке урока после завершения."
+    )

@@ -386,18 +386,56 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     }
   };
 
+  const hasLectureBody = (detail: LessonDetail | null): boolean => {
+    if (!detail) return false;
+    const lecture = detail.content_blocks.find((b) => b.block_type === "lecture");
+    return Boolean(lecture?.body?.trim());
+  };
+
+  const pollGeneratedDraft = useCallback(
+    async (lessonId: string) => {
+      const maxAttempts = 36; // 36 * 5с ≈ 3 минуты
+      const delayMs = 5000;
+
+      setGeneratingDraft(lessonId);
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        try {
+          const detail = await apiGet<LessonDetail>(
+            `/lessons/${lessonId}?admin_view=1`,
+            accessToken,
+          );
+
+          if (hasLectureBody(detail)) {
+            setLessonDetail(detail);
+            setGeneratingDraft(null);
+            setSuccess("Черновик лекции сгенерирован.");
+            return;
+          }
+        } catch {
+          // продолжаем опрос при временных ошибках
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+
+      setGeneratingDraft(null);
+      setSuccess(
+        "Генерация лекции всё ещё выполняется. Обновите урок вручную чуть позже.",
+      );
+    },
+    [accessToken],
+  );
+
   const handleGenerateDraft = async (lessonId: string) => {
-    setGeneratingDraft(lessonId);
     setError(null);
     setSuccess(null);
     try {
       await apiPost(`/lessons/${lessonId}/generate-draft`, undefined, accessToken);
-      await loadLessonDetail(lessonId);
-      setSuccess("Черновик лекции сгенерирован");
+      setSuccess("Генерация лекции запущена. Ожидайте обновления блока лекции.");
+      void pollGeneratedDraft(lessonId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при генерации черновика");
-    } finally {
-      setGeneratingDraft(null);
     }
   };
 
