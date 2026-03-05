@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import uuid
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.data.db.session import get_session
+from app.data.db.session import get_session, SessionLocal
 from app.modules.auth.deps import get_current_user, require_roles
 from app.modules.lessons.application.service import LessonService
 from app.modules.lessons.api.schemas import (
@@ -15,12 +15,30 @@ from app.modules.lessons.api.schemas import (
     LessonCreate,
     LessonCreateIn,
     LessonDetailOut,
+    LessonGenerateProblemsAcceptedOut,
     LessonGenerateProblemsIn,
     LessonOut,
     LessonProgressOut,
     LessonUpdate,
 )
 from app.modules.users.data.models import UserRole
+
+
+async def _run_generate_problems(
+    lesson_id: uuid.UUID,
+    count: int,
+    created_by: uuid.UUID | None,
+    allow_published_edit: bool,
+) -> None:
+    """Фоновая задача: генерация задач по уроку в отдельной сессии."""
+    async with SessionLocal() as session:
+        svc = LessonService(session)
+        await svc.generate_problems_from_rag(
+            lesson_id,
+            count=count,
+            created_by=created_by,
+            allow_published_edit=allow_published_edit,
+        )
 
 
 router = APIRouter(tags=["lessons"])
@@ -192,23 +210,26 @@ async def generate_lesson_draft(
 
 @router.post(
     "/lessons/{lesson_id}/generate-problems",
-    response_model=LessonDetailOut,
+    status_code=status.HTTP_202_ACCEPTED,
+    response_model=LessonGenerateProblemsAcceptedOut,
 )
 async def generate_lesson_problems(
     lesson_id: uuid.UUID,
     body: LessonGenerateProblemsIn,
-    session: AsyncSession = Depends(get_session),
+    background_tasks: BackgroundTasks,
     current_user=Depends(
         require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
     ),
 ):
-    svc = LessonService(session)
-    return await svc.generate_problems_from_rag(
+    """Запускает генерацию задач в фоне; ответ 202 без ожидания завершения."""
+    background_tasks.add_task(
+        _run_generate_problems,
         lesson_id,
-        count=body.count,
-        created_by=current_user.id,
-        allow_published_edit=_can_edit_published(current_user.role),
+        body.count,
+        current_user.id,
+        _can_edit_published(current_user.role),
     )
+    return LessonGenerateProblemsAcceptedOut()
 
 
 @router.post(

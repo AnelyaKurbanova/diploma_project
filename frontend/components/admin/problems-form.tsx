@@ -843,6 +843,24 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     }
   };
 
+  const handleCreateVideo = async (problemId: string) => {
+    setActionInProgress(problemId);
+    setError(null);
+    setSuccess(null);
+    try {
+      const res = await apiPost<{ job_id: string; status: string }>(
+        `/problems/${problemId}/video`,
+        {},
+        accessToken,
+      );
+      setSuccess(`Видео‑задача создана. ID: ${res.job_id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Ошибка при создании видео для задачи");
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
   /* ── Global hotkeys ─────────────────────────────────────────── */
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2125,6 +2143,15 @@ TITLE: ...`}
                         className="rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-slate-600 transition-colors hover:bg-gray-200 disabled:opacity-50"
                       >
                         В архив
+                      </button>
+                    )}
+                    {p.status === "published" && isModerator && (
+                      <button
+                        onClick={() => handleCreateVideo(p.id)}
+                        disabled={actionInProgress === p.id}
+                        className="rounded-lg bg-purple-50 px-3 py-1.5 text-xs font-medium text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50"
+                      >
+                        Сгенерировать видео
                       </button>
                     )}
                     {isModerator && (

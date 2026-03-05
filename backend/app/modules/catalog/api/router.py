@@ -20,6 +20,7 @@ from app.modules.catalog.application.service import (
     TopicService,
     CurriculumService,
 )
+from app.modules.problems.api.router import VideoJobResponse
 from app.modules.users.data.models import UserRole
 
 
@@ -173,6 +174,31 @@ async def get_topic(
     svc = TopicService(session)
     row = await svc.get(topic_id)
     return to_topic_out(row)
+
+
+@router.post(
+    "/topics/{topic_id}/video",
+    response_model=VideoJobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_topic_video(
+    topic_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    """Создать задачу генерации видео по теме с использованием RAG-сценария."""
+
+    from app.modules.video_jobs.application.service import VideoJobService
+
+    video_svc = VideoJobService(session)
+    job = await video_svc.create_topic_video_job(topic_id)
+    return VideoJobResponse(job_id=job.id, status=job.status)
 
 
 @router.patch("/topics/{topic_id}", response_model=TopicOut)

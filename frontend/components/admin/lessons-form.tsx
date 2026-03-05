@@ -128,10 +128,13 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   const [generatingDraft, setGeneratingDraft] = useState<string | null>(null);
   const [generatingProblems, setGeneratingProblems] = useState<string | null>(null);
   const [problemsCount, setProblemsCount] = useState(10);
+  const [problemsGenerationLessonId, setProblemsGenerationLessonId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [lessonActionInProgress, setLessonActionInProgress] = useState<string | null>(null);
   const isModerator = userRole === "moderator" || userRole === "admin";
+
+  const [creatingVideoJob, setCreatingVideoJob] = useState(false);
 
   const [problemModalOpen, setProblemModalOpen] = useState(false);
   const [problemModalMode, setProblemModalMode] = useState<"create" | "edit" | "view">("create");
@@ -256,6 +259,10 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
   const usedBlockTypes = new Set(
     (lessonDetail?.content_blocks ?? []).map((block) => block.block_type),
+  );
+  const lessonProblems = useMemo(
+    () => problems.filter((p) => selectedProblemIds.includes(p.id)),
+    [problems, selectedProblemIds],
   );
   const canCreateLectureBlock = !usedBlockTypes.has("lecture");
   const canCreateVideoBlock = !usedBlockTypes.has("video");
@@ -394,6 +401,56 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     }
   };
 
+  const countProblemsInLesson = (detail: LessonDetail | null): number => {
+    if (!detail) return 0;
+    return detail.content_blocks
+      .filter((b) => b.block_type === "problem_set")
+      .reduce((sum, b) => sum + (b.problems?.length ?? 0), 0);
+  };
+
+  const pollGeneratedProblems = useCallback(
+    async (lessonId: string, initialCount: number) => {
+      const maxAttempts = 60; // 60 * 5с = ~5 минут
+      const delayMs = 5000;
+
+      setProblemsGenerationLessonId(lessonId);
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        try {
+          const detail = await apiGet<LessonDetail>(
+            `/lessons/${lessonId}?admin_view=1`,
+            accessToken,
+          );
+
+          const currentCount = countProblemsInLesson(detail);
+
+          if (currentCount > initialCount) {
+            setLessonDetail(detail);
+            setProblemsGenerationLessonId(null);
+            const created = currentCount - initialCount;
+            setSuccess(
+              created > 0
+                ? `Генерация задач завершена, добавлено ${created} задач.`
+                : "Генерация задач завершена.",
+            );
+            return;
+          }
+        } catch (err) {
+          // При ошибке продолжаем попытки, чтобы не терять прогресс из-за временных сбоев сети.
+          // Если ошибка постоянная, цикл завершится по таймауту.
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+
+      setProblemsGenerationLessonId(null);
+      setSuccess(
+        "Генерация задач всё ещё выполняется. Обновите урок вручную чуть позже, чтобы увидеть результат.",
+      );
+    },
+    [accessToken],
+  );
+
   const handleGenerateProblems = async (lessonId: string) => {
     if (!Number.isFinite(problemsCount) || problemsCount <= 0 || problemsCount > 100) {
       setError("Введите корректное количество задач (от 1 до 100).");
@@ -404,20 +461,102 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     setError(null);
     setSuccess(null);
     try {
-      await apiPost(
+      const initialCount = countProblemsInLesson(lessonDetail);
+
+      const res = await apiPost<{ status?: string; message?: string }>(
         `/lessons/${lessonId}/generate-problems`,
         { count: problemsCount },
         accessToken,
       );
-      await loadLessonDetail(lessonId);
-      await loadProblemsForTopic();
-      setSuccess("Задачи сгенерированы и добавлены в блок задач этого урока.");
+      setSuccess(
+        res?.message ??
+          "Генерация задач запущена. Мы автоматически обновим блок задач после завершения.",
+      );
+
+      // Не блокируем UI ожиданием — отслеживаем прогресс в фоне.
+      void pollGeneratedProblems(lessonId, initialCount);
     } catch (err) {
       setError(
         err instanceof Error ? err.message : "Ошибка при генерации задач для урока",
       );
     } finally {
       setGeneratingProblems(null);
+    }
+  };
+
+  const handleCreateVideoForBlock = async () => {
+    if (!selectedTopic) {
+      setError("Сначала выберите тему и урок, для которого нужно сгенерировать видео.");
+      return;
+    }
+    setCreatingVideoJob(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      // 1) Создаем задачу генерации видео по теме урока
+      const createRes = await apiPost<{ job_id: string; status: string }>(
+        `/topics/${selectedTopic}/video`,
+        {},
+        accessToken,
+      );
+
+      // 2) Клиентский опрос статуса раз в 5 секунд
+      const jobId = createRes.job_id;
+      const maxAttempts = 60; // 60 * 5с = 5 минут
+      let lastStatus: string | null = null;
+      let lastError: string | null = null;
+      let lastS3Url: string | null = null;
+
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const job = await apiGet<{
+          job_id: string;
+          status: string;
+          s3_url: string | null;
+          presigned_url: string | null;
+          error: string | null;
+        }>(
+          `/video-jobs/${jobId}`,
+          accessToken,
+        );
+
+        lastStatus = job.status;
+        lastError = job.error ?? null;
+        lastS3Url = job.s3_url ?? null;
+
+        if (job.status === "done" && job.s3_url) {
+          setBlockForm(f => ({ ...f, video_url: job.s3_url ?? "" }));
+          setSuccess("Видео по уроку сгенерировано, ссылка подставлена в URL видео.");
+          setCreatingVideoJob(false);
+          return;
+        }
+
+        if (job.status === "failed") {
+          setError(job.error || "Видео по уроку не удалось сгенерировать.");
+          setCreatingVideoJob(false);
+          return;
+        }
+
+        // Если ещё в процессе — ждём 5 секунд и опрашиваем снова.
+        await new Promise(resolve => setTimeout(resolve, 5000));
+      }
+
+      // Если вышли по таймауту цикла, показываем последнее известное состояние
+      if (lastStatus === "done" && lastS3Url) {
+        setBlockForm(f => ({ ...f, video_url: lastS3Url ?? "" }));
+        setSuccess("Видео по уроку сгенерировано, ссылка подставлена в URL видео.");
+      } else if (lastStatus === "failed") {
+        setError(lastError || "Видео по уроку не удалось сгенерировать.");
+      } else {
+        setSuccess("Генерация видео по уроку запущена, но ещё не завершена. Попробуйте снова чуть позже.");
+      }
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Ошибка при запуске или ожидании генерации видео для урока",
+      );
+    } finally {
+      setCreatingVideoJob(false);
     }
   };
 
@@ -796,8 +935,13 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                 <span className="font-semibold">«Задачи»</span> выбранного урока.
               </p>
               <p className="mt-1 text-xs text-slate-400">
-                Задачи будут созданы как черновики и сразу появятся в блоке задач урока.
+                Генерация идёт в фоне; после завершения задачи появятся в блоке как задачи в статусе «на проверке».
               </p>
+              {problemsGenerationLessonId === selectedLessonId && (
+                <p className="mt-1 text-xs text-blue-600">
+                  Идёт генерация задач для этого урока... Мы периодически обновляем блок задач, пока процесс не завершится.
+                </p>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-1 text-xs text-slate-600">
@@ -897,25 +1041,47 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
             )}
 
             {blockForm.block_type === "video" && (
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-500">URL видео</label>
-                  <input
-                    type="url"
-                    value={blockForm.video_url}
-                    onChange={(e) => setBlockForm((f) => ({ ...f, video_url: e.target.value }))}
-                    placeholder="https://..."
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-                  />
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">URL видео</label>
+                    <input
+                      type="url"
+                      value={blockForm.video_url}
+                      onChange={(e) => setBlockForm((f) => ({ ...f, video_url: e.target.value }))}
+                      placeholder="https://..."
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-xs font-medium text-slate-500">Описание видео</label>
+                    <input
+                      type="text"
+                      value={blockForm.video_description}
+                      onChange={(e) => setBlockForm((f) => ({ ...f, video_description: e.target.value }))}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-slate-500">Описание видео</label>
-                  <input
-                    type="text"
-                    value={blockForm.video_description}
-                    onChange={(e) => setBlockForm((f) => ({ ...f, video_description: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
-                  />
+
+                <div className="rounded-lg border border-purple-100 bg-purple-50/60 p-3">
+                  <p className="mb-2 text-xs font-medium text-purple-800">
+                    Сгенерировать видео по уроку
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCreateVideoForBlock}
+                      disabled={creatingVideoJob || !selectedTopic}
+                      className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      {creatingVideoJob ? "Запуск..." : "Сгенерировать видео"}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-purple-700">
+                    Будет создана задача генерации объясняющего видео по выбранному уроку (теме).
+                    После завершения генерации ссылка на видео автоматически подставится в поле выше.
+                  </p>
                 </div>
               </div>
             )}
@@ -949,9 +1115,13 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     <p className="text-xs text-slate-400">
                       В выбранной теме пока нет задач.
                     </p>
+                  ) : lessonProblems.length === 0 ? (
+                    <p className="text-xs text-slate-400">
+                      У этого урока пока нет собственных задач. Создайте их вручную или сгенерируйте через ИИ.
+                    </p>
                   ) : (
                     <div className="space-y-2">
-                      {problems.map((problem) => {
+                      {lessonProblems.map((problem) => {
                         const checked = selectedProblemIds.includes(problem.id);
                         return (
                           <div

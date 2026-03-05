@@ -13,6 +13,7 @@ from app.modules.users.api.admin_router import router as admin_router
 from app.modules.schools.api.router import router as schools_router
 from app.modules.classes.api.router import router as classes_router
 from app.modules.dashboard.api.router import router as dashboard_router
+from app.modules.video_jobs.api.router import router as video_jobs_router
 
 api_router = APIRouter()
 api_router.include_router(catalog_router)
@@ -27,5 +28,6 @@ api_router.include_router(projects_router)
 api_router.include_router(auth_router)
 api_router.include_router(users_router)
 api_router.include_router(dashboard_router)
+api_router.include_router(video_jobs_router)
 
 

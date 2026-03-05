@@ -58,9 +58,27 @@ jobs:
           docker build -t ghcr.io/anelyakurbanova/diploma-frontend:${{ needs.env.outputs.tag }} ./frontend
           docker push ghcr.io/anelyakurbanova/diploma-frontend:${{ needs.env.outputs.tag }}
 
+  build-video-worker:
+    runs-on: ubuntu-latest
+    needs: env
+    permissions:
+      packages: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to GHCR
+        run: |
+          echo "${{ secrets.GHCR_TOKEN }}" | docker login ghcr.io -u "anelyakurbanova" --password-stdin
+
+      - name: Build and push video-worker
+        run: |
+          docker build -f video_worker/Dockerfile -t ghcr.io/anelyakurbanova/diploma-video-worker:${{ needs.env.outputs.tag }} .
+          docker push ghcr.io/anelyakurbanova/diploma-video-worker:${{ needs.env.outputs.tag }}
+
   deploy:
     runs-on: ubuntu-latest
-    needs: [env, build-backend, build-frontend]
+    needs: [env, build-backend, build-frontend, build-video-worker]
     steps:
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.2.0

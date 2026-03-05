@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Request, status
 from pydantic import BaseModel, Field
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session
@@ -19,6 +21,8 @@ from app.modules.problems.data.models import ProblemDifficulty, ProblemStatus
 from app.modules.problems.application.service import ProblemService
 from app.modules.activity.application.service import ActivityService
 from app.modules.users.data.models import UserRole
+from app.settings import settings
+from app.core.errors import BadRequest
 
 
 router = APIRouter(tags=["problems"])
@@ -82,6 +86,11 @@ class GenerateFromRagResponse(BaseModel):
     items: list[ProblemAdminOut]
     created_count: int
     skipped_duplicates: int
+
+
+class VideoJobResponse(BaseModel):
+    job_id: uuid.UUID
+    status: str
 
 
 @router.post(
@@ -148,6 +157,31 @@ async def generate_explanation_api(
         choices=body.choices or None,
     )
     return ExplanationResponse(explanation=explanation)
+
+
+@router.post(
+    "/problems/{problem_id}/video",
+    response_model=VideoJobResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_video_job(
+    problem_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(
+        require_roles(
+            UserRole.CONTENT_MAKER,
+            UserRole.MODERATOR,
+            UserRole.ADMIN,
+        )
+    ),
+):
+    """Создать задачу генерации видео по конкретной задаче с использованием RAG-сценария."""
+
+    from app.modules.video_jobs.application.service import VideoJobService
+
+    video_svc = VideoJobService(session)
+    job = await video_svc.create_problem_video_job(problem_id)
+    return VideoJobResponse(job_id=job.id, status=job.status)
 
 
 @router.post(
