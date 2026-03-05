@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import uuid
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
@@ -46,12 +47,21 @@ async def _run_generate_draft(
     lesson_id: uuid.UUID,
     allow_published_edit: bool,
 ) -> None:
-    """Фоновая задача: генерация черновика лекции в отдельной сессии."""
-    async with SessionLocal() as session:
-        svc = LessonService(session)
-        await svc.generate_draft(
+    """Фоновая задача: генерация черновика лекции. Исключения логируем, не пробрасываем —
+    ответ 202 уже отправлен клиенту."""
+    logger = logging.getLogger(__name__)
+    try:
+        async with SessionLocal() as session:
+            svc = LessonService(session)
+            await svc.generate_draft(
+                lesson_id,
+                allow_published_edit=allow_published_edit,
+            )
+    except Exception as exc:
+        logger.exception(
+            "generate_draft failed for lesson_id=%s: %s",
             lesson_id,
-            allow_published_edit=allow_published_edit,
+            exc,
         )
 
 

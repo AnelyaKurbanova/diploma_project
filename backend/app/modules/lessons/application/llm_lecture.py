@@ -56,7 +56,7 @@ async def generate_lecture_from_context(
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
-            max_completion_tokens=4096,
+            max_completion_tokens=8192,
         )
         choice = response.choices[0] if response.choices else None
         if not choice:
