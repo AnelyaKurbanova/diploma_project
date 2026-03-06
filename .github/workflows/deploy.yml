@@ -18,11 +18,11 @@ jobs:
           if [ "${GITHUB_REF_NAME}" = "dev" ]; then
             echo "tag=staging" >> $GITHUB_OUTPUT
             echo "remote_dir=/opt/app-staging" >> $GITHUB_OUTPUT
-            echo "video_worker_remote_dir=/opt/video-worker-staging" >> $GITHUB_OUTPUT
+            echo "video_worker_remote_dir=/opt/video-worker" >> $GITHUB_OUTPUT
           else
             echo "tag=prod" >> $GITHUB_OUTPUT
             echo "remote_dir=/opt/app-prod" >> $GITHUB_OUTPUT
-            echo "video_worker_remote_dir=/opt/video-worker-prod" >> $GITHUB_OUTPUT
+            echo "video_worker_remote_dir=/opt/video-worker" >> $GITHUB_OUTPUT
           fi
 
   build-backend:

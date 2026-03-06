@@ -19,8 +19,8 @@
 **Основной сервер** (`/opt/app-prod` или `/opt/app-staging`):
 - В `docker-compose` не должно быть сервиса `video_worker` (оставить только backend, frontend, db, rabbit, nginx и т.д.).
 
-**Droplet video_worker** (`/opt/video-worker-prod` или `/opt/video-worker-staging`):
-- Создать каталог и положить туда `docker-compose.yml` только с сервисом video_worker (образ `ghcr.io/anelyakurbanova/diploma-video-worker:prod` / `:staging`).
+**Droplet video_worker** (`/opt/video-worker`):
+- В каталоге должен быть `docker-compose.yml` только с сервисом video_worker (образ `ghcr.io/.../diploma-video-worker:prod` или `:staging` в зависимости от ветки).
 - Настроить `.env` (очередь RabbitMQ, БД, S3 и т.д. — URL’ы основного сервера/внешних сервисов).
 
 После пуша в `dev` или `main` CI/CD соберёт образы, задеплоит основное приложение на основной сервер и video_worker на второй droplet параллельно.
