@@ -162,7 +162,7 @@ async def generate_explanation_api(
 @router.post(
     "/problems/{problem_id}/video",
     response_model=VideoJobResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_video_job(
     problem_id: uuid.UUID,

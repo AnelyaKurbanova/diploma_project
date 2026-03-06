@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -12,12 +13,14 @@ from openai import AsyncOpenAI
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequest, Conflict, NotFound
+from app.data.db.session import SessionLocal
 from app.modules.catalog.data.repo import CatalogRepo
 from app.modules.knowledge.application.retrieval import search as knowledge_search
 from app.modules.llm_usage.application.tracker import (
     extract_openai_token_usage,
     log_llm_token_usage,
 )
+from app.modules.lessons.data.models import LessonModel
 from app.modules.problems.application.service import ProblemService
 from app.modules.video_jobs.data.models import VideoJobModel
 from app.settings import settings
@@ -80,6 +83,7 @@ _REPEATABLE_TEMPLATES = {
 }
 _MAX_REPEATS = 3
 _CONTENT_MAX_RETRIES = 2
+_PLAN_MAX_RETRIES = 2
 _LATEX_IN_PLAIN_TEXT_PATTERN = re.compile(r"\\[a-zA-Z]+\s*(\{[^}]*\})?")
 _PLAIN_TEXT_FIELDS: dict[str, list[str]] = {
     "title": ["title"],
@@ -298,7 +302,12 @@ REQUEST_JSON:
     ...
     {{ "template": "summary" }}
   ]
-}}"""
+}}
+
+ВАЖНО:
+- Верни ТОЛЬКО JSON-объект.
+- Не добавляй комментарии, текст до/после JSON и служебные поля.
+"""
 
 
 async def _generate_plan(
@@ -311,70 +320,93 @@ async def _generate_plan(
     """Step 1: ask the LLM to choose the optimal scene template sequence."""
 
     rag_summary = "\n".join(f"- {chunk[:120]}..." for chunk in rag_chunks[:8])
+    previous_errors: list[str] | None = None
 
-    user_prompt = _PLAN_USER_TEMPLATE.format(
-        topic_title=topic_title,
-        request_json=json.dumps(dict(request_json), ensure_ascii=False, indent=2),
-        rag_summary=rag_summary,
-    )
+    for attempt in range(_PLAN_MAX_RETRIES + 1):
+        error_block = ""
+        if previous_errors:
+            error_block = (
+                "\nОШИБКИ ПРЕДЫДУЩЕЙ ПОПЫТКИ (исправь их):\n- "
+                + "\n- ".join(previous_errors)
+                + "\n"
+            )
 
-    request_meta = {
-        "mode": request_json.get("mode"),
-        "topic_title": topic_title,
-        "chunks_count": len(rag_chunks),
-        "step": "plan",
-    }
+        user_prompt = _PLAN_USER_TEMPLATE.format(
+            topic_title=topic_title,
+            request_json=json.dumps(dict(request_json), ensure_ascii=False, indent=2),
+            rag_summary=rag_summary,
+        ) + error_block
 
-    try:
-        response = await client.chat.completions.create(
-            model=settings.LLM_MODEL_NAME,
-            messages=[
-                {"role": "system", "content": _PLAN_SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_completion_tokens=1024,
-            response_format={"type": "json_object"},
-        )
-    except Exception as exc:
+        request_meta = {
+            "mode": request_json.get("mode"),
+            "topic_title": topic_title,
+            "chunks_count": len(rag_chunks),
+            "step": "plan",
+            "retry": bool(previous_errors),
+        }
+
+        try:
+            response = await client.chat.completions.create(
+                model=settings.LLM_MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": _PLAN_SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_completion_tokens=1024,
+                response_format={"type": "json_object"},
+            )
+        except Exception as exc:
+            await log_llm_token_usage(
+                request_type="video_jobs.generate_plan",
+                model_name=settings.LLM_MODEL_NAME,
+                input_tokens=None, output_tokens=None, total_tokens=None,
+                request_meta=request_meta,
+                success=False,
+                error_text=str(exc),
+            )
+            logger.warning("Video plan generation failed: %s", exc)
+            raise Conflict(
+                "Не удалось спроектировать структуру видео. Попробуйте позже."
+            ) from exc
+
+        input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
         await log_llm_token_usage(
             request_type="video_jobs.generate_plan",
             model_name=settings.LLM_MODEL_NAME,
-            input_tokens=None, output_tokens=None, total_tokens=None,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
             request_meta=request_meta,
-            success=False,
-            error_text=str(exc),
         )
-        logger.warning("Video plan generation failed: %s", exc)
+
+        raw = (response.choices[0].message.content or "").strip()
+        if not raw:
+            errors = ["Модель вернула пустой план видео"]
+        else:
+            try:
+                data = json.loads(raw)
+                errors = _validate_plan_structure(data)
+                if not errors:
+                    return data
+            except Exception as exc:
+                logger.warning("Failed to parse plan JSON: %s; snippet=%r", exc, raw[:2000])
+                errors = ["Не удалось разобрать JSON плана"]
+
+        logger.warning(
+            "Plan validation failed (attempt %d/%d): %s",
+            attempt + 1,
+            _PLAN_MAX_RETRIES + 1,
+            "; ".join(errors),
+        )
+        if attempt < _PLAN_MAX_RETRIES:
+            previous_errors = errors
+            continue
         raise Conflict(
-            "Не удалось спроектировать структуру видео. Попробуйте позже."
-        ) from exc
+            f"Не удалось сгенерировать валидный план видео после "
+            f"{_PLAN_MAX_RETRIES + 1} попыток: {'; '.join(errors)}"
+        )
 
-    input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
-    await log_llm_token_usage(
-        request_type="video_jobs.generate_plan",
-        model_name=settings.LLM_MODEL_NAME,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        total_tokens=total_tokens,
-        request_meta=request_meta,
-    )
-
-    raw = (response.choices[0].message.content or "").strip()
-    if not raw:
-        raise Conflict("Модель вернула пустой план видео")
-
-    try:
-        data = json.loads(raw)
-    except Exception as exc:
-        logger.warning("Failed to parse plan JSON: %s; snippet=%r", exc, raw[:2000])
-        raise Conflict("Не удалось разобрать план видео.") from exc
-
-    errors = _validate_plan_structure(data)
-    if errors:
-        logger.warning("Plan validation failed: %s", "; ".join(errors))
-        raise Conflict(f"Невалидный план видео: {'; '.join(errors)}")
-
-    return data
+    raise Conflict("Не удалось сгенерировать план видео")
 
 
 # ---------------------------------------------------------------------------
@@ -725,9 +757,10 @@ class VideoJobService:
         self.problem_service = ProblemService(session)
         self.catalog_repo = CatalogRepo(session)
 
-    async def create_problem_video_job(self, problem_id: uuid.UUID) -> VideoJobModel:
-        """Create a video job for a specific problem (mode='problem')."""
-
+    async def _build_problem_request_payload(
+        self,
+        problem_id: uuid.UUID,
+    ) -> tuple[dict[str, Any], str, list[str]]:
         problem = await self.problem_service.get(problem_id)
 
         subject_row = await self.catalog_repo.get_subject(problem.subject_id)
@@ -755,8 +788,6 @@ class VideoJobService:
                 "Сначала загрузите docx через /knowledge/ingest."
             )
 
-        rag_texts = [c.content for c in chunks]
-
         request_json: dict[str, Any] = {
             "mode": "problem",
             "problem_id": str(problem.id),
@@ -768,33 +799,26 @@ class VideoJobService:
             "topic_title": topic_title,
             "subject_code": subject_row.code,
         }
+        return request_json, query_title, [c.content for c in chunks]
 
-        content_json = await _generate_video_content_json(
-            request_json=request_json,
-            topic_title=query_title,
-            rag_chunks=rag_texts,
-        )
-
-        job = VideoJobModel(
-            status="queued",
-            request_json=request_json,
-            plan_json=content_json,
-            result_json=None,
-            error_text=None,
-        )
-        self.session.add(job)
-        await self.session.commit()
-
-        await _publish_video_requested(job.id)
-        return job
-
-    async def create_topic_video_job(self, topic_id: uuid.UUID) -> VideoJobModel:
-        """Create a video job for an entire topic (mode='topic')."""
-
+    async def _build_topic_request_payload(
+        self,
+        topic_id: uuid.UUID,
+        lesson_id: uuid.UUID | None = None,
+    ) -> tuple[dict[str, Any], str, list[str]]:
         topic = await self.catalog_repo.get_topic(topic_id)
         subject = await self.catalog_repo.get_subject(topic.subject_id)
 
+        lesson_title: str | None = None
         query_title = topic.title_ru
+        if lesson_id is not None:
+            lesson = await self.session.get(LessonModel, lesson_id)
+            if lesson is None:
+                raise NotFound("Урок не найден")
+            if lesson.topic_id != topic_id:
+                raise Conflict("Урок не относится к выбранной теме")
+            lesson_title = lesson.title
+            query_title = lesson_title
 
         chunks = await knowledge_search(
             self.session,
@@ -808,32 +832,147 @@ class VideoJobService:
                 "Сначала загрузите docx через /knowledge/ingest."
             )
 
-        rag_texts = [c.content for c in chunks]
-
         request_json: dict[str, Any] = {
             "mode": "topic",
             "topic_id": str(topic.id),
+            "lesson_id": str(lesson_id) if lesson_id else None,
+            "lesson_title": lesson_title,
             "subject_id": str(subject.id),
             "topic_title": topic.title_ru,
             "subject_code": subject.code,
             "grade_level": topic.grade_level,
         }
+        return request_json, query_title, [c.content for c in chunks]
 
-        content_json = await _generate_video_content_json(
-            request_json=request_json,
-            topic_title=query_title,
-            rag_chunks=rag_texts,
-        )
+    @staticmethod
+    async def _mark_job_failed(job_id: uuid.UUID, error_text: str) -> None:
+        async with SessionLocal() as session:
+            job = await session.get(VideoJobModel, job_id)
+            if job is None:
+                return
+            job.status = "failed"
+            job.error_text = error_text
+            await session.commit()
+
+    @staticmethod
+    async def _run_problem_job_background(job_id: uuid.UUID, problem_id: uuid.UUID) -> None:
+        try:
+            async with SessionLocal() as session:
+                svc = VideoJobService(session)
+                request_json, query_title, rag_chunks = await svc._build_problem_request_payload(problem_id)
+                content_json = await _generate_video_content_json(
+                    request_json=request_json,
+                    topic_title=query_title,
+                    rag_chunks=rag_chunks,
+                )
+
+                job = await session.get(VideoJobModel, job_id)
+                if job is None:
+                    return
+                job.request_json = request_json
+                job.plan_json = content_json
+                job.status = "queued"
+                job.error_text = None
+                await session.commit()
+
+            await _publish_video_requested(job_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "Background planning failed for problem video job",
+                extra={"job_id": str(job_id), "problem_id": str(problem_id)},
+            )
+            await VideoJobService._mark_job_failed(job_id, str(exc))
+
+    @staticmethod
+    async def _run_topic_job_background(
+        job_id: uuid.UUID,
+        topic_id: uuid.UUID,
+        lesson_id: uuid.UUID | None = None,
+    ) -> None:
+        try:
+            async with SessionLocal() as session:
+                svc = VideoJobService(session)
+                request_json, query_title, rag_chunks = await svc._build_topic_request_payload(
+                    topic_id,
+                    lesson_id=lesson_id,
+                )
+                content_json = await _generate_video_content_json(
+                    request_json=request_json,
+                    topic_title=query_title,
+                    rag_chunks=rag_chunks,
+                )
+
+                job = await session.get(VideoJobModel, job_id)
+                if job is None:
+                    return
+                job.request_json = request_json
+                job.plan_json = content_json
+                job.status = "queued"
+                job.error_text = None
+                await session.commit()
+
+            await _publish_video_requested(job_id)
+        except Exception as exc:  # noqa: BLE001
+            logger.exception(
+                "Background planning failed for topic video job",
+                extra={
+                    "job_id": str(job_id),
+                    "topic_id": str(topic_id),
+                    "lesson_id": str(lesson_id) if lesson_id else None,
+                },
+            )
+            await VideoJobService._mark_job_failed(job_id, str(exc))
+
+    async def create_problem_video_job(self, problem_id: uuid.UUID) -> VideoJobModel:
+        """Create a video job and prepare content asynchronously."""
 
         job = VideoJobModel(
-            status="queued",
-            request_json=request_json,
-            plan_json=content_json,
+            status="planning",
+            request_json={
+                "mode": "problem",
+                "problem_id": str(problem_id),
+            },
+            plan_json=None,
             result_json=None,
             error_text=None,
         )
         self.session.add(job)
         await self.session.commit()
 
-        await _publish_video_requested(job.id)
+        asyncio.create_task(
+            self._run_problem_job_background(
+                job_id=job.id,
+                problem_id=problem_id,
+            )
+        )
+        return job
+
+    async def create_topic_video_job(
+        self,
+        topic_id: uuid.UUID,
+        lesson_id: uuid.UUID | None = None,
+    ) -> VideoJobModel:
+        """Create a video job and prepare content asynchronously."""
+
+        job = VideoJobModel(
+            status="planning",
+            request_json={
+                "mode": "topic",
+                "topic_id": str(topic_id),
+                "lesson_id": str(lesson_id) if lesson_id else None,
+            },
+            plan_json=None,
+            result_json=None,
+            error_text=None,
+        )
+        self.session.add(job)
+        await self.session.commit()
+
+        asyncio.create_task(
+            self._run_topic_job_background(
+                job_id=job.id,
+                topic_id=topic_id,
+                lesson_id=lesson_id,
+            )
+        )
         return job

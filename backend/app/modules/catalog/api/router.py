@@ -3,6 +3,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, Query, Path, status
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session
@@ -25,6 +26,10 @@ from app.modules.users.data.models import UserRole
 
 
 router = APIRouter(tags=["catalog"])
+
+
+class TopicVideoCreateIn(BaseModel):
+    lesson_id: uuid.UUID | None = None
 
 
 def to_subject_out(row, *, topic_count: int = 0) -> SubjectOut:
@@ -179,10 +184,11 @@ async def get_topic(
 @router.post(
     "/topics/{topic_id}/video",
     response_model=VideoJobResponse,
-    status_code=status.HTTP_201_CREATED,
+    status_code=status.HTTP_202_ACCEPTED,
 )
 async def create_topic_video(
     topic_id: uuid.UUID,
+    body: TopicVideoCreateIn,
     session: AsyncSession = Depends(get_session),
     current_user=Depends(
         require_roles(
@@ -197,7 +203,7 @@ async def create_topic_video(
     from app.modules.video_jobs.application.service import VideoJobService
 
     video_svc = VideoJobService(session)
-    job = await video_svc.create_topic_video_job(topic_id)
+    job = await video_svc.create_topic_video_job(topic_id, lesson_id=body.lesson_id)
     return VideoJobResponse(job_id=job.id, status=job.status)
 
 

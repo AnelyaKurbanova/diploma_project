@@ -583,7 +583,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   );
 
   const handleCreateVideoForBlock = async () => {
-    if (!selectedTopic) {
+    if (!selectedTopic || !selectedLessonId) {
       setError("Сначала выберите тему и урок, для которого нужно сгенерировать видео.");
       return;
     }
@@ -594,7 +594,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       // 1) Создаем задачу генерации видео по теме урока
       const createRes = await apiPost<{ job_id: string; status: string }>(
         `/topics/${selectedTopic}/video`,
-        {},
+        { lesson_id: selectedLessonId },
         accessToken,
       );
 

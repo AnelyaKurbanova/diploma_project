@@ -189,6 +189,8 @@ def _sanitize_latex(s: str) -> str:
     """Pre-process LaTeX string to fix common issues before MathTex."""
     s = s.strip()
     s = s.strip("$")
+    # Drop accidental escaping before spaces/Cyrillic letters (e.g. "C\ и\ F")
+    s = re.sub(r"\\(?=[\s\u0400-\u04FF])", "", s)
     s = re.sub(r"\\\\\s*$", "", s)
     open_b = s.count("{")
     close_b = s.count("}")
@@ -210,6 +212,12 @@ def safe_mathtex(
     if color is None:
         color = FORMULA_COLOR
     sanitized = _sanitize_latex(latex)
+    # MathTex is fragile with Cyrillic snippets; use Text fallback for readability.
+    if re.search(r"[\u0400-\u04FF]", sanitized):
+        fallback = Text(latex_to_text(sanitized), color=color, font_size=fallback_font_size)
+        if scale != 1.0:
+            fallback.scale(scale)
+        return fallback
     try:
         mob = MathTex(sanitized)
         mob.scale(scale)
