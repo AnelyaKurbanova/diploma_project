@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 from typing import Any, Mapping
 
@@ -79,6 +80,20 @@ _REPEATABLE_TEMPLATES = {
 }
 _MAX_REPEATS = 3
 _CONTENT_MAX_RETRIES = 2
+_LATEX_IN_PLAIN_TEXT_PATTERN = re.compile(r"\\[a-zA-Z]+\s*(\{[^}]*\})?")
+_PLAIN_TEXT_FIELDS: dict[str, list[str]] = {
+    "title": ["title"],
+    "hook": ["text"],
+    "goal": ["text"],
+    "step_by_step": ["title"],
+    "transition": ["text"],
+    "comparison": ["left_title", "right_title"],
+    "warning": ["title"],
+    "quiz": ["question"],
+    "key_point": ["title"],
+    "example": ["problem"],
+    "summary": ["text"],
+}
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +144,10 @@ def _validate_plan_structure(data: dict[str, Any]) -> list[str]:
     return errors
 
 
-def _validate_content_structure(data: dict[str, Any]) -> list[str]:
+def _validate_content_structure(
+    data: dict[str, Any],
+    plan_json: Mapping[str, Any] | None = None,
+) -> list[str]:
     """Return a list of validation error strings for content JSON."""
     errors: list[str] = []
     scenes = data.get("scenes")
@@ -145,9 +163,51 @@ def _validate_content_structure(data: dict[str, Any]) -> list[str]:
             errors.append(f"Unknown template '{t}' at index {idx}")
         if "data" not in scene or not isinstance(scene.get("data"), dict):
             errors.append(f"Scene '{t}' at index {idx} missing 'data' object")
+            continue
+
+        data_obj = scene["data"]
+        plain_fields = _PLAIN_TEXT_FIELDS.get(t, [])
+        for field_name in plain_fields:
+            value = data_obj.get(field_name)
+            if isinstance(value, str) and _LATEX_IN_PLAIN_TEXT_PATTERN.search(value):
+                errors.append(
+                    f"Field '{t}.data.{field_name}' must be plain text without LaTeX commands "
+                    "(e.g. \\int, \\frac). Put formulas in dedicated LaTeX fields "
+                    "(value_latex, steps, final_latex)."
+                )
 
     plan_errors = _validate_plan_structure(data)
     errors.extend(plan_errors)
+
+    # Content must follow the generated plan 1:1 (same length and template order).
+    if plan_json is not None:
+        plan_scenes = plan_json.get("scenes")
+        if not isinstance(plan_scenes, list):
+            errors.append("Internal error: plan_json.scenes is missing or invalid")
+        else:
+            if len(plan_scenes) != len(scenes):
+                errors.append(
+                    "Content scenes length does not match plan scenes length "
+                    f"({len(scenes)} vs {len(plan_scenes)})"
+                )
+            for idx, (plan_scene, content_scene) in enumerate(
+                zip(plan_scenes, scenes, strict=False)
+            ):
+                plan_t = (
+                    plan_scene.get("template")
+                    if isinstance(plan_scene, Mapping)
+                    else None
+                )
+                content_t = (
+                    content_scene.get("template")
+                    if isinstance(content_scene, Mapping)
+                    else None
+                )
+                if plan_t != content_t:
+                    errors.append(
+                        f"Template mismatch at index {idx}: "
+                        f"plan='{plan_t}', content='{content_t}'"
+                    )
     return errors
 
 
@@ -473,6 +533,7 @@ REQUEST_JSON:
 - LaTeX БЕЗ окружающих $$ — только формульный код.
 - LaTeX должен быть валидным для MathTex (Manim). Избегай \\text внутри MathTex.
 - Поля помеченные "(без LaTeX)" — только русский текст, без \\frac, \\int и т.д.
+- В "quiz.question" ЗАПРЕЩЕНЫ LaTeX-команды и формулы: это только обычный русский текст-вопрос.
 - Числа для plot: маленькие целые от -10 до 10.
 - Текст — простой и понятный школьнику.
 
@@ -506,12 +567,29 @@ async def _generate_content_from_plan(
             + "\n"
         )
 
+    plan_templates = [
+        scene.get("template")
+        for scene in plan_json.get("scenes", [])
+        if isinstance(scene, Mapping)
+    ]
+    plan_sequence = "\n".join(
+        f"{idx + 1}) {template}" for idx, template in enumerate(plan_templates)
+    )
+
     user_prompt = _CONTENT_USER_TEMPLATE.format(
         topic_title=topic_title,
         request_json=json.dumps(dict(request_json), ensure_ascii=False, indent=2),
         plan_json=json.dumps(plan_json, ensure_ascii=False, indent=2),
         context=context,
         error_block=error_block,
+    ) + (
+        "\n\nСТРОГОЕ ТРЕБОВАНИЕ:\n"
+        f"- Верни РОВНО {len(plan_templates)} сцен.\n"
+        "- Не добавляй и не удаляй сцены.\n"
+        "- Сохрани ТОЧНЫЙ порядок шаблонов из плана.\n"
+        "- Если не хватает данных, заполни кратко, но не меняй структуру.\n"
+        "Последовательность шаблонов по индексам:\n"
+        f"{plan_sequence}\n"
     )
 
     request_meta = {
@@ -618,7 +696,7 @@ async def _generate_video_content_json(
             previous_errors=previous_errors,
         )
 
-        errors = _validate_content_structure(content_json)
+        errors = _validate_content_structure(content_json, plan_json=plan_json)
         if not errors:
             return content_json
 
