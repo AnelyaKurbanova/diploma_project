@@ -12,7 +12,7 @@
 - `VIDEO_WORKER_DEPLOY_USER` — SSH-пользователь (может совпадать с `DEPLOY_USER`)
 - `VIDEO_WORKER_DEPLOY_KEY` — SSH-ключ (может быть тот же, что `DEPLOY_KEY`)
 
-**Важно:** ключи в `DEPLOY_KEY` и `VIDEO_WORKER_DEPLOY_KEY` должны быть **без passphrase**. GitHub Actions не может ввести пароль к ключу. Сгенерируй отдельный ключ для деплоя: `ssh-keygen -t ed25519 -C "deploy" -f deploy_key -N ""`, добавь `deploy_key.pub` в `~/.ssh/authorized_keys` на серверах, в секреты положи содержимое `deploy_key`.
+**Важно:** ключи в `DEPLOY_KEY` и `VIDEO_WORKER_DEPLOY_KEY` должны быть **без passphrase**. GitHub Actions не может ввести пароль к ключу. Сгенерируй отдельный ключ только для CI: `ssh-keygen -t ed25519 -C "ci-deploy" -f ~/.ssh/ci_deploy -N ""`, добавь `ci_deploy.pub` в `~/.ssh/authorized_keys` на **обоих** серверах, в оба секрета (`DEPLOY_KEY` и `VIDEO_WORKER_DEPLOY_KEY`) положи содержимое файла `~/.ssh/ci_deploy` (приватный ключ).
 
 ## На серверах
 
