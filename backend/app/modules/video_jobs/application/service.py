@@ -106,7 +106,7 @@ _PLAIN_TEXT_FIELDS: dict[str, list[str]] = {
 
 
 def _build_fallback_plan(topic_title: str) -> dict[str, Any]:
-  """Deterministic backup scene plan when LLM returns invalid/empty output."""
+    """Deterministic backup scene plan when LLM returns invalid/empty output."""
     lower = topic_title.lower()
     visual_keywords = ("граф", "координат", "геометр", "дроб", "функц", "интеграл")
     is_visual = any(k in lower for k in visual_keywords)
