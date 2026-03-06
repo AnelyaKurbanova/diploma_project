@@ -41,14 +41,21 @@ async def handle_requested_message(
             LOGGER.error("Job not found", extra={"job_id": job_id_str})
             return
 
-        # Idempotency rules
-        if job.status in {"done", "planning", "rendering", "merging", "uploading"}:
+        # Idempotency and recovery rules:
+        # - done/planning: ignore duplicates
+        # - rendering/merging/uploading: allow recovery after broker/channel reconnect
+        if job.status in {"done", "planning"}:
             LOGGER.info(
                 "Ignoring job with non-queued status",
                 extra={"job_id": job_id_str},
             )
             return
-        if job.status not in {"queued", "failed"}:
+        if job.status in {"rendering", "merging", "uploading"}:
+            LOGGER.warning(
+                "Recovering in-progress job after re-delivery",
+                extra={"job_id": job_id_str, "status": job.status},
+            )
+        elif job.status not in {"queued", "failed"}:
             LOGGER.info(
                 "Ignoring job with unexpected status",
                 extra={"job_id": job_id_str, "status": job.status},
@@ -77,21 +84,32 @@ async def handle_requested_message(
             content = validate_content(content_raw)
 
             job_work_dir = work_dir / job_id_str
-            scene_paths = render_scenes(content, job_work_dir)
+            scene_paths = await asyncio.to_thread(render_scenes, content, job_work_dir)
             timings["rendering_ms"] = int((time.perf_counter() - t1) * 1000)
 
             # 2) Merging
             await set_status(session, job, "merging")
             t2 = time.perf_counter()
-            final_path = concat_videos(scene_paths, job_work_dir / "final")
+            final_path = await asyncio.to_thread(
+                concat_videos,
+                scene_paths,
+                job_work_dir / "final",
+            )
             timings["merging_ms"] = int((time.perf_counter() - t2) * 1000)
 
             # 3) Uploading
             await set_status(session, job, "uploading")
             t3 = time.perf_counter()
-            s3_url = s3_client.upload_final_video(job_id_str, final_path)
+            s3_url = await asyncio.to_thread(
+                s3_client.upload_final_video,
+                job_id_str,
+                final_path,
+            )
             key = f"videos/{job_id_str}/final.mp4"
-            presigned_url = s3_client.generate_presigned_url(key)
+            presigned_url = await asyncio.to_thread(
+                s3_client.generate_presigned_url,
+                key,
+            )
             timings["uploading_ms"] = int((time.perf_counter() - t3) * 1000)
 
             result_json = {
@@ -162,7 +180,10 @@ async def _async_main() -> None:
 
     s3_client = S3Client(settings)
 
-    rabbit = Rabbit(settings.rabbit_url)
+    rabbit = Rabbit(
+        settings.rabbit_url,
+        heartbeat_seconds=settings.rabbit_heartbeat_seconds,
+    )
     await rabbit.connect()
 
     async def handler(job_id: str) -> None:

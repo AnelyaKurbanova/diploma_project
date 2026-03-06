@@ -62,21 +62,531 @@ async def _publish_video_requested(job_id: uuid.UUID) -> None:
         await connection.close()
 
 
+# ---------------------------------------------------------------------------
+# Template selection constants (mirrors video_worker/app/validators.py)
+# ---------------------------------------------------------------------------
+
+_ALL_TEMPLATES = {
+    "title", "hook", "goal", "recap", "definitions", "key_point",
+    "derivation", "formula_build", "example", "step_by_step",
+    "plot", "number_line", "coordinate", "geometry", "fraction_visual",
+    "table", "comparison", "warning", "quiz", "transition", "summary",
+}
+
+_REPEATABLE_TEMPLATES = {
+    "derivation", "example", "quiz", "step_by_step",
+    "transition", "key_point", "warning", "recap",
+}
+_MAX_REPEATS = 3
+_CONTENT_MAX_RETRIES = 2
+
+
+# ---------------------------------------------------------------------------
+# Validation helpers (lightweight, backend-side)
+# ---------------------------------------------------------------------------
+
+def _validate_plan_structure(data: dict[str, Any]) -> list[str]:
+    """Return a list of validation error strings (empty if valid)."""
+    errors: list[str] = []
+    scenes = data.get("scenes")
+    if not isinstance(scenes, list) or not scenes:
+        return ["Plan must contain a non-empty 'scenes' array"]
+    if len(scenes) > 15:
+        errors.append(f"Plan has {len(scenes)} scenes, maximum is 15")
+
+    templates: list[str] = []
+    for idx, scene in enumerate(scenes):
+        if not isinstance(scene, dict):
+            errors.append(f"Scene #{idx + 1} is not an object")
+            continue
+        t = scene.get("template")
+        if t not in _ALL_TEMPLATES:
+            errors.append(f"Unknown template '{t}' at index {idx}")
+        else:
+            templates.append(t)
+
+    if templates and templates[0] != "title":
+        errors.append("First scene must be 'title'")
+    if templates and templates[-1] != "summary":
+        errors.append("Last scene must be 'summary'")
+
+    counts: dict[str, int] = {}
+    for t in templates:
+        counts[t] = counts.get(t, 0) + 1
+    if counts.get("title", 0) != 1:
+        errors.append("Exactly one 'title' scene required")
+    if counts.get("summary", 0) != 1:
+        errors.append("Exactly one 'summary' scene required")
+    if counts.get("plot", 0) > 1:
+        errors.append("At most one 'plot' scene allowed")
+    for t, c in counts.items():
+        if t in ("title", "summary", "plot"):
+            continue
+        if t in _REPEATABLE_TEMPLATES and c > _MAX_REPEATS:
+            errors.append(f"Template '{t}' used {c} times, max is {_MAX_REPEATS}")
+        elif t not in _REPEATABLE_TEMPLATES and c > 1:
+            errors.append(f"Template '{t}' may appear at most once, got {c}")
+    return errors
+
+
+def _validate_content_structure(data: dict[str, Any]) -> list[str]:
+    """Return a list of validation error strings for content JSON."""
+    errors: list[str] = []
+    scenes = data.get("scenes")
+    if not isinstance(scenes, list) or not scenes:
+        return ["Content must contain a non-empty 'scenes' array"]
+
+    for idx, scene in enumerate(scenes):
+        if not isinstance(scene, dict):
+            errors.append(f"Scene #{idx + 1} is not an object")
+            continue
+        t = scene.get("template")
+        if t not in _ALL_TEMPLATES:
+            errors.append(f"Unknown template '{t}' at index {idx}")
+        if "data" not in scene or not isinstance(scene.get("data"), dict):
+            errors.append(f"Scene '{t}' at index {idx} missing 'data' object")
+
+    plan_errors = _validate_plan_structure(data)
+    errors.extend(plan_errors)
+    return errors
+
+
+# ---------------------------------------------------------------------------
+# Step 1: Plan generation — choose the optimal template sequence
+# ---------------------------------------------------------------------------
+
+_PLAN_SYSTEM_PROMPT = (
+    "Ты — опытный педагог-методист по математике и дизайнер видеоуроков.\n"
+    "Ты проектируешь структуру короткого обучающего видео для школьников.\n"
+    "Твоя цель — сделать урок максимально понятным даже для самых слабых учеников.\n"
+    "Каждая сцена должна нести одну простую идею.\n"
+    "Выбирай шаблоны ИСХОДЯ ИЗ ТЕМЫ — не используй геометрию для алгебры, "
+    "графики для тем без функций, дроби для тем без дробей и т.д."
+)
+
+_PLAN_USER_TEMPLATE = """\
+ТЕМА ВИДЕО: {topic_title}
+
+REQUEST_JSON:
+{request_json}
+
+ДОСТУПНЫЙ КОНТЕКСТ ИЗ УЧЕБНИКА (краткое содержание):
+{rag_summary}
+
+Спроектируй последовательность сцен для обучающего видео.
+
+ДОСТУПНЫЕ ШАБЛОНЫ (21 штука):
+- "title"           — Титульный экран с названием темы
+- "hook"            — Привлечение внимания: интересный вопрос или факт
+- "goal"            — Цель урока: что ученик узнает
+- "recap"           — Повторение: что нужно знать перед этой темой
+- "definitions"     — Определения: ключевые термины с формулами
+- "key_point"       — Ключевое правило: одна важная формула/правило в рамке
+- "derivation"      — Вывод формулы: пошаговое преобразование формул
+- "formula_build"   — Построение формулы по частям с пояснениями
+- "example"         — Разбор примера: задача + пошаговое решение
+- "step_by_step"    — Алгоритм: пронумерованные шаги решения
+- "plot"            — График функции (квадратичная, линейная, тригонометрическая)
+- "number_line"     — Числовая прямая с отмеченными точками и интервалами
+- "coordinate"      — Координатная плоскость с точками и векторами
+- "geometry"        — Геометрические фигуры с размерами (треугольник, прямоугольник, круг)
+- "fraction_visual" — Наглядное представление дробей (закрашенные прямоугольники)
+- "table"           — Таблица данных
+- "comparison"      — Сравнение двух подходов / правильно vs неправильно
+- "warning"         — Частая ошибка: что делают неправильно и как правильно
+- "quiz"            — Мини-задание: вопрос + пауза + ответ
+- "transition"      — Переход между разделами
+- "summary"         — Итог: главная формула + краткий вывод
+
+ТИПЫ УРОКОВ (выбери подходящий и адаптируй под тему):
+
+1) Введение нового понятия:
+   title -> hook -> goal -> definitions -> key_point -> example -> quiz -> summary
+
+2) Решение задач:
+   title -> hook -> goal -> recap -> step_by_step -> example -> warning -> quiz -> summary
+
+3) Вывод формулы:
+   title -> goal -> definitions -> formula_build -> derivation -> example -> summary
+
+4) Наглядная математика (геометрия, дроби, графики):
+   title -> hook -> goal -> definitions -> geometry/fraction_visual/plot -> example -> summary
+
+5) Повторение и практика:
+   title -> goal -> recap -> quiz -> example -> warning -> quiz -> summary
+
+6) Сравнение методов:
+   title -> goal -> recap -> comparison -> example -> example -> summary
+
+ПРАВИЛА:
+- Первая сцена ВСЕГДА "title", последняя ВСЕГДА "summary".
+- Минимум 6, максимум 15 сцен.
+- "plot" — максимум 1 раз.
+- "derivation", "example", "quiz", "step_by_step", "transition", "key_point", "warning", "recap" могут повторяться до 3 раз.
+- Остальные шаблоны — максимум 1 раз.
+- Используй "hook" чтобы заинтересовать ученика в начале.
+- Используй "warning" чтобы показать типичные ошибки.
+- Используй "quiz" чтобы ученик активно думал.
+- Выбирай визуальные шаблоны ("plot", "number_line", "coordinate", "geometry", "fraction_visual", "table") ТОЛЬКО когда они логически соответствуют теме.
+- Структура должна рассказывать связную историю: от простого к сложному.
+
+ФОРМАТ ОТВЕТА — ТОЛЬКО валидный JSON (без markdown):
+{{
+  "scenes": [
+    {{ "template": "title" }},
+    {{ "template": "hook" }},
+    ...
+    {{ "template": "summary" }}
+  ]
+}}"""
+
+
+async def _generate_plan(
+    *,
+    client: AsyncOpenAI,
+    request_json: Mapping[str, Any],
+    topic_title: str,
+    rag_chunks: list[str],
+) -> dict[str, Any]:
+    """Step 1: ask the LLM to choose the optimal scene template sequence."""
+
+    rag_summary = "\n".join(f"- {chunk[:120]}..." for chunk in rag_chunks[:8])
+
+    user_prompt = _PLAN_USER_TEMPLATE.format(
+        topic_title=topic_title,
+        request_json=json.dumps(dict(request_json), ensure_ascii=False, indent=2),
+        rag_summary=rag_summary,
+    )
+
+    request_meta = {
+        "mode": request_json.get("mode"),
+        "topic_title": topic_title,
+        "chunks_count": len(rag_chunks),
+        "step": "plan",
+    }
+
+    try:
+        response = await client.chat.completions.create(
+            model=settings.LLM_MODEL_NAME,
+            temperature=0.3,
+            messages=[
+                {"role": "system", "content": _PLAN_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_completion_tokens=1024,
+            response_format={"type": "json_object"},
+        )
+    except Exception as exc:
+        await log_llm_token_usage(
+            request_type="video_jobs.generate_plan",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=None, output_tokens=None, total_tokens=None,
+            request_meta=request_meta,
+            success=False,
+            error_text=str(exc),
+        )
+        logger.warning("Video plan generation failed: %s", exc)
+        raise Conflict(
+            "Не удалось спроектировать структуру видео. Попробуйте позже."
+        ) from exc
+
+    input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
+    await log_llm_token_usage(
+        request_type="video_jobs.generate_plan",
+        model_name=settings.LLM_MODEL_NAME,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        request_meta=request_meta,
+    )
+
+    raw = (response.choices[0].message.content or "").strip()
+    if not raw:
+        raise Conflict("Модель вернула пустой план видео")
+
+    try:
+        data = json.loads(raw)
+    except Exception as exc:
+        logger.warning("Failed to parse plan JSON: %s; snippet=%r", exc, raw[:2000])
+        raise Conflict("Не удалось разобрать план видео.") from exc
+
+    errors = _validate_plan_structure(data)
+    if errors:
+        logger.warning("Plan validation failed: %s", "; ".join(errors))
+        raise Conflict(f"Невалидный план видео: {'; '.join(errors)}")
+
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Step 2: Content generation — fill in data for each scene
+# ---------------------------------------------------------------------------
+
+_CONTENT_SYSTEM_PROMPT = (
+    "Ты — опытный учитель математики и эксперт по LaTeX.\n"
+    "Ты создаёшь контент для обучающего видео, заполняя данные для каждой сцены.\n"
+    "Твоя целевая аудитория — школьники 10-16 лет, включая самых слабых учеников.\n"
+    "ПЕДАГОГИЧЕСКИЕ ПРИНЦИПЫ:\n"
+    "- Объясняй как 12-летнему ребёнку.\n"
+    "- Используй простые бытовые аналогии.\n"
+    "- Разбивай сложные идеи на крошечные шаги.\n"
+    "- Каждая формула должна быть объяснена словами.\n"
+    "- Выделяй ОДИН самый важный вывод.\n"
+    "- Все текстовые поля — на русском языке.\n"
+    "- LaTeX пиши без окружающих $$ — только формульный код.\n"
+    "- Используй ТОЛЬКО информацию из переданного контекста учебника. "
+    "Не придумывай новых фактов или формул."
+)
+
+_CONTENT_USER_TEMPLATE = """\
+ТЕМА ВИДЕО: {topic_title}
+
+REQUEST_JSON:
+{request_json}
+
+ПЛАН СЦЕН:
+{plan_json}
+
+КОНТЕКСТ УЧЕБНИКА (ИСПОЛЬЗУЙ ТОЛЬКО ЕГО):
+{context}
+{error_block}
+Заполни данные для каждой сцены из ПЛАНА.
+
+СХЕМЫ ДАННЫХ ДЛЯ КАЖДОГО ШАБЛОНА:
+
+1) "title" -> {{ "title": "Название темы (без LaTeX, русский текст)" }}
+
+2) "hook" -> {{ "text": "Интересный вопрос или факт (без LaTeX)" }}
+
+3) "goal" -> {{ "text": "Что ученик узнает (без LaTeX)" }}
+
+4) "recap" -> {{ "items": ["Факт 1", "Факт 2", ...] }}
+   (список предпосылок, 2-5 пунктов)
+
+5) "definitions" -> {{
+     "items": [
+       {{ "label": "Название термина", "value_latex": "формула в LaTeX" }},
+       ...
+     ]
+   }}
+
+6) "key_point" -> {{
+     "title": "Название правила (без LaTeX)",
+     "formula_latex": "главная формула в LaTeX",
+     "explanation": "пояснение простыми словами (без LaTeX, необязательно)"
+   }}
+
+7) "derivation" -> {{ "steps": ["шаг1_latex", "шаг2_latex", ...] }}
+   (максимум 10 шагов, каждый — LaTeX)
+
+8) "formula_build" -> {{
+     "parts": [
+       {{ "latex": "часть формулы", "annotation": "что означает эта часть" }},
+       ...
+     ]
+   }}
+
+9) "example" -> {{
+     "problem": "Условие задачи (без LaTeX)",
+     "steps": ["шаг1_latex", "шаг2_latex", ...]
+   }}
+
+10) "step_by_step" -> {{
+      "title": "Как решать ... (без LaTeX)",
+      "steps": ["Шаг 1: текст действия", "Шаг 2: ...", ...]
+    }}
+
+11) "plot" -> Один из вариантов:
+    a) Квадратичная: {{ "plot_type": "quadratic", "a": число, "b": число, "c": число, "x_min": число, "x_max": число }}
+    b) Линейная: {{ "plot_type": "linear", "slope": число, "intercept": число, "x_min": число, "x_max": число }}
+    c) Синус: {{ "plot_type": "sine", "amplitude": число, "frequency": число, "x_min": число, "x_max": число }}
+    d) Косинус: {{ "plot_type": "cosine", "amplitude": число, "frequency": число, "x_min": число, "x_max": число }}
+    e) Произвольная: {{ "func_code": "lambda x: выражение", "x_min": число, "x_max": число }}
+    Опционально: "integral_latex": "формула интеграла"
+
+12) "number_line" -> {{
+      "x_min": число, "x_max": число,
+      "points": [{{ "value": число, "label": "метка" }}, ...],
+      "interval_start": число или null,
+      "interval_end": число или null
+    }}
+
+13) "coordinate" -> {{
+      "x_range": [min, max, step],
+      "y_range": [min, max, step],
+      "points": [{{ "x": число, "y": число, "label": "метка" }}, ...],
+      "vectors": [{{ "x1": число, "y1": число, "x2": число, "y2": число, "label": "метка" }}, ...]
+    }}
+
+14) "geometry" -> {{
+      "shape": "triangle" | "rectangle" | "circle",
+      "title": "Описание фигуры (без LaTeX)",
+      "labels": {{ "A": "метка", "B": "метка", "C": "метка", "a": "сторона a" }}
+    }}
+    Для rectangle: labels содержит "width", "height", "width_val", "height_val"
+    Для circle: labels содержит "radius", "radius_val"
+
+15) "fraction_visual" -> {{
+      "numerator": целое число,
+      "denominator": целое число,
+      "label": "текст (необязательно)"
+    }}
+
+16) "table" -> {{
+      "headers": ["Столбец1", "Столбец2", ...],
+      "rows": [["значение1", "значение2"], ...],
+      "highlight_row": индекс строки для подсветки (-1 = нет)
+    }}
+
+17) "comparison" -> {{
+      "left_title": "Заголовок слева (без LaTeX)",
+      "left_content": "формула/текст LaTeX",
+      "right_title": "Заголовок справа (без LaTeX)",
+      "right_content": "формула/текст LaTeX",
+      "left_is_correct": true/false
+    }}
+
+18) "warning" -> {{
+      "title": "Описание ошибки (без LaTeX)",
+      "wrong_latex": "неправильная формула в LaTeX",
+      "correct_latex": "правильная формула в LaTeX",
+      "explanation": "почему это ошибка (без LaTeX, необязательно)"
+    }}
+
+19) "quiz" -> {{
+      "question": "Вопрос для ученика (без LaTeX)",
+      "answer_latex": "ответ в LaTeX",
+      "explanation": "пояснение к ответу (без LaTeX, необязательно)"
+    }}
+
+20) "transition" -> {{ "text": "Текст перехода (без LaTeX)" }}
+
+21) "summary" -> {{
+      "final_latex": "главная формула в LaTeX",
+      "text": "краткий итог (без LaTeX)"
+    }}
+
+ОГРАНИЧЕНИЯ:
+- Используй ТОЛЬКО шаблоны из ПЛАНА, в том же порядке.
+- Максимум 10 шагов в derivation/example.
+- Максимум 160 символов в любом строковом поле.
+- Никаких пустых строк.
+- LaTeX БЕЗ окружающих $$ — только формульный код.
+- LaTeX должен быть валидным для MathTex (Manim). Избегай \\text внутри MathTex.
+- Поля помеченные "(без LaTeX)" — только русский текст, без \\frac, \\int и т.д.
+- Числа для plot: маленькие целые от -10 до 10.
+- Текст — простой и понятный школьнику.
+
+ФОРМАТ ОТВЕТА — ТОЛЬКО валидный JSON (без markdown):
+{{
+  "scenes": [
+    {{ "template": "...", "data": {{ ... }} }},
+    ...
+  ]
+}}"""
+
+
+async def _generate_content_from_plan(
+    *,
+    client: AsyncOpenAI,
+    request_json: Mapping[str, Any],
+    plan_json: dict[str, Any],
+    topic_title: str,
+    rag_chunks: list[str],
+    previous_errors: list[str] | None = None,
+) -> dict[str, Any]:
+    """Step 2: fill in scene data for every template in the plan using RAG context."""
+
+    context = "\n\n---\n\n".join(rag_chunks)
+
+    error_block = ""
+    if previous_errors:
+        error_block = (
+            "\nОШИБКИ ПРЕДЫДУЩЕЙ ПОПЫТКИ (исправь их):\n- "
+            + "\n- ".join(previous_errors)
+            + "\n"
+        )
+
+    user_prompt = _CONTENT_USER_TEMPLATE.format(
+        topic_title=topic_title,
+        request_json=json.dumps(dict(request_json), ensure_ascii=False, indent=2),
+        plan_json=json.dumps(plan_json, ensure_ascii=False, indent=2),
+        context=context,
+        error_block=error_block,
+    )
+
+    request_meta = {
+        "mode": request_json.get("mode"),
+        "topic_title": topic_title,
+        "chunks_count": len(rag_chunks),
+        "step": "content",
+        "retry": bool(previous_errors),
+    }
+
+    try:
+        response = await client.chat.completions.create(
+            model=settings.LLM_MODEL_NAME,
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": _CONTENT_SYSTEM_PROMPT},
+                {"role": "user", "content": user_prompt},
+            ],
+            max_completion_tokens=8192,
+            response_format={"type": "json_object"},
+        )
+    except Exception as exc:
+        await log_llm_token_usage(
+            request_type="video_jobs.generate_content",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=None, output_tokens=None, total_tokens=None,
+            request_meta=request_meta,
+            success=False,
+            error_text=str(exc),
+        )
+        logger.warning("Video content generation failed: %s", exc)
+        raise Conflict(
+            "Не удалось сгенерировать контент видео. Попробуйте позже."
+        ) from exc
+
+    input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
+    await log_llm_token_usage(
+        request_type="video_jobs.generate_content",
+        model_name=settings.LLM_MODEL_NAME,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        request_meta=request_meta,
+    )
+
+    raw = (response.choices[0].message.content or "").strip()
+    if not raw:
+        raise Conflict("Модель вернула пустой контент видео")
+
+    try:
+        data = json.loads(raw)
+    except Exception as exc:
+        logger.warning(
+            "Failed to parse content JSON: %s; snippet=%r", exc, raw[:2000]
+        )
+        raise Conflict("Не удалось разобрать контент видео.") from exc
+
+    return data
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator: 2-step generation (plan -> content) with retry
+# ---------------------------------------------------------------------------
+
 async def _generate_video_content_json(
     *,
     request_json: Mapping[str, Any],
     topic_title: str,
     rag_chunks: list[str],
 ) -> dict[str, Any]:
-    """Generate full video content JSON (scenes) from RAG context using LLM.
+    """Generate full video content JSON using a 2-step LLM approach.
 
-    The returned object is expected to conform to video_worker CONTENT_SCHEMA:
-      {
-        "scenes": [
-          { "template": "...", "data": { ... } },
-          ...
-        ]
-      }
+    Step 1 -- Plan: LLM selects the optimal template sequence for the topic.
+    Step 2 -- Content: LLM fills in data for each scene using RAG context.
     """
 
     client = _get_client()
@@ -85,193 +595,50 @@ async def _generate_video_content_json(
     if not topic_title or not rag_chunks:
         raise Conflict("Недостаточно учебных материалов для генерации видео")
 
-    system_prompt = (
-        "Ты — опытный преподаватель математики и автор коротких объясняющих видео.\n"
-        "Твоя задача — по готовым фрагментам учебника (RAG-контекст) составить СЦЕНАРИЙ "
-        "одноминутного видео на русском языке.\n"
-        "Видео следует строгой структуре (порядок сцен менять нельзя):\n"
-        "1) title — HOOK: цепляющий заголовок, только обычный русский текст, без формул и LaTeX.\n"
-        "2) goal — PROBLEM: формулировка задачи/цели, только обычный русский текст, без LaTeX.\n"
-        "3) definitions — INTUITION: 2–3 интуитивных пункта; формулы только в поле value_latex (LaTeX без $ и $$).\n"
-        "4) derivation — DERIVATION: пошаговый вывод основной формулы (4–6 шагов в LaTeX в массиве steps).\n"
-        "5) plot — VISUALIZATION: график функции, задаётся кодом функции (func_code), границами и формулой интеграла.\n"
-        "6) derivation (второй раз) — EXAMPLE: решение одного конкретного числового примера (4–6 шагов), подставь числа, покажи итоговый ответ.\n"
-        "7) summary — SUMMARY: итоговая формула в final_latex и короткое резюме в text (только русский текст, без LaTeX в text).\n\n"
-        "Очень важно:\n"
-        "- Используй ТОЛЬКО информацию из переданного контекста. Не придумывай новых фактов или формул.\n"
-        "- Поля title (заголовок), goal.text и summary.text — ТОЛЬКО обычный русский текст, без команд LaTeX (\\int, \\frac, \\sum и т.п.). Формулы — только в value_latex, steps и final_latex.\n"
-        "- title, goal.text и summary.text — не более двух коротких предложений.\n"
-        "- В definitions делай не более трёх пунктов.\n"
-        "- В массивах steps используй 4–6 шагов; каждый следующий шаг — это предыдущая формула с одним-двумя изменениями, без пояснительного текста внутри формулы.\n"
-        "- Текст короткий, разговорный, понятный школьнику. Не добавляй мета-комментарии вроде «в этом видео мы рассмотрели...» в Summary.\n"
+    # --- Step 1: generate plan (template sequence) ---
+    plan_json = await _generate_plan(
+        client=client,
+        request_json=request_json,
+        topic_title=topic_title,
+        rag_chunks=rag_chunks,
+    )
+    logger.info(
+        "Plan generated: %d scenes — %s",
+        len(plan_json.get("scenes", [])),
+        [s.get("template") for s in plan_json.get("scenes", [])],
     )
 
-    context = "\n\n---\n\n".join(rag_chunks)
-
-    # Объясняем модели, как сопоставить логические блоки с техническими шаблонами video_worker.
-    user_prompt = f"""
-ТЕМА ВИДЕО: {topic_title}
-
-REQUEST_JSON (метаданные запроса):
-{json.dumps(dict(request_json), ensure_ascii=False, indent=2)}
-
-КОНТЕКСТ УЧЕБНИКА (ИСПОЛЬЗУЙ ТОЛЬКО ЕГО):
-{context}
-
-Нужно выдать ЧИСТЫЙ JSON-объект со сценами для видео. Порядок сцен СТРОГО такой (ровно 7 сцен):
-
-{{
-  "scenes": [
-    {{
-      "template": "title",
-      "data": {{
-        "title": "Короткий цепляющий заголовок только русским текстом, без формул"
-      }}
-    }},
-    {{
-      "template": "goal",
-      "data": {{
-        "text": "Формулировка задачи только русским текстом, без LaTeX"
-      }}
-    }},
-    {{
-      "template": "definitions",
-      "data": {{
-        "items": [
-          {{
-            "label": "Интуиция 1",
-            "value_latex": "Формула или короткая запись в LaTeX (без $ и $$)"
-          }}
-        ]
-      }}
-    }},
-    {{
-      "template": "derivation",
-      "data": {{
-        "steps": [
-          "Первый шаг вывода в LaTeX",
-          "Второй шаг",
-          "..."
-        ]
-      }}
-    }},
-    {{
-      "template": "plot",
-      "data": {{
-        "func_code": "lambda x: 0.5 * x**2 - 2",
-        "x_min": -5,
-        "x_max": 5,
-        "a": -1,
-        "b": 2,
-        "integral_latex": "\\\\int_{-1}^2 \\left(0.5 x^2 - 2\\right)\\\\,dx"
-      }}
-    }},
-    {{
-      "template": "derivation",
-      "data": {{
-        "steps": [
-          "Числовой пример: подставь конкретные числа, покажи шаги и ответ в LaTeX",
-          "Например: 2+2=4, следующий шаг...",
-          "Итоговый ответ"
-        ]
-      }}
-    }},
-    {{
-      "template": "summary",
-      "data": {{
-        "final_latex": "Итоговая формула в LaTeX",
-        "text": "Короткое резюме 1–2 фразы только русским текстом, без LaTeX"
-      }}
-    }}
-  ]
-}}
-
-Правила:
-- Ровно 7 сцен в указанном порядке. Два блока derivation: первый — вывод формулы, второй — решение числового примера с подставленными числами и чётким ответом.
-- В каждом объекте сцены поля "template" и "data". Во всех строках максимум ~160 символов, без пустых строк.
-- title.data.title, goal.data.text, summary.data.text — только обычный русский текст, без команд LaTeX (\\int, \\frac и т.д.). Формулы только в value_latex, steps, final_latex.
-- plot: обязательно поля "func_code", "x_min", "x_max". func_code — строка с Python-выражением функции одной переменной x, например "lambda x: x**2" или "lambda x: math.sin(x)". Можно использовать math (sin, cos, sqrt и т.д.). Без импортов и побочных эффектов. График должен иллюстрировать тему.
-- Дополнительно для plot можно передать a и b — границы интегрирования (числа внутри [x_min, x_max]) и integral_latex — запись интеграла в LaTeX (например, "\\\\int_0^2 x\\\\,dx"), чтобы связать закрашенную площадь с формулой.
-- Число шагов в каждом steps не больше 6.
-
-Вывод:
-- Верни ТОЛЬКО один валидный JSON в UTF-8, без комментариев и текста вокруг.
-""".strip()
-
-    try:
-        response = await client.chat.completions.create(
-            model=settings.LLM_MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_completion_tokens=4096,
-            response_format={"type": "json_object"},
+    # --- Step 2: generate content with retry on validation errors ---
+    previous_errors: list[str] | None = None
+    for attempt in range(_CONTENT_MAX_RETRIES + 1):
+        content_json = await _generate_content_from_plan(
+            client=client,
+            request_json=request_json,
+            plan_json=plan_json,
+            topic_title=topic_title,
+            rag_chunks=rag_chunks,
+            previous_errors=previous_errors,
         )
-    except Exception as exc:  # pragma: no cover - защитный код
-        await log_llm_token_usage(
-            request_type="video_jobs.generate_video_content_json",
-            model_name=settings.LLM_MODEL_NAME,
-            input_tokens=None,
-            output_tokens=None,
-            total_tokens=None,
-            request_meta={
-                "mode": request_json.get("mode"),
-                "topic_title": topic_title,
-                "chunks_count": len(rag_chunks),
-            },
-            success=False,
-            error_text=str(exc),
+
+        errors = _validate_content_structure(content_json)
+        if not errors:
+            return content_json
+
+        logger.warning(
+            "Content validation failed (attempt %d/%d): %s",
+            attempt + 1,
+            _CONTENT_MAX_RETRIES + 1,
+            "; ".join(errors),
         )
-        logger.warning("Video script generation failed: %s", exc)
-        raise Conflict("Не удалось сгенерировать сценарий видео. Попробуйте позже.") from exc
+        if attempt < _CONTENT_MAX_RETRIES:
+            previous_errors = errors
+        else:
+            raise Conflict(
+                f"Не удалось сгенерировать валидный контент видео после "
+                f"{_CONTENT_MAX_RETRIES + 1} попыток: {'; '.join(errors)}"
+            )
 
-    input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
-    await log_llm_token_usage(
-        request_type="video_jobs.generate_video_content_json",
-        model_name=settings.LLM_MODEL_NAME,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        total_tokens=total_tokens,
-        request_meta={
-            "mode": request_json.get("mode"),
-            "topic_title": topic_title,
-            "chunks_count": len(rag_chunks),
-        },
-    )
-
-    content = response.choices[0].message.content or ""
-    raw = content.strip()
-    if not raw:
-        raise Conflict("Модель вернула пустой сценарий видео")
-
-    try:
-        data = json.loads(raw)
-    except Exception as exc:  # pragma: no cover - защитный код
-        logger.warning("Failed to parse JSON for video script: %s; snippet=%r", exc, raw[:2000])
-        raise Conflict("Не удалось разобрать сценарий видео. Попробуйте ещё раз.") from exc
-
-    # Минимальная структурная проверка: scenes – непустой массив, шаблоны из allowlist.
-    scenes = data.get("scenes")
-    if not isinstance(scenes, list) or not scenes:
-        raise Conflict("Сценарий видео не содержит сцен")
-
-    allowed_templates = {"title", "goal", "definitions", "derivation", "plot", "summary"}
-    plot_count = 0
-    for idx, scene in enumerate(scenes):
-        if not isinstance(scene, dict):
-            raise Conflict(f"Сцена #{idx + 1} имеет неверный формат")
-        template = scene.get("template")
-        if template not in allowed_templates:
-            raise Conflict(f"Недопустимый шаблон сцены '{template}'")
-        if "data" not in scene or not isinstance(scene["data"], dict):
-            raise Conflict(f"Сцена '{template}' должна содержать объект data")
-        if template == "plot":
-            plot_count += 1
-    if plot_count > 1:
-        raise Conflict("Сценарий может содержать не более одной сцены 'plot'")
-
-    return data
+    raise Conflict("Не удалось сгенерировать контент видео")
 
 
 class VideoJobService:
@@ -287,7 +654,6 @@ class VideoJobService:
 
         problem = await self.problem_service.get(problem_id)
 
-        # Получаем предмет и (опционально) тему для RAG-поиска.
         subject_row = await self.catalog_repo.get_subject(problem.subject_id)
         topic_title = None
         if problem.topic_id:
@@ -297,13 +663,10 @@ class VideoJobService:
                     raise Conflict("Тема задачи не относится к её предмету")
                 topic_title = topic_row.title_ru
             except NotFound:
-                # Если темы нет, падаем обратно к названию задачи.
                 topic_title = None
 
-        # Запрос для RAG: по возможности используем заголовок темы, иначе заголовок задачи.
         query_title = topic_title or problem.title
 
-        # Ищем релевантные фрагменты в базе знаний.
         chunks = await knowledge_search(
             self.session,
             query_title,
@@ -312,7 +675,8 @@ class VideoJobService:
         )
         if not chunks:
             raise NotFound(
-                "Нет учебных материалов по предмету. Сначала загрузите docx через /knowledge/ingest."
+                "Нет учебных материалов по предмету. "
+                "Сначала загрузите docx через /knowledge/ingest."
             )
 
         rag_texts = [c.content for c in chunks]
@@ -364,7 +728,8 @@ class VideoJobService:
         )
         if not chunks:
             raise NotFound(
-                "Нет учебных материалов по предмету. Сначала загрузите docx через /knowledge/ingest."
+                "Нет учебных материалов по предмету. "
+                "Сначала загрузите docx через /knowledge/ingest."
             )
 
         rag_texts = [c.content for c in chunks]
@@ -396,4 +761,3 @@ class VideoJobService:
 
         await _publish_video_requested(job.id)
         return job
-

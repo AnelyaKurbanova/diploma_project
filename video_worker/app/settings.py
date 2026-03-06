@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     # Worker behavior
     work_dir: Path = Field(Path("/tmp/video_jobs"), alias="WORK_DIR")
     content_max_retries: int = 2
+    rabbit_heartbeat_seconds: int = Field(300, alias="RABBIT_HEARTBEAT_SECONDS")
 
     # Logging
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"

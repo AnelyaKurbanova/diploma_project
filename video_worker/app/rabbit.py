@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import logging
+import asyncio
 from typing import Any, Awaitable, Callable, Mapping, Optional
 
 import aio_pika
 from aio_pika import ExchangeType, IncomingMessage, Message, RobustChannel, RobustConnection
+from aiormq.exceptions import ChannelInvalidStateError
 
 LOGGER = logging.getLogger(__name__)
 
@@ -15,8 +17,9 @@ RequestedHandler = Callable[[str], Awaitable[None]]
 class Rabbit:
     """RabbitMQ integration for video worker."""
 
-    def __init__(self, url: str) -> None:
+    def __init__(self, url: str, heartbeat_seconds: int = 300) -> None:
         self._url = url
+        self._heartbeat_seconds = heartbeat_seconds
         self._connection: Optional[RobustConnection] = None
         self._channel: Optional[RobustChannel] = None
         self._exchange: Optional[aio_pika.Exchange] = None
@@ -25,7 +28,10 @@ class Rabbit:
     async def connect(self) -> None:
         """Connect to RabbitMQ and declare exchange/queue."""
 
-        self._connection = await aio_pika.connect_robust(self._url)
+        self._connection = await aio_pika.connect_robust(
+            self._url,
+            heartbeat=self._heartbeat_seconds,
+        )
         self._channel = await self._connection.channel()
         await self._channel.set_qos(prefetch_count=1)
 
@@ -81,7 +87,10 @@ class Rabbit:
                     "Failed to parse requested message: %s",
                     exc,
                 )
-                await message.ack()
+                try:
+                    await message.ack()
+                except ChannelInvalidStateError:
+                    LOGGER.warning("Skip ack: channel inactive while parsing message")
                 return
 
             try:
@@ -90,13 +99,25 @@ class Rabbit:
                     extra={"job_id": job_id},
                 )
                 await handler(job_id)
+            except asyncio.CancelledError:
+                LOGGER.warning(
+                    "Job handling cancelled (connection/channel interruption)",
+                    extra={"job_id": job_id},
+                )
+                return
             except Exception:  # noqa: BLE001
                 LOGGER.exception(
                     "Error while handling job",
                     extra={"job_id": job_id},
                 )
             finally:
-                await message.ack()
+                try:
+                    await message.ack()
+                except ChannelInvalidStateError:
+                    LOGGER.warning(
+                        "Skip ack: channel inactive after handling job",
+                        extra={"job_id": job_id},
+                    )
 
         await self._queue.consume(_on_message, no_ack=False)
 
