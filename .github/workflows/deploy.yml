@@ -99,7 +99,7 @@ jobs:
             docker image prune -af
             docker compose pull
             docker compose up -d
-
+ 
   deploy-video-worker:
     runs-on: ubuntu-latest
     needs: [env, build-backend, build-frontend, build-video-worker]
