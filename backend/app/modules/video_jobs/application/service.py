@@ -13,6 +13,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.errors import BadRequest, Conflict, NotFound
 from app.modules.catalog.data.repo import CatalogRepo
 from app.modules.knowledge.application.retrieval import search as knowledge_search
+from app.modules.llm_usage.application.tracker import (
+    extract_openai_token_usage,
+    log_llm_token_usage,
+)
 from app.modules.problems.application.service import ProblemService
 from app.modules.video_jobs.data.models import VideoJobModel
 from app.settings import settings
@@ -205,8 +209,36 @@ REQUEST_JSON (метаданные запроса):
             response_format={"type": "json_object"},
         )
     except Exception as exc:  # pragma: no cover - защитный код
+        await log_llm_token_usage(
+            request_type="video_jobs.generate_video_content_json",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=None,
+            output_tokens=None,
+            total_tokens=None,
+            request_meta={
+                "mode": request_json.get("mode"),
+                "topic_title": topic_title,
+                "chunks_count": len(rag_chunks),
+            },
+            success=False,
+            error_text=str(exc),
+        )
         logger.warning("Video script generation failed: %s", exc)
         raise Conflict("Не удалось сгенерировать сценарий видео. Попробуйте позже.") from exc
+
+    input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
+    await log_llm_token_usage(
+        request_type="video_jobs.generate_video_content_json",
+        model_name=settings.LLM_MODEL_NAME,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        request_meta={
+            "mode": request_json.get("mode"),
+            "topic_title": topic_title,
+            "chunks_count": len(rag_chunks),
+        },
+    )
 
     content = response.choices[0].message.content or ""
     raw = content.strip()

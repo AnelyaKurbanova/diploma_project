@@ -522,6 +522,66 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     }
   };
 
+  const persistGeneratedVideoUrl = useCallback(
+    async (videoUrl: string) => {
+      if (!selectedLessonId) return;
+
+      const existingVideoBlock =
+        (editingBlockId
+          ? lessonDetail?.content_blocks.find(
+              (b) => b.id === editingBlockId && b.block_type === "video",
+            )
+          : null) ??
+        lessonDetail?.content_blocks.find((b) => b.block_type === "video") ??
+        null;
+
+      if (existingVideoBlock) {
+        await apiPatch(
+          `/blocks/${existingVideoBlock.id}`,
+          {
+            video_url: videoUrl,
+          },
+          accessToken,
+        );
+        setEditingBlockId(existingVideoBlock.id);
+      } else {
+        const maxOrder = Math.max(
+          -1,
+          ...(lessonDetail?.content_blocks.map((b) => b.order_no) ?? []),
+        );
+        const created = await apiPost<ContentBlock>(
+          `/lessons/${selectedLessonId}/blocks`,
+          {
+            block_type: "video",
+            order_no: maxOrder + 1,
+            title: blockForm.title || "Видео",
+            video_url: videoUrl,
+            video_description: blockForm.video_description || null,
+          },
+          accessToken,
+        );
+        setEditingBlockId(created.id);
+      }
+
+      setBlockForm((f) => ({
+        ...f,
+        block_type: "video",
+        video_url: videoUrl,
+      }));
+
+      await loadLessonDetail(selectedLessonId);
+    },
+    [
+      accessToken,
+      blockForm.title,
+      blockForm.video_description,
+      editingBlockId,
+      lessonDetail?.content_blocks,
+      loadLessonDetail,
+      selectedLessonId,
+    ],
+  );
+
   const handleCreateVideoForBlock = async () => {
     if (!selectedTopic) {
       setError("Сначала выберите тему и урок, для которого нужно сгенерировать видео.");
@@ -562,9 +622,8 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
         lastS3Url = job.s3_url ?? null;
 
         if (job.status === "done" && job.s3_url) {
-          setBlockForm(f => ({ ...f, video_url: job.s3_url ?? "" }));
-          setSuccess("Видео по уроку сгенерировано, ссылка подставлена в URL видео.");
-          setCreatingVideoJob(false);
+          await persistGeneratedVideoUrl(job.s3_url);
+          setSuccess("Видео сгенерировано: ссылка автоматически сохранена в блоке и обновлена.");
           return;
         }
 
@@ -580,8 +639,8 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
       // Если вышли по таймауту цикла, показываем последнее известное состояние
       if (lastStatus === "done" && lastS3Url) {
-        setBlockForm(f => ({ ...f, video_url: lastS3Url ?? "" }));
-        setSuccess("Видео по уроку сгенерировано, ссылка подставлена в URL видео.");
+        await persistGeneratedVideoUrl(lastS3Url);
+        setSuccess("Видео сгенерировано: ссылка автоматически сохранена в блоке и обновлена.");
       } else if (lastStatus === "failed") {
         setError(lastError || "Видео по уроку не удалось сгенерировать.");
       } else {

@@ -2,6 +2,10 @@ from __future__ import annotations
 
 import logging
 
+from app.modules.llm_usage.application.tracker import (
+    extract_openai_token_usage,
+    log_llm_token_usage,
+)
 from app.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -73,11 +77,34 @@ async def normalize_answer_via_llm(raw_answer: str) -> str | None:
             ],
             max_completion_tokens=64,
         )
+        input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
+        await log_llm_token_usage(
+            request_type="submissions.normalize_answer",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            request_meta={
+                "raw_answer_len": len(raw),
+            },
+        )
         result = response.choices[0].message.content
         if result:
             result = result.strip()
         logger.debug("LLM normalize: %r → %r", raw, result)
         return result or None
     except Exception as exc:
+        await log_llm_token_usage(
+            request_type="submissions.normalize_answer",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=None,
+            output_tokens=None,
+            total_tokens=None,
+            request_meta={
+                "raw_answer_len": len(raw),
+            },
+            success=False,
+            error_text=str(exc),
+        )
         logger.warning("LLM normalization request failed: %s", exc)
         return None

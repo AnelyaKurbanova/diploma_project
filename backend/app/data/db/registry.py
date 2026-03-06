@@ -12,3 +12,4 @@ from app.modules.classes.data import models as _classes_models  # noqa: F401
 from app.modules.activity.data import models as _activity_models  # noqa: F401
 from app.modules.knowledge.data import models as _knowledge_models  # noqa: F401
 from app.modules.video_jobs.data import models as _video_jobs_models  # noqa: F401
+from app.modules.llm_usage.data import models as _llm_usage_models  # noqa: F401

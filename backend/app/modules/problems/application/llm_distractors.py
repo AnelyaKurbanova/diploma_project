@@ -6,6 +6,10 @@ import re
 
 from openai import AsyncOpenAI
 
+from app.modules.llm_usage.application.tracker import (
+    extract_openai_token_usage,
+    log_llm_token_usage,
+)
 from app.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -68,6 +72,20 @@ async def generate_distractors(
             ],
             max_completion_tokens=96,
         )
+        input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
+        await log_llm_token_usage(
+            request_type="problems.generate_distractors",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            request_meta={
+                "question_len": len(question),
+                "correct_answer_len": len(correct_answer),
+                "requested_count": count,
+            },
+        )
+
         content = response.choices[0].message.content or ""
         lines: Sequence[str] = [line.strip() for line in content.splitlines()]
         options: list[str] = []
@@ -112,6 +130,20 @@ async def generate_distractors(
 
         return []
     except Exception as exc:  # pragma: no cover - защитный код
+        await log_llm_token_usage(
+            request_type="problems.generate_distractors",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=None,
+            output_tokens=None,
+            total_tokens=None,
+            request_meta={
+                "question_len": len(question),
+                "correct_answer_len": len(correct_answer),
+                "requested_count": count,
+            },
+            success=False,
+            error_text=str(exc),
+        )
         logger.warning("LLM distractor generation failed: %s", exc)
         return []
 

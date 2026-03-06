@@ -6,6 +6,7 @@ import re
 from manim import (
     LEFT,
     UP,
+    MathTex,
     Rectangle,
     RoundedRectangle,
     Text,
@@ -17,6 +18,7 @@ from ._style import (
     BG_ACCENT,
     BG_COLOR,
     DIM,
+    FORMULA_COLOR,
     SECTION_LABEL_SCALE,
     TEXT_COLOR,
 )
@@ -181,6 +183,44 @@ def latex_to_text(s: str) -> str:
     text = text.replace("{", "").replace("}", "")
     text = re.sub(r"  +", " ", text).strip()
     return text
+
+
+def _sanitize_latex(s: str) -> str:
+    """Pre-process LaTeX string to fix common issues before MathTex."""
+    s = s.strip()
+    s = s.strip("$")
+    s = re.sub(r"\\\\\s*$", "", s)
+    open_b = s.count("{")
+    close_b = s.count("}")
+    if open_b > close_b:
+        s += "}" * (open_b - close_b)
+    elif close_b > open_b:
+        s = "{" * (close_b - open_b) + s
+    return s
+
+
+def safe_mathtex(
+    latex: str,
+    *,
+    scale: float = 1.0,
+    color: str | None = None,
+    fallback_font_size: int = 36,
+):
+    """Try MathTex with sanitisation; fall back to readable Unicode text."""
+    if color is None:
+        color = FORMULA_COLOR
+    sanitized = _sanitize_latex(latex)
+    try:
+        mob = MathTex(sanitized)
+        mob.scale(scale)
+        mob.set_color(color)
+        return mob
+    except Exception:
+        pass
+    fallback = Text(latex_to_text(latex), color=color, font_size=fallback_font_size)
+    if scale != 1.0:
+        fallback.scale(scale)
+    return fallback
 
 
 def add_background(scene) -> VGroup:

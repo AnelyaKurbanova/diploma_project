@@ -35,52 +35,82 @@ class OpenAIClient:
 
     def _generate_plan_sync(self, request_json: Mapping[str, Any]) -> Dict[str, Any]:
         system_prompt = (
-            "You are an expert math educator and video lesson designer. "
-            "You design a short, clear scene plan for an educational math video "
-            "using a fixed set of templates."
+            "Ты — опытный педагог-методист по математике и дизайнер видеоуроков. "
+            "Ты проектируешь структуру короткого обучающего видео для школьников, "
+            "используя набор готовых шаблонов сцен. Твоя цель — сделать урок максимально понятным "
+            "даже для самых слабых учеников. Каждая сцена должна нести одну простую идею."
         )
 
         user_prompt = f"""
-You will receive a JSON object describing a math video request:
+Получи JSON-объект с описанием запроса на математическое видео:
 
 REQUEST_JSON:
 {json.dumps(request_json, ensure_ascii=False, indent=2)}
 
-Your task:
-- Design a sequence of scenes for a short educational video.
-- Use ONLY templates from this allowlist: ["title", "goal", "definitions", "derivation", "plot", "summary"].
-- The plan JSON MUST follow exactly this schema:
+Твоя задача — спроектировать последовательность сцен для обучающего видео.
 
+ДОСТУПНЫЕ ШАБЛОНЫ (21 штука):
+- "title"           — Титульный экран с названием темы
+- "hook"            — Привлечение внимания: интересный вопрос или факт
+- "goal"            — Цель урока: что ученик узнает
+- "recap"           — Повторение: что нужно знать перед этой темой
+- "definitions"     — Определения: ключевые термины с формулами
+- "key_point"       — Ключевое правило: одна важная формула/правило в рамке
+- "derivation"      — Вывод формулы: пошаговое преобразование формул
+- "formula_build"   — Построение формулы по частям с пояснениями
+- "example"         — Разбор примера: задача + пошаговое решение
+- "step_by_step"    — Алгоритм: пронумерованные шаги решения
+- "plot"            — График функции (квадратичная, линейная, тригонометрическая)
+- "number_line"     — Числовая прямая с отмеченными точками и интервалами
+- "coordinate"      — Координатная плоскость с точками и векторами
+- "geometry"        — Геометрические фигуры с размерами (треугольник, прямоугольник, круг)
+- "fraction_visual" — Наглядное представление дробей (закрашенные прямоугольники)
+- "table"           — Таблица данных
+- "comparison"      — Сравнение двух подходов / правильно vs неправильно
+- "warning"         — Частая ошибка: что делают неправильно и как правильно
+- "quiz"            — Мини-задание: вопрос + пауза + ответ
+- "transition"      — Переход между разделами
+- "summary"         — Итог: главная формула + краткий вывод
+
+ТИПЫ УРОКОВ (выбери подходящий и адаптируй):
+
+1) Введение нового понятия:
+   title → hook → goal → definitions → key_point → example → quiz → summary
+
+2) Решение задач:
+   title → hook → goal → recap → step_by_step → example → warning → quiz → summary
+
+3) Вывод формулы:
+   title → goal → definitions → formula_build → derivation → example → summary
+
+4) Наглядная математика (геометрия, дроби, графики):
+   title → hook → goal → definitions → geometry/fraction_visual/plot → example → summary
+
+5) Повторение и практика:
+   title → goal → recap → quiz → example → warning → quiz → summary
+
+6) Сравнение методов:
+   title → goal → recap → comparison → example → example → summary
+
+ПРАВИЛА:
+- Первая сцена ВСЕГДА "title", последняя ВСЕГДА "summary".
+- Максимум 15 сцен.
+- "plot" — максимум 1 раз.
+- "derivation", "example", "quiz", "step_by_step", "transition", "key_point", "warning", "recap" могут повторяться до 3 раз.
+- Остальные шаблоны — максимум 1 раз.
+- Структура должна рассказывать связную историю: от простого к сложному.
+- Используй "hook" чтобы заинтересовать ученика в начале.
+- Используй "warning" чтобы показать типичные ошибки.
+- Используй "quiz" чтобы ученик активно думал.
+- Выбирай шаблоны ИСХОДЯ ИЗ ТЕМЫ. Не используй геометрию для алгебры, и наоборот.
+
+ФОРМАТ ОТВЕТА:
+Верни ТОЛЬКО валидный JSON (без markdown):
 {{
   "scenes": [
     {{ "template": "title" }},
-    {{ "template": "goal" }},
-    {{ "template": "definitions" }},
-    {{ "template": "derivation" }},
-    {{ "template": "plot", "optional": true }},
-    {{ "template": "summary" }}
-  ]
-}}
-
-Rules:
-- max scenes = 10.
-- "plot" scene is optional; include it only if a simple graph (e.g., quadratic function) would help understanding.
-- You MAY omit some of the non-plot templates if truly unnecessary, but keep the video coherent.
-- Do NOT invent new template names.
-- The order of scenes should tell a clear instructional story.
-
-Output:
-- Return ONLY valid JSON that follows the schema above.
-- Do NOT include any explanations or markdown.
-
-Short example (for illustration only, adapt to the actual request):
-{{
-  "scenes": [
-    {{ "template": "title" }},
-    {{ "template": "goal" }},
-    {{ "template": "definitions" }},
-    {{ "template": "derivation" }},
-    {{ "template": "plot", "optional": true }},
+    {{ "template": "hook" }},
+    ...
     {{ "template": "summary" }}
   ]
 }}
@@ -88,7 +118,7 @@ Short example (for illustration only, adapt to the actual request):
 
         response = self._client.chat.completions.create(
             model=self._model,
-            temperature=0.2,
+            temperature=0.3,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_prompt},
@@ -109,114 +139,168 @@ Short example (for illustration only, adapt to the actual request):
         previous_errors: List[str],
     ) -> Dict[str, Any]:
         system_prompt = (
-            "You are an expert math educator and LaTeX writer. "
-            "You produce concise, precise content for an educational math video, "
-            "filling in data for a fixed set of scene templates."
+            "Ты — опытный учитель математики и эксперт по LaTeX. "
+            "Ты создаёшь контент для обучающего видео, заполняя данные для каждой сцены. "
+            "Твоя целевая аудитория — школьники 10-16 лет, включая самых слабых учеников. "
+            "ПЕДАГОГИЧЕСКИЕ ПРИНЦИПЫ:\n"
+            "- Объясняй как 12-летнему ребёнку.\n"
+            "- Используй простые бытовые аналогии.\n"
+            "- Разбивай сложные идеи на крошечные шаги.\n"
+            "- Каждая формула должна быть объяснена словами.\n"
+            "- Выделяй ОДИН самый важный вывод.\n"
+            "- Все текстовые поля — на русском языке.\n"
+            "- LaTeX пиши без окружающих $$ — только формульный код."
         )
 
         error_block = ""
         if previous_errors:
             error_block = (
-                "\nPrevious validation errors to fix:\n- "
+                "\nОшибки валидации, которые нужно исправить:\n- "
                 + "\n- ".join(previous_errors)
                 + "\n"
             )
 
         user_prompt = f"""
-You will receive:
-1) The original REQUEST_JSON describing the math topic, difficulty, and problem.
-2) A PLAN_JSON listing which scene templates to use and in what order.
-
 REQUEST_JSON:
 {json.dumps(request_json, ensure_ascii=False, indent=2)}
 
 PLAN_JSON:
 {json.dumps(plan_json, ensure_ascii=False, indent=2)}
 {error_block}
-Your task:
-- Produce content for each scene in PLAN_JSON in a single JSON object.
-- The output must follow exactly this schema:
 
+Заполни данные для каждой сцены из PLAN_JSON.
+
+СХЕМЫ ДАННЫХ ДЛЯ КАЖДОГО ШАБЛОНА:
+
+1) "title" → {{ "title": "Название темы (без LaTeX, русский текст)" }}
+
+2) "hook" → {{ "text": "Интересный вопрос или факт (без LaTeX)" }}
+
+3) "goal" → {{ "text": "Что ученик узнает (без LaTeX)" }}
+
+4) "recap" → {{ "items": ["Факт 1", "Факт 2", ...] }}
+   (список предпосылок, 2-5 пунктов)
+
+5) "definitions" → {{
+     "items": [
+       {{ "label": "Название термина", "value_latex": "формула в LaTeX" }},
+       ...
+     ]
+   }}
+
+6) "key_point" → {{
+     "title": "Название правила (без LaTeX)",
+     "formula_latex": "главная формула в LaTeX",
+     "explanation": "пояснение простыми словами (без LaTeX, необязательно)"
+   }}
+
+7) "derivation" → {{ "steps": ["шаг1_latex", "шаг2_latex", ...] }}
+   (максимум 10 шагов, каждый — LaTeX)
+
+8) "formula_build" → {{
+     "parts": [
+       {{ "latex": "часть формулы", "annotation": "что означает эта часть" }},
+       ...
+     ]
+   }}
+
+9) "example" → {{
+     "problem": "Условие задачи (без LaTeX)",
+     "steps": ["шаг1_latex", "шаг2_latex", ...]
+   }}
+
+10) "step_by_step" → {{
+      "title": "Как решать ... (без LaTeX)",
+      "steps": ["Шаг 1: текст действия", "Шаг 2: ...", ...]
+    }}
+
+11) "plot" → Один из вариантов:
+    a) Квадратичная: {{ "plot_type": "quadratic", "a": число, "b": число, "c": число, "x_min": число, "x_max": число }}
+    b) Линейная: {{ "plot_type": "linear", "slope": число, "intercept": число, "x_min": число, "x_max": число }}
+    c) Синус: {{ "plot_type": "sine", "amplitude": число, "frequency": число, "x_min": число, "x_max": число }}
+    d) Косинус: {{ "plot_type": "cosine", "amplitude": число, "frequency": число, "x_min": число, "x_max": число }}
+    e) Произвольная: {{ "func_code": "lambda x: выражение", "x_min": число, "x_max": число }}
+    Опционально: "integral_latex": "формула интеграла"
+
+12) "number_line" → {{
+      "x_min": число, "x_max": число,
+      "points": [{{ "value": число, "label": "метка" }}, ...],
+      "interval_start": число или null,
+      "interval_end": число или null
+    }}
+
+13) "coordinate" → {{
+      "x_range": [min, max, step],
+      "y_range": [min, max, step],
+      "points": [{{ "x": число, "y": число, "label": "метка" }}, ...],
+      "vectors": [{{ "x1": число, "y1": число, "x2": число, "y2": число, "label": "метка" }}, ...]
+    }}
+
+14) "geometry" → {{
+      "shape": "triangle" | "rectangle" | "circle",
+      "title": "Описание фигуры (без LaTeX)",
+      "labels": {{ "A": "метка", "B": "метка", "C": "метка", "a": "сторона a" }}
+    }}
+    Для rectangle: labels содержит "width", "height", "width_val", "height_val"
+    Для circle: labels содержит "radius", "radius_val"
+
+15) "fraction_visual" → {{
+      "numerator": целое число,
+      "denominator": целое число,
+      "label": "текст (необязательно)"
+    }}
+
+16) "table" → {{
+      "headers": ["Столбец1", "Столбец2", ...],
+      "rows": [["значение1", "значение2"], ...],
+      "highlight_row": индекс строки для подсветки (-1 = нет)
+    }}
+
+17) "comparison" → {{
+      "left_title": "Заголовок слева (без LaTeX)",
+      "left_content": "формула/текст LaTeX",
+      "right_title": "Заголовок справа (без LaTeX)",
+      "right_content": "формула/текст LaTeX",
+      "left_is_correct": true/false
+    }}
+
+18) "warning" → {{
+      "title": "Описание ошибки (без LaTeX)",
+      "wrong_latex": "неправильная формула в LaTeX",
+      "correct_latex": "правильная формула в LaTeX",
+      "explanation": "почему это ошибка (без LaTeX, необязательно)"
+    }}
+
+19) "quiz" → {{
+      "question": "Вопрос для ученика (без LaTeX)",
+      "answer_latex": "ответ в LaTeX",
+      "explanation": "пояснение к ответу (без LaTeX, необязательно)"
+    }}
+
+20) "transition" → {{ "text": "Текст перехода (без LaTeX)" }}
+
+21) "summary" → {{
+      "final_latex": "главная формула в LaTeX",
+      "text": "краткий итог (без LaTeX)"
+    }}
+
+ОГРАНИЧЕНИЯ:
+- Используй ТОЛЬКО шаблоны из PLAN_JSON, в том же порядке.
+- Максимум 10 шагов в derivation/example.
+- Максимум 160 символов в любом строковом поле.
+- Никаких пустых строк.
+- LaTeX БЕЗ окружающих $$ — только формульный код.
+- LaTeX должен быть валидным для MathTex (Manim). Избегай \\text внутри MathTex.
+- Поля помеченные "(без LaTeX)" — только русский текст, без \\frac, \\int и т.д.
+- Числа для plot: маленькие целые от -10 до 10.
+- Текст — простой и понятный школьнику.
+
+ФОРМАТ ОТВЕТА:
+Верни ТОЛЬКО валидный JSON (без markdown):
 {{
   "scenes": [
-    {{ "template": "title", "data": {{ "title": "..." }} }},
-    {{ "template": "goal", "data": {{ "text": "..." }} }},
-    {{
-      "template": "definitions",
-      "data": {{
-        "items": [{{ "label": "...", "value_latex": "..." }}]
-      }}
-    }},
-    {{
-      "template": "derivation",
-      "data": {{
-        "steps": ["latex_step_1", "latex_step_2", "..."]
-      }}
-    }},
-    {{
-      "template": "plot",
-      "data": {{
-        "a": 1,
-        "b": -2,
-        "c": -3,
-        "x_min": -5,
-        "x_max": 5
-      }}
-    }},
-    {{
-      "template": "summary",
-      "data": {{
-        "final_latex": "...",
-        "text": "..."
-      }}
-    }}
-  ]
-}}
-
-Constraints:
-- Use ONLY templates that appear in PLAN_JSON, in the same order.
-- max derivation steps = 12.
-- max length of any string field = 160 characters.
-- No empty strings; every string should be informative.
-- LaTeX strings must be valid MathJax/LaTeX fragments (do not include surrounding $$ delimiters).
-- For the plot scene (if present), choose simple numeric values:
-  - a, b, c: small integers between -5 and 5.
-  - x_min, x_max: integers with x_min < x_max, typically between -10 and 10.
-
-Output:
-- Return ONLY valid JSON that follows the schema above.
-- Do NOT include explanations or markdown.
-
-Short example (structure only, adapt to the actual plan and request):
-{{
-  "scenes": [
-    {{ "template": "title", "data": {{ "title": "Solving a Quadratic Equation" }} }},
-    {{ "template": "goal", "data": {{ "text": "Show how to solve a quadratic using the quadratic formula." }} }},
-    {{
-      "template": "definitions",
-      "data": {{
-        "items": [
-          {{"label": "Quadratic equation", "value_latex": "ax^2 + bx + c = 0"}},
-          {{"label": "Discriminant", "value_latex": "D = b^2 - 4ac"}}
-        ]
-      }}
-    }},
-    {{
-      "template": "derivation",
-      "data": {{
-        "steps": [
-          "ax^2 + bx + c = 0",
-          "x = \\frac{{-b \\pm \\sqrt{{b^2 - 4ac}}}}{{2a}}"
-        ]
-      }}
-    }},
-    {{
-      "template": "summary",
-      "data": {{
-        "final_latex": "x = \\frac{{-b \\pm \\sqrt{{b^2 - 4ac}}}}{{2a}}",
-        "text": "We solved the quadratic equation using the quadratic formula."
-      }}
-    }}
+    {{ "template": "...", "data": {{ ... }} }},
+    ...
   ]
 }}
 """
@@ -236,4 +320,3 @@ Short example (structure only, adapt to the actual plan and request):
         except json.JSONDecodeError as exc:
             raise ContentValidationError(f"Invalid JSON from OpenAI: {exc}") from exc
         return data
-

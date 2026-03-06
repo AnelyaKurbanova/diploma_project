@@ -7,6 +7,10 @@ from typing import List
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, ValidationError
 
+from app.modules.llm_usage.application.tracker import (
+    extract_openai_token_usage,
+    log_llm_token_usage,
+)
 from app.settings import settings
 
 
@@ -168,8 +172,38 @@ async def generate_problems_from_context(
             response_format={"type": "json_object"},
         )
     except Exception as exc:  # pragma: no cover - защитный код
+        await log_llm_token_usage(
+            request_type="problems.generate_rag_problems",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=None,
+            output_tokens=None,
+            total_tokens=None,
+            request_meta={
+                "topic_title": topic_title,
+                "chunks_count": len(chunks),
+                "requested_count": count,
+                "difficulty_quota": dict(difficulty_quota or {}),
+            },
+            success=False,
+            error_text=str(exc),
+        )
         logger.warning("LLM RAG problem generation failed: %s", exc)
         return []
+
+    input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
+    await log_llm_token_usage(
+        request_type="problems.generate_rag_problems",
+        model_name=settings.LLM_MODEL_NAME,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=total_tokens,
+        request_meta={
+            "topic_title": topic_title,
+            "chunks_count": len(chunks),
+            "requested_count": count,
+            "difficulty_quota": dict(difficulty_quota or {}),
+        },
+    )
 
     content = response.choices[0].message.content or ""
     raw = content.strip()

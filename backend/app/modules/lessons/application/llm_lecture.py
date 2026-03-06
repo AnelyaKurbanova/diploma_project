@@ -4,6 +4,10 @@ import logging
 
 from openai import AsyncOpenAI
 
+from app.modules.llm_usage.application.tracker import (
+    extract_openai_token_usage,
+    log_llm_token_usage,
+)
 from app.settings import settings
 
 logger = logging.getLogger(__name__)
@@ -59,6 +63,18 @@ async def generate_lecture_from_context(
             ],
             max_completion_tokens=8192,
         )
+        input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
+        await log_llm_token_usage(
+            request_type="lessons.generate_lecture",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            request_meta={
+                "topic_title": topic_title,
+                "chunks_count": len(chunks),
+            },
+        )
         choice = response.choices[0] if response.choices else None
         if not choice:
             logger.warning("LLM lecture: API returned no choices")
@@ -73,5 +89,18 @@ async def generate_lecture_from_context(
             )
         return result
     except Exception as exc:
+        await log_llm_token_usage(
+            request_type="lessons.generate_lecture",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=None,
+            output_tokens=None,
+            total_tokens=None,
+            request_meta={
+                "topic_title": topic_title,
+                "chunks_count": len(chunks),
+            },
+            success=False,
+            error_text=str(exc),
+        )
         logger.warning("LLM lecture generation failed: %s", exc)
         return None

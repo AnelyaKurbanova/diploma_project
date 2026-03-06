@@ -6,6 +6,7 @@ from typing import Any, Callable
 from manim import (
     UP,
     DOWN,
+    LEFT,
     Axes,
     Create,
     Dot,
@@ -21,7 +22,7 @@ from manim import (
 )
 from manim.utils.rate_functions import smooth
 
-from ._common import add_background, latex_to_text, safe_fit, section_label
+from ._common import add_background, latex_to_text, safe_fit, safe_mathtex, section_label
 from ._style import (
     AXES_X_LENGTH,
     AXES_Y_LENGTH,
@@ -195,8 +196,15 @@ class PlotScene(Scene):
 
         integral_latex = self._params.get("integral_latex", None)
 
+        x_label = Text("x", color=DIM, font_size=20)
+        y_label = Text("y", color=DIM, font_size=20)
+        x_label.next_to(axes.x_axis.get_end(), DOWN, buff=0.15)
+        y_label.next_to(axes.y_axis.get_end(), LEFT, buff=0.15)
+
         self.play(Create(axes), rate_func=smooth, run_time=1.0)
-        self.play(Create(curve), rate_func=smooth, run_time=1.2)
+        self.play(FadeIn(x_label), FadeIn(y_label), run_time=0.3)
+        self.wait(0.3)
+        self.play(Create(curve), rate_func=smooth, run_time=1.5)
 
         dot = Dot(
             axes.c2p(x_min, func(x_min)),
@@ -210,11 +218,12 @@ class PlotScene(Scene):
         self.play(
             MoveAlongPath(dot, curve),
             rate_func=smooth,
-            run_time=2.0,
+            run_time=2.5,
         )
 
         if highlights:
             self.play(Create(highlights), rate_func=smooth, run_time=0.6)
+            self.wait(0.5)
 
         if area is not None:
             area.set_fill(color=HIGHLIGHT_COLOR, opacity=0)
@@ -222,23 +231,15 @@ class PlotScene(Scene):
             self.play(
                 area.animate.set_fill(opacity=0.45),
                 rate_func=smooth,
-                run_time=1.0,
+                run_time=1.2,
             )
 
         if isinstance(integral_latex, str) and integral_latex.strip():
-            try:
-                label = MathTex(integral_latex).scale(FORMULA_SCALE)
-                label.set_color(FORMULA_COLOR)
-            except Exception:
-                label = Text(
-                    latex_to_text(integral_latex),
-                    color=FORMULA_COLOR,
-                    font_size=32,
-                )
+            label = safe_mathtex(integral_latex, scale=FORMULA_SCALE, color=FORMULA_COLOR)
             safe_fit(label, max_w=config.frame_width * 0.85)
             label.to_edge(UP, buff=0.5)
             self.play(FadeIn(label, shift=DOWN * 0.15), rate_func=smooth, run_time=0.6)
             if area is not None:
                 self.play(Indicate(area), Indicate(label), run_time=0.8)
 
-        self.wait(1.5)
+        self.wait(2.0)

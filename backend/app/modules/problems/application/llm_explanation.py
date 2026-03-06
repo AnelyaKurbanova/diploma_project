@@ -4,6 +4,10 @@ import logging
 
 from openai import AsyncOpenAI
 
+from app.modules.llm_usage.application.tracker import (
+    extract_openai_token_usage,
+    log_llm_token_usage,
+)
 from app.settings import settings
 from app.modules.problems.application.canonicalize import normalize_for_storage
 
@@ -66,6 +70,20 @@ async def generate_explanation(
             ],
             max_completion_tokens=192,
         )
+        input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
+        await log_llm_token_usage(
+            request_type="problems.generate_explanation",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
+            request_meta={
+                "question_len": len(question),
+                "correct_answer_len": len(correct_answer),
+                "choices_count": len(choices or []),
+            },
+        )
+
         content = response.choices[0].message.content or ""
         explanation = content.strip()
         if not explanation:
@@ -81,6 +99,20 @@ async def generate_explanation(
 
         return explanation
     except Exception as exc:  # pragma: no cover - защитный код
+        await log_llm_token_usage(
+            request_type="problems.generate_explanation",
+            model_name=settings.LLM_MODEL_NAME,
+            input_tokens=None,
+            output_tokens=None,
+            total_tokens=None,
+            request_meta={
+                "question_len": len(question),
+                "correct_answer_len": len(correct_answer),
+                "choices_count": len(choices or []),
+            },
+            success=False,
+            error_text=str(exc),
+        )
         logger.warning("LLM explanation generation failed: %s", exc)
         return None
 
