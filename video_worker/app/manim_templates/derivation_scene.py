@@ -4,23 +4,28 @@ from typing import Iterable
 
 from manim import (
     DOWN,
+    UP,
+    Circumscribe,
     FadeIn,
     FadeOut,
+    Flash,
     MathTex,
+    ReplacementTransform,
     Scene,
     Text,
     TransformMatchingTex,
-    FadeTransform,
-    Brace,
     config,
 )
 from manim.utils.rate_functions import smooth
 
+from ._common import add_background, safe_fit, section_label
 from ._style import (
+    ACCENT,
+    DIM,
+    FINAL_RESULT_SCALE,
     FORMULA_COLOR,
     FORMULA_SCALE,
     HIGHLIGHT_COLOR,
-    FINAL_RESULT_SCALE,
     PREV_STEP_COLOR,
 )
 
@@ -30,89 +35,84 @@ class DerivationScene(Scene):
         super().__init__(**kwargs)
         self._steps = list(steps)
 
-    def _scale_formula(self, mob):
-        """Scale formula to use ~6-8 units width (large, dominant)."""
+    def _make_formula(self, latex: str):
+        try:
+            mob = MathTex(latex)
+        except Exception:
+            mob = Text(latex)
         mob.scale(FORMULA_SCALE)
-        max_width = config.frame_width * 0.92
-        if mob.width > max_width:
-            mob.scale_to_fit_width(max_width)
+        max_w = config.frame_width * 0.88
+        if mob.width > max_w:
+            mob.scale_to_fit_width(max_w)
+        return mob
 
     def construct(self) -> None:  # type: ignore[override]
         if not self._steps:
             return
 
-        first = self._steps[0]
-        try:
-            current = MathTex(first)
-        except Exception:
-            current = Text(first)
-        self._scale_formula(current)
+        add_background(self)
+
+        sec = section_label("Вывод")
+        self.play(FadeIn(sec, shift=DOWN * 0.1), rate_func=smooth, run_time=0.35)
+
+        total = len(self._steps)
+
+        counter = Text(f"1 / {total}", color=DIM, font_size=24)
+        counter.to_edge(DOWN, buff=0.4)
+        self.play(FadeIn(counter), run_time=0.3)
+
+        current = self._make_formula(self._steps[0])
         current.set_color(FORMULA_COLOR)
         current.move_to(self.camera.frame_center)
-        self.play(
-            current.animate.set_opacity(0),
-            rate_func=smooth,
-            run_time=0.01,
-        )
-        self.play(
-            current.animate.set_opacity(1),
-            rate_func=smooth,
-            run_time=0.8,
-        )
+
+        self.play(FadeIn(current, shift=UP * 0.2), rate_func=smooth, run_time=0.8)
         self.wait(0.8)
 
-        for step in self._steps[1:]:
-            try:
-                next_tex = MathTex(step)
-            except Exception:
-                next_tex = Text(step)
-            self._scale_formula(next_tex)
+        for i, step in enumerate(self._steps[1:], start=2):
+            next_tex = self._make_formula(step)
+            next_tex.set_color(FORMULA_COLOR)
             next_tex.move_to(self.camera.frame_center)
 
-            # Previous step → grey (visual hierarchy)
             self.play(
-                current.animate.set_color(PREV_STEP_COLOR).set_opacity(0.9),
+                current.animate.set_color(PREV_STEP_COLOR).set_opacity(0.85),
                 rate_func=smooth,
-                run_time=0.2,
+                run_time=0.25,
             )
 
-            brace = None
-            if isinstance(current, MathTex) and isinstance(next_tex, MathTex):
-                brace = Brace(current, direction=DOWN, color=FORMULA_COLOR)
-                brace.set_opacity(0.85)
-                self.play(FadeIn(brace), rate_func=smooth, run_time=0.25)
+            new_counter = Text(f"{i} / {total}", color=DIM, font_size=24)
+            new_counter.to_edge(DOWN, buff=0.4)
 
             if isinstance(current, MathTex) and isinstance(next_tex, MathTex):
                 self.play(
                     TransformMatchingTex(current, next_tex),
+                    ReplacementTransform(counter, new_counter),
                     rate_func=smooth,
                     run_time=1.2,
                 )
             else:
                 self.play(
-                    FadeTransform(current, next_tex),
+                    ReplacementTransform(current, next_tex),
+                    ReplacementTransform(counter, new_counter),
                     rate_func=smooth,
                     run_time=1.0,
                 )
 
-            if brace is not None:
-                self.play(FadeOut(brace), rate_func=smooth, run_time=0.15)
-
+            counter = new_counter
             next_tex.set_color(FORMULA_COLOR)
-            self.play(
-                next_tex.animate.set_opacity(1),
-                rate_func=smooth,
-                run_time=0.2,
-            )
             current = next_tex
-            self.wait(1.0)
+            self.wait(0.8)
 
-        # Final answer: transform previous equation → center, scale up, highlight in YELLOW
         self.play(
-            current.animate.scale(FINAL_RESULT_SCALE).move_to(
-                self.camera.frame_center
-            ).set_color(HIGHLIGHT_COLOR),
+            current.animate.scale(FINAL_RESULT_SCALE)
+            .move_to(self.camera.frame_center)
+            .set_color(HIGHLIGHT_COLOR),
             rate_func=smooth,
+            run_time=0.8,
+        )
+        safe_fit(current)
+        self.play(
+            Circumscribe(current, color=ACCENT, buff=0.2, fade_out=True),
             run_time=1.0,
         )
-        self.wait(2.0)
+        self.play(Flash(current, color=ACCENT, flash_radius=0.6), run_time=0.5)
+        self.wait(1.5)

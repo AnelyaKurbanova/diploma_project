@@ -4,24 +4,28 @@ import math
 from typing import Any, Callable
 
 from manim import (
+    UP,
+    DOWN,
     Axes,
     Create,
-    FadeIn,
-    Scene,
     Dot,
-    VGroup,
+    FadeIn,
     Indicate,
     MathTex,
+    MoveAlongPath,
+    Scene,
     Text,
     TracedPath,
-    MoveAlongPath,
+    VGroup,
     config,
 )
 from manim.utils.rate_functions import smooth
 
+from ._common import add_background, latex_to_text, safe_fit, section_label
 from ._style import (
     AXES_X_LENGTH,
     AXES_Y_LENGTH,
+    DIM,
     FORMULA_COLOR,
     FORMULA_SCALE,
     HIGHLIGHT_COLOR,
@@ -35,7 +39,6 @@ def _sample_y_range(
     num_samples: int = 20,
     padding: float = 1.0,
 ) -> tuple[float, float]:
-    """Compute y_min, y_max from sampling func on [x_min, x_max] with padding."""
     if x_max <= x_min:
         return -5.0, 5.0
     step = (x_max - x_min) / max(1, num_samples - 1)
@@ -62,7 +65,6 @@ def _sample_y_range(
 
 
 def _eval_func_code(func_code: str) -> Callable[[float], float]:
-    """Evaluate func_code (e.g. 'lambda x: x**2') with only math in scope. Returns a callable or raises."""
     safe_globals: dict[str, Any] = {"math": math}
     try:
         obj = eval(func_code.strip(), safe_globals)
@@ -74,8 +76,6 @@ def _eval_func_code(func_code: str) -> Callable[[float], float]:
 
 
 class PlotScene(Scene):
-    """Универсальная сцена графика: поддерживает func_code (лямбда от x) или legacy plot_type + параметры."""
-
     def __init__(self, plot_type: str = "quadratic", **kwargs: Any) -> None:
         self._params = dict(kwargs)
         self._func_code = self._params.pop("func_code", None)
@@ -100,7 +100,6 @@ class PlotScene(Scene):
                 return _eval_func_code(self._func_code)
             except ValueError:
                 pass
-        x_min, x_max = self._get_x_bounds()
         if self._plot_type == "linear":
             slope = float(self._params.get("slope", 1.0))
             intercept = float(self._params.get("intercept", 0.0))
@@ -113,7 +112,6 @@ class PlotScene(Scene):
             amplitude = float(self._params.get("amplitude", 1.0))
             frequency = float(self._params.get("frequency", 1.0))
             return lambda x: amplitude * math.cos(frequency * x)
-        # quadratic (default) или custom fallback
         a = float(self._params.get("a", 1.0))
         b = float(self._params.get("b", 0.0))
         c = float(self._params.get("c", 0.0))
@@ -122,7 +120,6 @@ class PlotScene(Scene):
     def _get_highlight_points(
         self, axes: Axes, func: Callable[[float], float]
     ) -> VGroup:
-        """Точки для подсветки (например корни параболы с осью x). Для остальных типов — пусто."""
         group = VGroup()
         if self._plot_type != "quadratic":
             return group
@@ -140,12 +137,17 @@ class PlotScene(Scene):
             for x_root in ((-b - sqrt_d) / (2 * a), (-b + sqrt_d) / (2 * a)):
                 if x_min <= x_root <= x_max:
                     point = axes.c2p(x_root, 0.0)
-                    group.add(Dot(point, color=HIGHLIGHT_COLOR))
+                    group.add(Dot(point, color=HIGHLIGHT_COLOR, radius=0.1))
         except Exception:
             pass
         return group
 
     def construct(self) -> None:  # type: ignore[override]
+        add_background(self)
+
+        sec = section_label("График")
+        self.play(FadeIn(sec, shift=DOWN * 0.1), rate_func=smooth, run_time=0.35)
+
         x_min, x_max = self._get_x_bounds()
         if x_max <= x_min:
             x_min, x_max = -5.0, 5.0
@@ -159,14 +161,15 @@ class PlotScene(Scene):
             y_range=[y_lo, y_hi, y_step],
             x_length=AXES_X_LENGTH,
             y_length=AXES_Y_LENGTH,
+            axis_config={"color": DIM, "stroke_width": 2},
+            tips=False,
         )
-        axes.move_to(self.camera.frame_center)
+        axes.move_to(self.camera.frame_center + DOWN * 0.15)
 
-        curve = axes.plot(func, x_range=[x_min, x_max])
+        curve = axes.plot(func, x_range=[x_min, x_max], color=FORMULA_COLOR, stroke_width=3)
         highlights = self._get_highlight_points(axes, func)
         area = None
 
-        # Если переданы границы интегрирования a, b — выделяем соответствующую площадь.
         a_param = self._params.get("a", None)
         b_param = self._params.get("b", None)
         if a_param is not None and b_param is not None:
@@ -183,7 +186,7 @@ class PlotScene(Scene):
                             curve,
                             x_range=(a_clamped, b_clamped),
                             color=HIGHLIGHT_COLOR,
-                            opacity=0.4,
+                            opacity=0.35,
                         )
                     except Exception:
                         area = None
@@ -192,18 +195,16 @@ class PlotScene(Scene):
 
         integral_latex = self._params.get("integral_latex", None)
 
-        # Draw axes then curve (occupy most of frame)
         self.play(Create(axes), rate_func=smooth, run_time=1.0)
         self.play(Create(curve), rate_func=smooth, run_time=1.2)
 
-        # Dot moving along the curve (highlight)
         dot = Dot(
             axes.c2p(x_min, func(x_min)),
             color=HIGHLIGHT_COLOR,
-            radius=0.14,
+            radius=0.12,
         )
         trace = TracedPath(
-            dot.get_center, stroke_color=FORMULA_COLOR, stroke_width=3
+            dot.get_center, stroke_color=FORMULA_COLOR, stroke_width=2.5
         )
         self.add(trace, dot)
         self.play(
@@ -215,27 +216,28 @@ class PlotScene(Scene):
         if highlights:
             self.play(Create(highlights), rate_func=smooth, run_time=0.6)
 
-        # Area fill animation for the integral
         if area is not None:
             area.set_fill(color=HIGHLIGHT_COLOR, opacity=0)
             self.add(area)
             self.play(
-                area.animate.set_fill(opacity=0.5),
+                area.animate.set_fill(opacity=0.45),
                 rate_func=smooth,
-                run_time=1.2,
+                run_time=1.0,
             )
 
         if isinstance(integral_latex, str) and integral_latex.strip():
             try:
                 label = MathTex(integral_latex).scale(FORMULA_SCALE)
+                label.set_color(FORMULA_COLOR)
             except Exception:
-                label = Text(integral_latex).scale(FORMULA_SCALE * 0.9)
-            label.set_color(FORMULA_COLOR)
-            max_width = config.frame_width * 0.88
-            if label.width > max_width:
-                label.scale_to_fit_width(max_width)
+                label = Text(
+                    latex_to_text(integral_latex),
+                    color=FORMULA_COLOR,
+                    font_size=32,
+                )
+            safe_fit(label, max_w=config.frame_width * 0.85)
             label.to_edge(UP, buff=0.5)
-            self.play(FadeIn(label), rate_func=smooth, run_time=0.7)
+            self.play(FadeIn(label, shift=DOWN * 0.15), rate_func=smooth, run_time=0.6)
             if area is not None:
                 self.play(Indicate(area), Indicate(label), run_time=0.8)
 

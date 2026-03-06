@@ -1,17 +1,22 @@
-"""Shared visual style for Manim scenes (3Blue1Brown-inspired)."""
+"""Shared visual style for Manim scenes — modern dark theme."""
 
-from manim import BLUE, YELLOW
+BG_COLOR = "#0d1117"
+BG_ACCENT = "#161b22"
 
-# Consistent colors across all scenes
-FORMULA_COLOR = BLUE  # main formulas
-HIGHLIGHT_COLOR = YELLOW  # important numbers, final answer
-PREV_STEP_COLOR = "#888888"  # previous steps (grey)
+PRIMARY = "#4fc3f7"
+ACCENT = "#ffb74d"
+DIM = "#9e9e9e"
+TEXT_COLOR = "#e6edf3"
 
-# Formula scale: target width ~6-8 units on manim's frame (default width 14.22)
-FORMULA_SCALE = 1.6
-FORMULA_SCALE_LARGE = 1.8  # for dominant center formula
-FINAL_RESULT_SCALE = 1.5  # scale up for final answer highlight
+FORMULA_COLOR = PRIMARY
+HIGHLIGHT_COLOR = ACCENT
+PREV_STEP_COLOR = DIM
 
-# Graph: axes should occupy most of the frame
+FORMULA_SCALE = 1.3
+FORMULA_SCALE_LARGE = 1.5
+FINAL_RESULT_SCALE = 1.3
+
+SECTION_LABEL_SCALE = 0.55
+
 AXES_X_LENGTH = 10
 AXES_Y_LENGTH = 6
