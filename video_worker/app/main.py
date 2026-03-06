@@ -7,6 +7,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from .db import create_engine, create_session_factory
@@ -22,6 +23,44 @@ from .validators import ContentValidationError, PlanValidationError, validate_co
 
 
 LOGGER = logging.getLogger(__name__)
+
+
+async def _update_lesson_video_url_from_job(
+    session: AsyncSession,
+    job: Any,
+    s3_url: str,
+) -> None:
+    """Update lesson video block URL directly from completed job payload.
+
+    If lesson_id is missing or invalid, this function is a no-op.
+    """
+    request_json = job.request_json if isinstance(job.request_json, dict) else {}
+    lesson_id_raw = request_json.get("lesson_id")
+    if not lesson_id_raw:
+        return
+
+    try:
+        lesson_id = str(uuid.UUID(str(lesson_id_raw)))
+    except Exception:
+        LOGGER.warning(
+            "Skip lesson video URL update: invalid lesson_id",
+            extra={"job_id": str(job.id), "lesson_id": str(lesson_id_raw)},
+        )
+        return
+
+    # We keep this idempotent: replace URL in all video blocks of the lesson.
+    await session.execute(
+        text(
+            """
+            UPDATE lesson_content_blocks
+            SET video_url = :video_url,
+                updated_at = NOW()
+            WHERE lesson_id = :lesson_id
+              AND block_type = 'video'
+            """
+        ),
+        {"video_url": s3_url, "lesson_id": lesson_id},
+    )
 
 
 async def handle_requested_message(
@@ -117,6 +156,14 @@ async def handle_requested_message(
                 "presigned_url": presigned_url,
                 "timings": timings,
             }
+            try:
+                await _update_lesson_video_url_from_job(session, job, s3_url)
+            except Exception:  # noqa: BLE001
+                LOGGER.exception(
+                    "Failed to update lesson video URL from completed job",
+                    extra={"job_id": job_id_str},
+                )
+
             await set_result(
                 session=session,
                 job=job,

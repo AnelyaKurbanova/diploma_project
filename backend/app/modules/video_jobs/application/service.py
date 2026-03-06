@@ -104,6 +104,43 @@ _PLAIN_TEXT_FIELDS: dict[str, list[str]] = {
 # Validation helpers (lightweight, backend-side)
 # ---------------------------------------------------------------------------
 
+
+def _build_fallback_plan(topic_title: str) -> dict[str, Any]:
+  """Deterministic backup scene plan when LLM returns invalid/empty output."""
+    lower = topic_title.lower()
+    visual_keywords = ("граф", "координат", "геометр", "дроб", "функц", "интеграл")
+    is_visual = any(k in lower for k in visual_keywords)
+
+    templates = (
+        [
+            "title",
+            "hook",
+            "goal",
+            "recap",
+            "definitions",
+            "plot",
+            "key_point",
+            "derivation",
+            "example",
+            "quiz",
+            "summary",
+        ]
+        if is_visual
+        else [
+            "title",
+            "hook",
+            "goal",
+            "recap",
+            "definitions",
+            "step_by_step",
+            "example",
+            "warning",
+            "quiz",
+            "summary",
+        ]
+    )
+    return {"scenes": [{"template": t} for t in templates]}  
+
 def _validate_plan_structure(data: dict[str, Any]) -> list[str]:
     """Return a list of validation error strings (empty if valid)."""
     errors: list[str] = []
@@ -381,6 +418,14 @@ async def _generate_plan(
 
         raw = (response.choices[0].message.content or "").strip()
         if not raw:
+            choice = response.choices[0]
+            finish_reason = getattr(choice, "finish_reason", None)
+            refusal = getattr(choice.message, "refusal", None)
+            logger.warning(
+                "LLM returned empty plan content (finish_reason=%r, refusal=%r)",
+                finish_reason,
+                refusal,
+            )
             errors = ["Модель вернула пустой план видео"]
         else:
             try:
@@ -401,10 +446,12 @@ async def _generate_plan(
         if attempt < _PLAN_MAX_RETRIES:
             previous_errors = errors
             continue
-        raise Conflict(
-            f"Не удалось сгенерировать валидный план видео после "
-            f"{_PLAN_MAX_RETRIES + 1} попыток: {'; '.join(errors)}"
+        fallback_plan = _build_fallback_plan(topic_title)
+        logger.warning(
+            "Using fallback plan after plan retries exhausted: %s",
+            "; ".join(errors),
         )
+        return fallback_plan
 
     raise Conflict("Не удалось сгенерировать план видео")
 
