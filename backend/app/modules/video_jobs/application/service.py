@@ -268,7 +268,6 @@ async def _generate_plan(
     try:
         response = await client.chat.completions.create(
             model=settings.LLM_MODEL_NAME,
-            temperature=0.3,
             messages=[
                 {"role": "system", "content": _PLAN_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
@@ -526,7 +525,6 @@ async def _generate_content_from_plan(
     try:
         response = await client.chat.completions.create(
             model=settings.LLM_MODEL_NAME,
-            temperature=0.2,
             messages=[
                 {"role": "system", "content": _CONTENT_SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
