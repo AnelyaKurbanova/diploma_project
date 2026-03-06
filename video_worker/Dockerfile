@@ -19,6 +19,8 @@ RUN apt-get update \
         gcc \
         python3-dev \
         latexmk \
+        dvisvgm \
+        ghostscript \
         texlive-latex-base \
         texlive-latex-extra \
         texlive-fonts-recommended \
