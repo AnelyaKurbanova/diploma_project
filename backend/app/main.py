@@ -38,6 +38,8 @@ app.add_middleware(
     allow_origins=[
         "https://orkenai.app",
         "https://www.orkenai.app",
+        "https://orenaitest.app",
+        "https://www.orenaitest.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
     ],
