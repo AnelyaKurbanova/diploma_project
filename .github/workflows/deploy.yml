@@ -11,6 +11,8 @@ jobs:
       tag: ${{ steps.set-env.outputs.tag }}
       remote_dir: ${{ steps.set-env.outputs.remote_dir }}
       video_worker_remote_dir: ${{ steps.set-env.outputs.video_worker_remote_dir }}
+      api_base_url: ${{ steps.set-env.outputs.api_base_url }}
+      google_login_url: ${{ steps.set-env.outputs.google_login_url }}
     steps:
       - name: Select environment
         id: set-env
@@ -19,10 +21,14 @@ jobs:
             echo "tag=staging" >> $GITHUB_OUTPUT
             echo "remote_dir=/opt/app-staging" >> $GITHUB_OUTPUT
             echo "video_worker_remote_dir=/opt/video-worker" >> $GITHUB_OUTPUT
+            echo "api_base_url=https://api.orenaitest.app" >> $GITHUB_OUTPUT
+            echo "google_login_url=https://api.orenaitest.app/auth/google/login" >> $GITHUB_OUTPUT
           else
             echo "tag=prod" >> $GITHUB_OUTPUT
             echo "remote_dir=/opt/app-prod" >> $GITHUB_OUTPUT
             echo "video_worker_remote_dir=/opt/video-worker" >> $GITHUB_OUTPUT
+            echo "api_base_url=https://api.orkenai.app" >> $GITHUB_OUTPUT
+            echo "google_login_url=https://api.orkenai.app/auth/google/login" >> $GITHUB_OUTPUT
           fi
  
   build-backend:
@@ -58,7 +64,10 @@ jobs:
 
       - name: Build and push frontend
         run: |
-          docker build -t ghcr.io/anelyakurbanova/diploma-frontend:${{ needs.env.outputs.tag }} ./frontend
+          docker build \
+            --build-arg NEXT_PUBLIC_API_BASE_URL=${{ needs.env.outputs.api_base_url }} \
+            --build-arg NEXT_PUBLIC_GOOGLE_LOGIN_URL=${{ needs.env.outputs.google_login_url }} \
+            -t ghcr.io/anelyakurbanova/diploma-frontend:${{ needs.env.outputs.tag }} ./frontend
           docker push ghcr.io/anelyakurbanova/diploma-frontend:${{ needs.env.outputs.tag }}
 
   build-video-worker:
