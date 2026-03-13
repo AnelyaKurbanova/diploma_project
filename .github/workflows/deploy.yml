@@ -104,7 +104,7 @@ jobs:
           envs: GHCR_TOKEN
           script: |
             echo "$GHCR_TOKEN" | docker login ghcr.io -u "anelyakurbanova" --password-stdin
-            cd /opt/app-prod
+            cd /opt/app-staging
             docker compose down
             docker image prune -af
             docker compose pull
