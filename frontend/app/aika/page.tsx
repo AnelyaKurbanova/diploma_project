@@ -250,9 +250,10 @@ export default function AikaPage() {
         </aside>
 
         {/* Main chat area */}
-        <div className="flex flex-1 flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {/* Chat header */}
-          <div className="flex items-center gap-3 border-b border-slate-100 bg-blue-600 px-5 py-3.5">
+        <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+          {/* Chat header — pinned top */}
+          <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, height: 60 }}
+               className="flex items-center gap-3 border-b border-slate-100 bg-blue-600 px-5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
               <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
@@ -275,8 +276,9 @@ export default function AikaPage() {
             </button>
           </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3 bg-slate-50/50">
+          {/* Messages — scrollable between header and input */}
+          <div style={{ position: "absolute", top: 60, bottom: 64, left: 0, right: 0, overflowY: "auto" }}
+               className="px-5 py-4 space-y-3 bg-slate-50/50">
             {messages.length === 0 && !isStreaming && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
                 <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg">
@@ -320,9 +322,9 @@ export default function AikaPage() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input */}
-          <div className="border-t border-slate-100 bg-white px-4 py-3">
-            <div className="flex items-end gap-2">
+          {/* Input — pinned bottom */}
+          <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, height: 64 }}
+               className="flex items-center gap-2 border-t border-slate-100 bg-white px-4">
               <textarea
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -354,7 +356,6 @@ export default function AikaPage() {
                   </svg>
                 )}
               </button>
-            </div>
           </div>
         </div>
       </div>
