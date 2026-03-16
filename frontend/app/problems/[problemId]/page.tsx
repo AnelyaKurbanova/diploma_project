@@ -719,7 +719,7 @@ export default function ProblemDetailsPage() {
 
               {/* Hint button */}
               <div className="mt-4">
-                <HintButton attemptNo={attemptNo} />
+                <HintButton />
               </div>
 
               {/* Error message */}

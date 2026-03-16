@@ -90,21 +90,8 @@ class ChatService:
         return int((next_midnight - now).total_seconds())
 
     async def _check_daily_limit(self, user_id: uuid.UUID, context_type: ChatContextType) -> None:
-        usage = await self.repo.get_or_create_daily_usage(user_id)
-        if context_type == ChatContextType.LESSON:
-            if usage.lesson_message_count >= settings.CHAT_LESSON_DAILY_LIMIT:
-                retry_after = self._seconds_until_midnight_utc()
-                raise TooManyRequests(
-                    f"Daily lesson chat limit reached ({settings.CHAT_LESSON_DAILY_LIMIT}). "
-                    f"Resets in {retry_after // 3600}h {(retry_after % 3600) // 60}m."
-                )
-        else:
-            if usage.hint_message_count >= settings.CHAT_HINT_DAILY_LIMIT:
-                retry_after = self._seconds_until_midnight_utc()
-                raise TooManyRequests(
-                    f"Daily hint limit reached ({settings.CHAT_HINT_DAILY_LIMIT}). "
-                    f"Resets in {retry_after // 3600}h {(retry_after % 3600) // 60}m."
-                )
+        # Limits disabled — usage still tracked for analytics
+        pass
 
     async def send_message(
         self,
@@ -191,11 +178,6 @@ class ChatService:
 
         if conv.context_type != ChatContextType.PROBLEM:
             raise BadRequest("Hints are only available for problem conversations")
-
-        # Validate attempt_no >= 3 (total submissions, regardless of assessment)
-        total_attempts = await self.repo.count_user_submissions(user_id, conv.problem_id)
-        if total_attempts < 3:
-            raise BadRequest("Hints available after 3 submission attempts")
 
         await self._check_daily_limit(user_id, ChatContextType.PROBLEM)
 
