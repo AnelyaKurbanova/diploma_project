@@ -12,11 +12,18 @@ type ChatBubbleProps = {
 };
 
 function preprocessLatex(text: string): string {
-  return text
-    .replace(/\\\[/g, "$$")
-    .replace(/\\\]/g, "$$")
-    .replace(/\\\(/g, "$")
-    .replace(/\\\)/g, "$");
+  let result = text;
+  // \[...\] → $$...$$
+  result = result.replace(/\\\[([\s\S]*?)\\\]/g, "\n$$\n$1\n$$\n");
+  // \(...\) → $...$
+  result = result.replace(/\\\(([\s\S]*?)\\\)/g, " $$$1$$ ");
+  // standalone integrals/fractions etc that aren't wrapped — wrap in $...$
+  // e.g. ∫_a^b f(x)dx or F(b) − F(a)
+  result = result.replace(
+    /(?<!\$)(∫[^$\n]+?(?:dx|dy|dz|dt))(?!\$)/g,
+    " $$$1$$ "
+  );
+  return result;
 }
 
 export function ChatBubble({ role, content, isStreaming }: ChatBubbleProps) {
@@ -27,14 +34,14 @@ export function ChatBubble({ role, content, isStreaming }: ChatBubbleProps) {
       className={`flex ${isUser ? "justify-end" : "justify-start"} animate-[fade-in_0.2s_ease-out]`}
     >
       {!isUser && (
-        <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet-500 to-blue-500 text-[11px] font-bold text-white shadow-sm">
-          AI
+        <div className="mr-2 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white shadow-sm">
+          Ai
         </div>
       )}
       <div
         className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed shadow-sm ${
           isUser
-            ? "rounded-br-md bg-gradient-to-br from-blue-600 to-blue-700 text-white"
+            ? "rounded-br-md bg-blue-600 text-white"
             : "rounded-bl-md border border-slate-100 bg-white text-slate-700"
         }`}
       >

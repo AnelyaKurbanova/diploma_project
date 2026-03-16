@@ -717,9 +717,9 @@ export default function ProblemDetailsPage() {
                 </button>
               </div>
 
-              {/* Hint button */}
+              {/* Hint button — visible after first wrong answer */}
               <div className="mt-4">
-                <HintButton />
+                <HintButton visible={resultAnimation === "incorrect"} />
               </div>
 
               {/* Error message */}
