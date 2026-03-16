@@ -94,6 +94,7 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
     [conversationId, sendMessage],
   );
 
+  // Hint: open widget + send pre-filled message with problem context
   const triggerHint = useCallback(() => {
     if (!isOpen) {
       setIsOpen(true);
@@ -111,65 +112,58 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
     return () => window.removeEventListener("chat:request-hint", handler);
   }, [triggerHint]);
 
-  useEffect(() => {
-    const handler = () => toggleOpen();
-    window.addEventListener("chat:toggle", handler);
-    return () => window.removeEventListener("chat:toggle", handler);
-  }, [toggleOpen]);
-
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-stretch justify-end">
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/20 backdrop-blur-[2px]" onClick={toggleOpen} />
-
-      {/* Side panel */}
-      <div className="relative flex h-full w-full max-w-md flex-col bg-white shadow-2xl animate-[slide-in-right_0.2s_ease-out]">
-        {/* Header */}
-        <div className="flex items-center justify-between bg-blue-600 px-5 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
-              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-              </svg>
-            </div>
-            <div>
-              <h3 className="text-base font-semibold text-white">Aika</h3>
-              <p className="text-xs text-white/70">AI-помощник</p>
-            </div>
-          </div>
-          <button
-            type="button"
-            onClick={toggleOpen}
-            className="rounded-lg p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Messages — takes all available space */}
-        <ChatMessages
-          messages={messages}
-          streamingContent={streamingContent}
-          isStreaming={isStreaming}
-        />
-
-        {/* Error */}
-        {error && (
-          <div className="mx-4 mb-2 flex items-center gap-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">
-            <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
-            </svg>
-            {error}
-          </div>
+    <>
+      {/* Floating toggle button */}
+      <button
+        type="button"
+        onClick={toggleOpen}
+        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/25 transition-all hover:bg-blue-700 hover:shadow-xl active:scale-90"
+        aria-label={isOpen ? "Закрыть чат" : "Открыть чат"}
+      >
+        {isOpen ? (
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+          </svg>
         )}
+      </button>
 
-        {/* Input — pinned to bottom */}
-        <ChatInput onSend={handleSend} disabled={isStreaming} />
-      </div>
-    </div>
+      {/* Chat popup */}
+      {isOpen && (
+        <div className="fixed bottom-24 right-6 z-50 flex h-[520px] w-[400px] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl animate-[scale-in_0.2s_ease-out]">
+          {/* Header */}
+          <div className="flex items-center justify-between bg-blue-600 px-4 py-3">
+            <div className="flex items-center gap-2.5">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
+                <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">Aika</h3>
+                <p className="text-[11px] text-white/70">AI-помощник</p>
+              </div>
+            </div>
+            <button type="button" onClick={toggleOpen} className="rounded-lg p-1.5 text-white/70 hover:bg-white/10 hover:text-white">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <ChatMessages messages={messages} streamingContent={streamingContent} isStreaming={isStreaming} />
+
+          {error && (
+            <div className="mx-3 mb-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</div>
+          )}
+
+          <ChatInput onSend={handleSend} disabled={isStreaming} />
+        </div>
+      )}
+    </>
   );
 }

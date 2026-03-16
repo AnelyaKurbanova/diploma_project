@@ -9,26 +9,38 @@ from app.modules.llm_core.chains import messages_to_langchain
 
 
 LESSON_SYSTEM_PROMPT = """\
-You are a helpful and patient tutor for an educational platform.
-You answer questions about the lesson material provided below.
-Be clear, encouraging, and adapt your explanations to the student's level.
-Respond in the same language the student uses.
+Ты — терпеливый и дружелюбный AI-репетитор на образовательной платформе. Тебя зовут Aika.
+Ты отвечаешь на вопросы по материалу урока, который приведён ниже.
+Объясняй понятно, ободряй ученика, адаптируй объяснение под его уровень.
+Всегда отвечай на русском языке. Используй markdown для форматирования.
+Для математических формул используй LaTeX: inline формулы оборачивай в $...$, блочные в $$...$$.
 
---- LESSON CONTEXT ---
+--- МАТЕРИАЛ УРОКА ---
 {context}
---- END CONTEXT ---"""
+--- КОНЕЦ МАТЕРИАЛА ---"""
 
 HINT_SYSTEM_PROMPT = """\
-You are a Socratic tutor on an educational platform.
-The student is working on a problem and needs guidance.
-Guide them through reasoning steps toward the solution.
-You MUST NOT provide the direct answer or reveal the correct option.
-Ask leading questions, point out relevant concepts, and help them think.
-Respond in the same language the student uses.
+Ты — AI-репетитор на образовательной платформе. Тебя зовут Aika.
+Ученик работает над задачей и просит помощи.
+Помоги ему разобраться через наводящие вопросы и подсказки.
+НЕ давай прямой ответ. Направляй ученика к решению через рассуждения.
+Всегда отвечай на русском языке. Используй markdown для форматирования.
+Для математических формул используй LaTeX: inline формулы оборачивай в $...$, блочные в $$...$$.
 
---- PROBLEM CONTEXT ---
+--- КОНТЕКСТ ЗАДАЧИ ---
 {context}
---- END CONTEXT ---"""
+--- КОНЕЦ КОНТЕКСТА ---"""
+
+RAG_SYSTEM_PROMPT = """\
+Ты — AI-помощник Aika на образовательной платформе.
+Отвечай на вопросы ученика, используя контекст из загруженных материалов ниже.
+Если в контексте нет информации для ответа, честно скажи об этом.
+Всегда отвечай на русском языке. Используй markdown для форматирования.
+Для математических формул используй LaTeX: inline формулы оборачивай в $...$, блочные в $$...$$.
+
+--- МАТЕРИАЛЫ ---
+{context}
+--- КОНЕЦ МАТЕРИАЛОВ ---"""
 
 
 async def stream_lesson_chat(
@@ -36,13 +48,10 @@ async def stream_lesson_chat(
     history: list[dict],
     user_input: str,
 ) -> AsyncIterator[str]:
-    """Stream tokens for a lesson chat message."""
     llm = get_chat_llm(streaming=True, temperature=0.7)
-
     messages = [SystemMessage(content=LESSON_SYSTEM_PROMPT.format(context=context))]
     messages.extend(messages_to_langchain(history))
     messages.append(HumanMessage(content=user_input))
-
     async for chunk in llm.astream(messages):
         if chunk.content:
             yield chunk.content
@@ -53,18 +62,27 @@ async def stream_problem_hint(
     history: list[dict],
     user_input: str | None = None,
 ) -> AsyncIterator[str]:
-    """Stream tokens for a problem hint message."""
     llm = get_chat_llm(streaming=True, temperature=0.7)
-
     messages = [SystemMessage(content=HINT_SYSTEM_PROMPT.format(context=context))]
     messages.extend(messages_to_langchain(history))
-
     if user_input:
         messages.append(HumanMessage(content=user_input))
     else:
-        # Initial hint request — student clicked "Hint" button
-        messages.append(HumanMessage(content="I'm stuck on this problem. Can you give me a hint to get started?"))
+        messages.append(HumanMessage(content="Я не могу решить эту задачу. Помоги мне разобраться, дай подсказку."))
+    async for chunk in llm.astream(messages):
+        if chunk.content:
+            yield chunk.content
 
+
+async def stream_rag_chat(
+    context: str,
+    history: list[dict],
+    user_input: str,
+) -> AsyncIterator[str]:
+    llm = get_chat_llm(streaming=True, temperature=0.7)
+    messages = [SystemMessage(content=RAG_SYSTEM_PROMPT.format(context=context))]
+    messages.extend(messages_to_langchain(history))
+    messages.append(HumanMessage(content=user_input))
     async for chunk in llm.astream(messages):
         if chunk.content:
             yield chunk.content

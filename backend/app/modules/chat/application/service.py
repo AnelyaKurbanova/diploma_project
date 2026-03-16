@@ -21,6 +21,7 @@ from app.modules.chat.application.context_builder import (
 from app.modules.chat.application.chains import (
     stream_lesson_chat,
     stream_problem_hint,
+    stream_rag_chat,
 )
 
 logger = logging.getLogger(__name__)
@@ -228,6 +229,39 @@ class ChatService:
                 )
                 await self.session.commit()
             yield f"event: error\ndata: {json.dumps({'message': 'AI response failed. Please try again.'})}\n\n"
+
+    async def send_rag_message(self, user_id: uuid.UUID, content: str):
+        """RAG-based chat — search user's documents and stream response."""
+        from app.modules.knowledge.application.embedding import embed
+        from app.modules.knowledge.data.repo import KnowledgeRepo
+
+        # Search user's documents
+        query_embedding = embed(content)
+        knowledge_repo = KnowledgeRepo(self.session)
+        chunks = await knowledge_repo.search(
+            query_embedding,
+            subject_code=f"user:{user_id}",
+            k=8,
+        )
+
+        if chunks:
+            context = "\n\n---\n\n".join(chunk.content for chunk in chunks)
+        else:
+            context = "(У вас пока нет загруженных материалов. Загрузите файлы через кнопку выше.)"
+
+        full_response = []
+        try:
+            stream = stream_rag_chat(context, [], content)
+            async for token in stream:
+                full_response.append(token)
+                yield f"data: {json.dumps({'token': token})}\n\n"
+
+            assistant_content = "".join(full_response)
+            yield f"data: {json.dumps({'done': True, 'message_id': 'rag'})}\n\n"
+
+        except Exception as exc:
+            logger.error("RAG streaming error: %s", exc)
+            yield f"event: error\ndata: {json.dumps({'message': 'Ошибка AI. Попробуйте снова.'})}\n\n"
 
     async def get_usage(self, user_id: uuid.UUID) -> dict:
         usage = await self.repo.get_or_create_daily_usage(user_id)
