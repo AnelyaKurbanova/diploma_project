@@ -47,7 +47,7 @@ class ChatConversationModel(Base):
         index=True,
     )
     context_type: Mapped[ChatContextType] = mapped_column(
-        SAEnum(ChatContextType, name="chat_context_type"),
+        SAEnum(ChatContextType, name="chat_context_type", values_callable=lambda e: [x.value for x in e]),
         nullable=False,
     )
     lesson_id: Mapped[uuid.UUID | None] = mapped_column(
@@ -96,7 +96,7 @@ class ChatMessageModel(Base):
         nullable=False,
     )
     role: Mapped[ChatMessageRole] = mapped_column(
-        SAEnum(ChatMessageRole, name="chat_message_role"),
+        SAEnum(ChatMessageRole, name="chat_message_role", values_callable=lambda e: [x.value for x in e]),
         nullable=False,
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
