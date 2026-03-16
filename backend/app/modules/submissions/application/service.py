@@ -365,6 +365,7 @@ class SubmissionService:
             last_answer_choice_ids=choice_ids or None,
             last_answer_text=sub.answer_text,
             last_created_at=sub.submitted_at,
+            attempt_no=sub.attempt_no,
         )
 
     async def get_progress_batch(

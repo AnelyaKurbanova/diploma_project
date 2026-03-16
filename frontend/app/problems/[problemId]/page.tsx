@@ -7,6 +7,8 @@ import { apiGet, apiGetStudentAssessmentDetail, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { ProblemContent } from "@/components/ui/problem-content";
+import { ChatWidget } from "@/components/chat/ChatWidget";
+import { HintButton } from "@/components/chat/HintButton";
 
 type Problem = {
   id: string;
@@ -61,6 +63,7 @@ type SubmissionProgress = {
   last_answer_choice_ids: string[] | null;
   last_answer_text: string | null;
   last_created_at: string | null;
+  attempt_no: number | null;
 };
 
 const DIFFICULTY_LABELS: Record<string, string> = {
@@ -101,6 +104,7 @@ export default function ProblemDetailsPage() {
     "correct" | "incorrect" | null
   >(null);
   const [initialProgressLoaded, setInitialProgressLoaded] = useState(false);
+  const [attemptNo, setAttemptNo] = useState<number | null>(null);
   const [imageLightboxIndex, setImageLightboxIndex] = useState<number | null>(null);
   const [navProblemIds, setNavProblemIds] = useState<string[] | null>(null);
   const [navSolvedIds, setNavSolvedIds] = useState<string[]>([]);
@@ -161,6 +165,9 @@ export default function ProblemDetailsPage() {
           accessToken,
         );
         setInitialProgressLoaded(true);
+        if (progress.attempt_no) {
+          setAttemptNo(progress.attempt_no);
+        }
         if (!progress.has_attempt) return;
 
         if (
@@ -353,6 +360,7 @@ export default function ProblemDetailsPage() {
       );
 
       setSubmissionResult(result);
+      setAttemptNo((prev) => (prev ?? 0) + 1);
 
       if (result.status === "graded") {
         if (result.is_correct) {
@@ -709,6 +717,11 @@ export default function ProblemDetailsPage() {
                 </button>
               </div>
 
+              {/* Hint button */}
+              <div className="mt-4">
+                <HintButton attemptNo={attemptNo} />
+              </div>
+
               {/* Error message */}
               {submitError && (
                 <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">
@@ -811,6 +824,7 @@ export default function ProblemDetailsPage() {
           )
         )}
       </main>
+      <ChatWidget contextType="problem" problemId={problemId} />
     </div>
   );
 }
