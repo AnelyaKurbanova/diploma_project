@@ -124,6 +124,15 @@ body {
   }
 }
 
+@keyframes slide-in-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
 .animate-page-in {
   animation: page-fade-in 0.4s ease-out both;
 }
