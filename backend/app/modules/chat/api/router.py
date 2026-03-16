@@ -130,40 +130,57 @@ async def upload_file_for_rag(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    """Upload a file (txt, md, docx) and ingest into pgvector for RAG."""
-    from app.modules.knowledge.application.ingestion import ingest_docx, _build_chunks
+    """Upload a file (txt, md, docx, pdf) and ingest into pgvector for RAG."""
+    from app.modules.knowledge.application.ingestion import _build_chunks
     from app.modules.knowledge.application.embedding import embed_batch
     from app.modules.knowledge.data.repo import KnowledgeRepo
 
     filename = file.filename or "upload"
     suffix = Path(filename).suffix.lower()
+    subject_code = f"user:{current_user.id}"
 
     if suffix == ".docx":
+        from app.modules.knowledge.application.ingestion import ingest_docx
         with NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
             content = await file.read()
             tmp.write(content)
             tmp.flush()
-            doc, count = await ingest_docx(session, Path(tmp.name), f"user:{current_user.id}")
+            doc, count = await ingest_docx(session, Path(tmp.name), subject_code)
         return {"document_id": str(doc.id), "filename": filename, "chunks": count}
+
+    elif suffix == ".pdf":
+        from PyPDF2 import PdfReader
+        with NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+            content = await file.read()
+            tmp.write(content)
+            tmp.flush()
+            reader = PdfReader(tmp.name)
+            pages = [page.extract_text() or "" for page in reader.pages]
+            raw = "\n\n".join(pages)
 
     elif suffix in (".txt", ".md"):
         raw = (await file.read()).decode("utf-8", errors="replace")
-        chunks = _build_chunks(raw)
-        repo = KnowledgeRepo(session)
-        doc = await repo.create_document(filename=filename, subject_code=f"user:{current_user.id}")
-        contents = [c[1] for c in chunks]
-        embeddings = embed_batch(contents)
-        for idx, ((section, content), embedding) in enumerate(zip(chunks, embeddings)):
-            await repo.create_chunk(
-                document_id=doc.id, content=content, embedding=embedding,
-                section=section, chunk_index=idx,
-            )
-        await session.commit()
-        return {"document_id": str(doc.id), "filename": filename, "chunks": len(chunks)}
 
     else:
         from app.core.errors import BadRequest
-        raise BadRequest("Поддерживаются файлы .txt, .md, .docx")
+        raise BadRequest("Поддерживаются файлы .txt, .md, .docx, .pdf")
+
+    # Common path for txt/md/pdf
+    chunks = _build_chunks(raw)
+    if not chunks:
+        from app.core.errors import BadRequest
+        raise BadRequest("Файл пустой или не удалось извлечь текст")
+    repo = KnowledgeRepo(session)
+    doc = await repo.create_document(filename=filename, subject_code=subject_code)
+    contents = [c[1] for c in chunks]
+    embeddings = embed_batch(contents)
+    for idx, ((section, text_content), embedding) in enumerate(zip(chunks, embeddings)):
+        await repo.create_chunk(
+            document_id=doc.id, content=text_content, embedding=embedding,
+            section=section, chunk_index=idx,
+        )
+    await session.commit()
+    return {"document_id": str(doc.id), "filename": filename, "chunks": len(chunks)}
 
 
 @router.get("/aika/documents")

@@ -39,7 +39,7 @@ export function ChatMessages({
   }, [messages, streamingContent]);
 
   return (
-    <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-slate-50/50">
+    <div className="h-full overflow-y-auto px-4 py-3 space-y-3 bg-slate-50/50">
       {messages.length === 0 && !isStreaming && (
         <div className="flex flex-col items-center justify-center py-10 text-center">
           <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-md">

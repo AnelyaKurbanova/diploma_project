@@ -184,7 +184,7 @@ export default function AikaPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-slate-800">Материалы</h2>
             <p className="mb-3 text-xs text-slate-400">
-              Загрузите файлы (.txt, .md, .docx) — Aika будет отвечать на их основе
+              Загрузите файлы (.txt, .md, .docx, .pdf) — Aika будет отвечать на их основе
             </p>
 
             <button
@@ -213,7 +213,7 @@ export default function AikaPage() {
             <input
               ref={fileInputRef}
               type="file"
-              accept=".txt,.md,.docx"
+              accept=".txt,.md,.docx,.pdf"
               className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];

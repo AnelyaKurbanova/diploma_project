@@ -94,7 +94,6 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
     [conversationId, sendMessage],
   );
 
-  // Hint: open widget + send pre-filled message with problem context
   const triggerHint = useCallback(() => {
     if (!isOpen) {
       setIsOpen(true);
@@ -114,7 +113,7 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
 
   return (
     <>
-      {/* Floating toggle button */}
+      {/* FAB */}
       <button
         type="button"
         onClick={toggleOpen}
@@ -132,11 +131,14 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
         )}
       </button>
 
-      {/* Chat popup */}
+      {/* Popup */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 flex h-[520px] w-[400px] flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl animate-[scale-in_0.2s_ease-out]">
+        <div
+          style={{ display: "flex", flexDirection: "column", height: "520px", width: "400px" }}
+          className="fixed bottom-24 right-6 z-50 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl animate-[scale-in_0.2s_ease-out]"
+        >
           {/* Header */}
-          <div className="flex items-center justify-between bg-blue-600 px-4 py-3">
+          <div style={{ flexShrink: 0 }} className="flex items-center justify-between bg-blue-600 px-4 py-3">
             <div className="flex items-center gap-2.5">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-white/20">
                 <svg className="h-4 w-4 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -155,13 +157,20 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
             </button>
           </div>
 
-          <ChatMessages messages={messages} streamingContent={streamingContent} isStreaming={isStreaming} />
+          {/* Messages — takes all remaining space */}
+          <div style={{ flex: "1 1 0%", minHeight: 0, overflow: "hidden" }}>
+            <ChatMessages messages={messages} streamingContent={streamingContent} isStreaming={isStreaming} />
+          </div>
 
+          {/* Error */}
           {error && (
-            <div className="mx-3 mb-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</div>
+            <div style={{ flexShrink: 0 }} className="mx-3 mb-2 rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</div>
           )}
 
-          <ChatInput onSend={handleSend} disabled={isStreaming} />
+          {/* Input — pinned at bottom */}
+          <div style={{ flexShrink: 0 }}>
+            <ChatInput onSend={handleSend} disabled={isStreaming} />
+          </div>
         </div>
       )}
     </>
