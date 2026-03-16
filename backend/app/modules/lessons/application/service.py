@@ -361,7 +361,7 @@ class LessonService:
             raise NotFound("Нет учебных материалов по предмету. Сначала загрузите docx через /knowledge/ingest.")
 
         chunk_contents = [c.content for c in chunks]
-        text = await generate_lecture_from_context(topic.title_ru, chunk_contents)
+        text = await generate_lecture_from_context(lesson.title, chunk_contents)
         if not text:
             raise Conflict(
                 "Модель вернула пустой текст лекции. Попробуйте ещё раз; "
