@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import CacheService, NAMESPACE, get_cache_service
 from app.core.errors import Conflict, NotFound
 from app.core.i18n import tr
 from app.modules.catalog.data.repo import CatalogRepo
@@ -37,10 +38,15 @@ def _compute_canonical(answer_key_data) -> str | None:  # noqa: ANN001
 
 
 class ProblemService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        cache: CacheService | None = None,
+    ) -> None:
         self.session = session
         self.repo = ProblemsRepo(session)
         self.catalog_repo = CatalogRepo(session)
+        self.cache = cache or get_cache_service()
 
     async def _commit_and_reload(self, problem_id: uuid.UUID) -> ProblemModel:
         await self.session.commit()
@@ -121,12 +127,17 @@ class ProblemService:
         return await self.repo.get_problem(problem_id)
 
     async def get_public(self, problem_id: uuid.UUID) -> ProblemModel:
-        problem = await self.repo.get_problem(problem_id)
-        if problem.status != ProblemStatus.PUBLISHED:
-            from app.core.errors import NotFound
+        cache_key = f"{NAMESPACE.catalog_problems}:{problem_id}"
 
-            raise NotFound(tr("problem_not_found"))
-        return problem
+        async def _load() -> ProblemModel:
+            problem = await self.repo.get_problem(problem_id)
+            if problem.status != ProblemStatus.PUBLISHED:
+                from app.core.errors import NotFound
+
+                raise NotFound(tr("problem_not_found"))
+            return problem
+
+        return await self.cache.get_or_set(cache_key, _load)
 
     async def list_public(
         self,
@@ -135,12 +146,24 @@ class ProblemService:
         topic_id: uuid.UUID | None = None,
         difficulty: ProblemDifficulty | None = None,
     ) -> list[ProblemModel]:
-        return await self.repo.list_problems(
-            subject_id=subject_id,
-            topic_id=topic_id,
-            difficulty=difficulty,
-            status=ProblemStatus.PUBLISHED,
-        )
+        cache_key_parts: list[str] = [NAMESPACE.catalog_problems, "list_public"]
+        if subject_id is not None:
+            cache_key_parts.append(f"subject={subject_id}")
+        if topic_id is not None:
+            cache_key_parts.append(f"topic={topic_id}")
+        if difficulty is not None:
+            cache_key_parts.append(f"difficulty={difficulty.value}")
+        cache_key = ":".join(cache_key_parts)
+
+        async def _load() -> list[ProblemModel]:
+            return await self.repo.list_problems(
+                subject_id=subject_id,
+                topic_id=topic_id,
+                difficulty=difficulty,
+                status=ProblemStatus.PUBLISHED,
+            )
+
+        return await self.cache.get_or_set(cache_key, _load)
 
     async def update_draft(
         self,
@@ -199,7 +222,11 @@ class ProblemService:
 
         await self._save_images(problem, data.images)
 
-        return await self._commit_and_reload(problem_id)
+        result = await self._commit_and_reload(problem_id)
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
+        return result
 
     async def list_all(
         self,
@@ -227,7 +254,11 @@ class ProblemService:
             problem_id,
             status=ProblemStatus.PENDING_REVIEW,
         )
-        return await self._commit_and_reload(problem_id)
+        result = await self._commit_and_reload(problem_id)
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
+        return result
 
     async def moderator_publish(self, problem_id: uuid.UUID) -> ProblemModel:
         problem = await self.repo.get_problem(problem_id)
@@ -238,7 +269,11 @@ class ProblemService:
             problem_id,
             status=ProblemStatus.PUBLISHED,
         )
-        return await self._commit_and_reload(problem_id)
+        result = await self._commit_and_reload(problem_id)
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
+        return result
 
     async def reject_problem(self, problem_id: uuid.UUID) -> ProblemModel:
         problem = await self.repo.get_problem(problem_id)
@@ -249,14 +284,22 @@ class ProblemService:
             problem_id,
             status=ProblemStatus.DRAFT,
         )
-        return await self._commit_and_reload(problem_id)
+        result = await self._commit_and_reload(problem_id)
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
+        return result
 
     async def archive_problem(self, problem_id: uuid.UUID) -> ProblemModel:
         await self.repo.change_status(
             problem_id,
             status=ProblemStatus.ARCHIVED,
         )
-        return await self._commit_and_reload(problem_id)
+        result = await self._commit_and_reload(problem_id)
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
+        return result
 
     async def delete_problem(self, problem_id: uuid.UUID) -> None:
         # Сначала загружаем задачу, чтобы проверить её статус.
@@ -271,6 +314,8 @@ class ProblemService:
 
         await self.repo.delete_problem(problem_id)
         await self.session.commit()
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
 
     # ------------------------------------------------------------------
     # RAG-based generation

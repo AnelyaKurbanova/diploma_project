@@ -20,7 +20,7 @@ diploma/
 ├─ .env.example                 # пример переменных окружения (копируем в .env)
 ├─ .env                         # локальные переменные окружения (НЕ коммитить)
 ├─ requirements.txt             # зависимости для локальной разработки через venv
-├─ docker-compose.dev.yml       # dev-compose: ТОЛЬКО PostgreSQL (API запускается локально)
+├─ docker-compose.dev.yml       # dev-compose: PostgreSQL + Redis (API запускается локально)
 ├─ Dockerfile                   # (опционально) для контейнеризации API позже/для CI
 ├─ alembic.ini                  # конфиг Alembic (ini, НЕ Python)
 ├─ migrations/
@@ -244,7 +244,7 @@ alembic upgrade head
 
 ## Команды
 
-Поднять БД:
+Поднять БД и Redis:
 ```powershell
 docker compose -f docker-compose.dev.yml --env-file .env up -d
 ```
@@ -281,6 +281,8 @@ uvicorn app.main:app --reload
 - **Задачи (LeetCode‑страница)**
   - `GET /problems?subject_id={uuid}&topic_id={uuid}&difficulty={easy|medium|hard}` — список **опубликованных** задач с фильтрами.
   - `GET /problems/{problem_id}` — детальная информация по одной задаче (доступны только задачи со статусом `published`).
+
+Эти эндпоинты дополнительно кешируются в Redis (по параметрам фильтрации) с базовым TTL `REDIS_CACHE_TTL_DEFAULT` (по умолчанию 600 секунд). При изменении соответствующих сущностей (subjects, topics, problems) кеш автоматически инвалидируется на уровне сервисов приложений.
 
 Примеры запросов (PowerShell / curl):
 

@@ -14,6 +14,8 @@ from app.core.logging import setup_logging
 from app.core.errors import AppError
 from app.routers import api_router
 
+from app.data.cache.redis_backend import init_redis_cache, close_redis_cache
+
 setup_logging()
 logger = logging.getLogger(__name__)
 
@@ -47,6 +49,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def on_startup() -> None:
+    await init_redis_cache(settings.REDIS_URL)
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    await close_redis_cache()
+
 
 @app.get("/health")
 async def health():
