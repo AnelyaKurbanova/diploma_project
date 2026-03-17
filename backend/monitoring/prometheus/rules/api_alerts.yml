@@ -1,0 +1,137 @@
+groups:
+  - name: api
+    rules:
+      # -----------------------------------------------------------------------
+      # HTTP error rate
+      # -----------------------------------------------------------------------
+      - alert: HighHttp5xxRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High HTTP 5xx error rate (> 1%)"
+          description: "More than 1% of requests returned 5xx for the last 5 minutes."
+
+      # -----------------------------------------------------------------------
+      # Latency (p95 > 2 s)
+      # -----------------------------------------------------------------------
+      - alert: HighApiLatency
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API p95 latency (> 2 s)"
+          description: "p95 response time exceeded 2 seconds for 5 minutes."
+
+      # -----------------------------------------------------------------------
+      # API down
+      # -----------------------------------------------------------------------
+      - alert: ApiDown
+        expr: up{job="fastapi"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "FastAPI service is down"
+          description: "The FastAPI process has been unreachable for more than 1 minute."
+
+  - name: infrastructure
+    rules:
+      # -----------------------------------------------------------------------
+      # Postgres down
+      # -----------------------------------------------------------------------
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Postgres exporter unreachable"
+          description: "Postgres exporter has been unreachable for more than 1 minute."
+
+      # -----------------------------------------------------------------------
+      # Redis down
+      # -----------------------------------------------------------------------
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis exporter unreachable"
+          description: "Redis exporter has been unreachable for more than 1 minute."
+
+      # -----------------------------------------------------------------------
+      # High memory usage (> 80 %)
+      # -----------------------------------------------------------------------
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)
+          ) > 0.80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage on host (> 80%)"
+          description: "Available memory on the host is below 20%."
+
+      # -----------------------------------------------------------------------
+      # High CPU usage (> 80 %)
+      # -----------------------------------------------------------------------
+      - alert: HighCpuUsage
+        expr: |
+          (
+            1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m]))
+          ) > 0.80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage on host (> 80%)"
+          description: "Average CPU utilisation exceeded 80% for 5 minutes."
+
+      # -----------------------------------------------------------------------
+      # Disk nearly full (> 85 %)
+      # -----------------------------------------------------------------------
+      - alert: DiskNearlyFull
+        expr: |
+          (
+            (node_filesystem_size_bytes{fstype!="tmpfs"} - node_filesystem_free_bytes{fstype!="tmpfs"})
+            / node_filesystem_size_bytes{fstype!="tmpfs"}
+          ) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Disk usage > 85%"
+          description: "Filesystem {{ $labels.mountpoint }} is more than 85% full."
+
+  - name: llm
+    rules:
+      # -----------------------------------------------------------------------
+      # High LLM error rate
+      # -----------------------------------------------------------------------
+      - alert: HighLlmErrorRate
+        expr: |
+          (
+            sum(rate(llm_errors_total[5m]))
+            /
+            (sum(rate(llm_requests_total[5m])) + 0.001)
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High LLM error rate (> 10%)"
+          description: "More than 10% of LLM calls are failing."
