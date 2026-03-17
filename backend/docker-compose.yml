@@ -1,4 +1,7 @@
 services:
+  # ---------------------------------------------------------------------------
+  # Application
+  # ---------------------------------------------------------------------------
   db:
     image: pgvector/pgvector:pg16
     environment:
@@ -15,6 +18,17 @@ services:
       timeout: 3s
       retries: 20
 
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   api:
     build: .
     env_file: [.env]
@@ -23,11 +37,205 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://tempo:4317
+      OTEL_SERVICE_NAME: fastapi-backend
     command: >
       sh -c "
       alembic upgrade head &&
       uvicorn app.main:app --host 0.0.0.0 --port 8000
       "
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "5"
+
+  # ---------------------------------------------------------------------------
+  # Metrics collection
+  # ---------------------------------------------------------------------------
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+      - "--web.enable-admin-api"
+    restart: unless-stopped
+
+  alertmanager:
+    image: prom/alertmanager:v0.28.1
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - "--config.file=/etc/alertmanager/alertmanager.yml"
+      - "--storage.path=/alertmanager"
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Exporters
+  # ---------------------------------------------------------------------------
+  postgres-exporter:
+    image: prometheuscommunity/postgres-exporter:v0.16.0
+    environment:
+      DATA_SOURCE_NAME: "postgresql://${POSTGRES_USER:-app}:${POSTGRES_PASSWORD:-app}@db:5432/${POSTGRES_DB:-app}?sslmode=disable"
+    ports:
+      - "9187:9187"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    environment:
+      REDIS_ADDR: "redis://redis:6379"
+    ports:
+      - "9121:9121"
+    depends_on:
+      - redis
+    restart: unless-stopped
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.rootfs=/rootfs"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Log aggregation
+  # ---------------------------------------------------------------------------
+  loki:
+    image: grafana/loki:3.4.2
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./monitoring/loki/loki.yml:/etc/loki/loki.yml:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki.yml
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.4.2
+    volumes:
+      - ./monitoring/promtail/promtail.yml:/etc/promtail/promtail.yml:ro
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: -config.file=/etc/promtail/promtail.yml
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Distributed tracing
+  # ---------------------------------------------------------------------------
+  tempo:
+    image: grafana/tempo:2.7.2
+    ports:
+      - "3200:3200"   # Tempo HTTP API
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    volumes:
+      - tempo_data:/var/tempo
+    command:
+      - "-config.file=/etc/tempo/tempo.yml"
+    configs:
+      - source: tempo_config
+        target: /etc/tempo/tempo.yml
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------------
+  # Visualisation
+  # ---------------------------------------------------------------------------
+  grafana:
+    image: grafana/grafana:11.5.2
+    ports:
+      - "3030:3000"
+    env_file:
+      - ./monitoring/grafana/grafana.env
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    restart: unless-stopped
 
 volumes:
   pgdata:
+  prometheus_data:
+  alertmanager_data:
+  loki_data:
+  tempo_data:
+  grafana_data:
+
+configs:
+  tempo_config:
+    content: |
+      server:
+        http_listen_port: 3200
+
+      distributor:
+        receivers:
+          otlp:
+            protocols:
+              grpc:
+                endpoint: 0.0.0.0:4317
+              http:
+                endpoint: 0.0.0.0:4318
+
+      ingester:
+        trace_idle_period: 10s
+        max_block_bytes: 1_000_000
+        max_block_duration: 5m
+
+      compactor:
+        compaction:
+          compaction_window: 1h
+          max_compaction_objects: 1000000
+          block_retention: 72h
+          compacted_block_retention: 10m
+
+      storage:
+        trace:
+          backend: local
+          local:
+            path: /var/tempo/blocks
+          wal:
+            path: /var/tempo/wal
+
+      metrics_generator:
+        registry:
+          external_labels:
+            source: tempo
+        storage:
+          path: /var/tempo/generator/wal
+
+      overrides:
+        defaults:
+          metrics_generator:
+            processors: [service-graphs, span-metrics]

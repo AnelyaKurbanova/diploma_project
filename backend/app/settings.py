@@ -49,8 +49,8 @@ class Settings(BaseSettings):
     COOKIE_SAMESITE: str = "lax"  # lax|strict|none
     COOKIE_DOMAIN: str | None = None
 
-    # Rate limit
     REDIS_URL: str | None = None
+    REDIS_CACHE_TTL_DEFAULT: int = 600
     RL_OTP_PER_EMAIL_PER_HOUR: int = 5
     RL_OTP_PER_IP_PER_HOUR: int = 20
     RL_VERIFY_PER_IP_PER_15MIN: int = 50

@@ -4,6 +4,7 @@ import uuid
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache import CacheService, NAMESPACE, get_cache_service
 from app.modules.catalog.data.repo import CatalogRepo
 from app.modules.catalog.data.models import SubjectModel, TopicModel
 from app.modules.catalog.api.schemas import (
@@ -15,9 +16,14 @@ from app.modules.catalog.api.schemas import (
 
 
 class SubjectService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        cache: CacheService | None = None,
+    ) -> None:
         self.session = session
         self.repo = CatalogRepo(session)
+        self.cache = cache or get_cache_service()
 
     async def create(self, data: SubjectCreate) -> SubjectModel:
         row = await self.repo.create_subject(
@@ -30,16 +36,36 @@ class SubjectService:
         return row
 
     async def get(self, subject_id: uuid.UUID) -> SubjectModel:
-        return await self.repo.get_subject(subject_id)
+        cache_key = f"{NAMESPACE.catalog_subjects}:{subject_id}"
+
+        async def _load() -> SubjectModel:
+            return await self.repo.get_subject(subject_id)
+
+        return await self.cache.get_or_set(cache_key, _load)
 
     async def get_with_topic_count(self, subject_id: uuid.UUID) -> tuple[SubjectModel, int]:
-        return await self.repo.get_subject_with_topic_count(subject_id)
+        cache_key = f"{NAMESPACE.catalog_subjects}:{subject_id}:with_topic_count"
+
+        async def _load() -> tuple[SubjectModel, int]:
+            return await self.repo.get_subject_with_topic_count(subject_id)
+
+        return await self.cache.get_or_set(cache_key, _load)
 
     async def list(self) -> list[SubjectModel]:
-        return await self.repo.list_subjects()
+        cache_key = f"{NAMESPACE.catalog_subjects}:all"
+
+        async def _load() -> list[SubjectModel]:
+            return await self.repo.list_subjects()
+
+        return await self.cache.get_or_set(cache_key, _load)
 
     async def list_with_topic_counts(self) -> list[tuple[SubjectModel, int]]:
-        return await self.repo.list_subjects_with_topic_counts()
+        cache_key = f"{NAMESPACE.catalog_subjects}:all_with_topic_counts"
+
+        async def _load() -> list[tuple[SubjectModel, int]]:
+            return await self.repo.list_subjects_with_topic_counts()
+
+        return await self.cache.get_or_set(cache_key, _load)
 
     async def update(self, subject_id: uuid.UUID, data: SubjectUpdate) -> SubjectModel:
         row = await self.repo.update_subject(
@@ -50,17 +76,31 @@ class SubjectService:
             name_en=data.name_en,
         )
         await self.session.commit()
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_subjects}:*")
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
         return row
 
     async def delete(self, subject_id: uuid.UUID) -> None:
         await self.repo.delete_subject(subject_id)
         await self.session.commit()
 
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_subjects}:*")
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
 
 class TopicService:
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(
+        self,
+        session: AsyncSession,
+        cache: CacheService | None = None,
+    ) -> None:
         self.session = session
         self.repo = CatalogRepo(session)
+        self.cache = cache or get_cache_service()
 
     async def create(self, data: TopicCreate) -> TopicModel:
         row = await self.repo.create_topic(
@@ -76,7 +116,12 @@ class TopicService:
         return row
 
     async def get(self, topic_id: uuid.UUID) -> TopicModel:
-        return await self.repo.get_topic(topic_id)
+        cache_key = f"{NAMESPACE.catalog_topics}:{topic_id}"
+
+        async def _load() -> TopicModel:
+            return await self.repo.get_topic(topic_id)
+
+        return await self.cache.get_or_set(cache_key, _load)
 
     async def list(
         self,
@@ -85,11 +130,23 @@ class TopicService:
         parent_topic_id: uuid.UUID | None = None,
         grade_level: int | None = None,
     ) -> list[TopicModel]:
-        return await self.repo.list_topics(
-            subject_id=subject_id,
-            parent_topic_id=parent_topic_id,
-            grade_level=grade_level,
-        )
+        cache_key_parts: list[str] = [NAMESPACE.catalog_topics, "list"]
+        if subject_id is not None:
+            cache_key_parts.append(f"subject={subject_id}")
+        if parent_topic_id is not None:
+            cache_key_parts.append(f"parent={parent_topic_id}")
+        if grade_level is not None:
+            cache_key_parts.append(f"grade={grade_level}")
+        cache_key = ":".join(cache_key_parts)
+
+        async def _load() -> list[TopicModel]:
+            return await self.repo.list_topics(
+                subject_id=subject_id,
+                parent_topic_id=parent_topic_id,
+                grade_level=grade_level,
+            )
+
+        return await self.cache.get_or_set(cache_key, _load)
 
     async def update(self, topic_id: uuid.UUID, data: TopicUpdate) -> TopicModel:
         row = await self.repo.update_topic(
@@ -103,11 +160,18 @@ class TopicService:
             order_no=None,
         )
         await self.session.commit()
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
         return row
 
     async def delete(self, topic_id: uuid.UUID) -> None:
         await self.repo.delete_topic(topic_id)
         await self.session.commit()
+
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
+        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
 
 
 class CurriculumService:
