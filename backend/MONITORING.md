@@ -38,7 +38,7 @@ Host     ─► node-exporter     ─► Prometheus
 
 ---
 
-## Running the Full Stack
+## Running the Full Stack (local)
 
 ```bash
 # From the backend/ directory
@@ -51,6 +51,66 @@ docker compose up -d
 
 > Change the Grafana admin password by editing `monitoring/grafana/grafana.env`
 > before deploying to production.
+
+---
+
+## Running on STAGING / PROD server
+
+On the staging server the application is deployed via `compose.yaml` in
+`/opt/app-staging` and the monitoring stack runs side-by-side with the API,
+frontend, nginx and RabbitMQ.
+
+### Layout on the server
+
+- `/opt/app-staging/compose.yaml` – main docker compose for the whole stack
+- `/opt/app-staging/.env` – backend environment variables
+- `/opt/app-staging/monitoring/...` – all monitoring configs copied from
+  `backend/monitoring` in the repository:
+  - `prometheus/prometheus.yml`
+  - `prometheus/rules/api_alerts.yml`
+  - `alertmanager/alertmanager.yml`
+  - `loki/loki.yml`
+  - `promtail/promtail.yml`
+  - `grafana/grafana.env`
+  - `grafana/provisioning/...`
+  - `grafana/dashboards/*.json`
+
+To update monitoring on the server:
+
+1. From local repo (backend root):
+
+   ```bash
+   cd backend
+   scp -i ~/.ssh/ci_staging -r monitoring root@<staging-host>:/opt/app-staging/
+   ```
+
+2. On the server:
+
+   ```bash
+   cd /opt/app-staging
+   docker compose up -d
+   ```
+
+### Accessing Grafana and Prometheus via SSH tunnel
+
+The monitoring web UIs are not exposed directly to the internet; they are
+reachable only from inside the server. To view them from your laptop, create
+an SSH tunnel:
+
+```bash
+ssh -i ~/.ssh/ci_staging \
+  -L 3030:localhost:3030 \
+  -L 9090:localhost:9090 \
+  root@<staging-host>
+```
+
+While this SSH session is open:
+
+- Grafana: `http://localhost:3030`
+- Prometheus: `http://localhost:9090`
+
+Use the same Grafana credentials as defined in `monitoring/grafana/grafana.env`
+on the server.
 
 ---
 
