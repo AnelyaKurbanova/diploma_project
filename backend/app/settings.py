@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     # Chat
     CHAT_LESSON_DAILY_LIMIT: int = 20
     CHAT_HINT_DAILY_LIMIT: int = 10
+    LLM_CHAT_TIMEOUT_SEC: float = 120.0
+    RAG_MAX_CONTEXT_CHARS: int = 12000
 
     # AWS S3 (problem images)
     AWS_ACCESS_KEY_ID: str | None = None

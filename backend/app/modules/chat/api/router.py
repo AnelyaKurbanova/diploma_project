@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import uuid
 from pathlib import Path
 from tempfile import NamedTemporaryFile
@@ -132,7 +133,7 @@ async def upload_file_for_rag(
 ):
     """Upload a file (txt, md, docx, pdf) and ingest into pgvector for RAG."""
     from app.modules.knowledge.application.ingestion import _build_chunks
-    from app.modules.knowledge.application.embedding import embed_batch
+    from app.modules.knowledge.application.embedding import embed_batch_async
     from app.modules.knowledge.data.repo import KnowledgeRepo
 
     filename = file.filename or "upload"
@@ -141,22 +142,34 @@ async def upload_file_for_rag(
 
     if suffix == ".docx":
         from app.modules.knowledge.application.ingestion import ingest_docx
-        with NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
-            content = await file.read()
-            tmp.write(content)
-            tmp.flush()
-            doc, count = await ingest_docx(session, Path(tmp.name), subject_code)
+        tmp_path = None
+        try:
+            with NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+                tmp_path = tmp.name
+                content = await file.read()
+                tmp.write(content)
+                tmp.flush()
+            doc, count = await ingest_docx(session, Path(tmp_path), subject_code)
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
         return {"document_id": str(doc.id), "filename": filename, "chunks": count}
 
     elif suffix == ".pdf":
         from PyPDF2 import PdfReader
-        with NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
-            content = await file.read()
-            tmp.write(content)
-            tmp.flush()
-            reader = PdfReader(tmp.name)
+        tmp_path = None
+        try:
+            with NamedTemporaryFile(suffix=".pdf", delete=False) as tmp:
+                tmp_path = tmp.name
+                content = await file.read()
+                tmp.write(content)
+                tmp.flush()
+            reader = PdfReader(tmp_path)
             pages = [page.extract_text() or "" for page in reader.pages]
             raw = "\n\n".join(pages)
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
     elif suffix in (".txt", ".md"):
         raw = (await file.read()).decode("utf-8", errors="replace")
@@ -173,7 +186,7 @@ async def upload_file_for_rag(
     repo = KnowledgeRepo(session)
     doc = await repo.create_document(filename=filename, subject_code=subject_code)
     contents = [c[1] for c in chunks]
-    embeddings = embed_batch(contents)
+    embeddings = await embed_batch_async(contents)
     for idx, ((section, text_content), embedding) in enumerate(zip(chunks, embeddings)):
         await repo.create_chunk(
             document_id=doc.id, content=text_content, embedding=embedding,
