@@ -26,6 +26,7 @@ from app.modules.lessons.data.models import BlockType, LessonStatus
 from app.modules.lessons.data.repo import LessonsRepo
 from app.modules.problems.application.service import ProblemService
 from app.modules.problems.data.models import ProblemModel, ProblemStatus
+from app.modules.gamification.application.service import GamificationService
 
 
 class LessonService:
@@ -492,7 +493,17 @@ class LessonService:
         lesson_id: uuid.UUID,
         time_spent_sec: int | None = None,
     ) -> LessonProgressOut:
-        row = await self.repo.mark_lesson_completed(user_id, lesson_id, time_spent_sec)
+        row, was_first_completion = await self.repo.mark_lesson_completed(
+            user_id,
+            lesson_id,
+            time_spent_sec,
+        )
+        gamification = GamificationService(self.session)
+        await gamification.on_lesson_completed(
+            user_id,
+            was_first_completion=was_first_completion,
+            occurred_at=row.completed_at,
+        )
         await self.session.commit()
         return LessonProgressOut(
             user_id=row.user_id,
