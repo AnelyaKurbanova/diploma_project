@@ -271,6 +271,56 @@ export type TeacherAssessmentProgress = {
   students: TeacherAssessmentStudentProgress[];
 };
 
+export type UserXp = {
+  total_xp: number;
+};
+
+export type UserStreak = {
+  current_streak: number;
+  longest_streak: number;
+  last_activity_date: string | null;
+};
+
+export type UserAchievement = {
+  id: string;
+  code: string;
+  title: string;
+  description: string | null;
+  icon_name: string | null;
+  icon_url: string | null;
+  xp_reward: number | null;
+  is_active: boolean;
+  trigger_type: string | null;
+  created_at: string;
+  updated_at: string;
+  unlocked_at: string | null;
+  is_unlocked: boolean;
+};
+
+export type UserAchievementsResponse = {
+  items: UserAchievement[];
+  unlocked_count: number;
+  total: number;
+};
+
+export type LeaderboardMetric = "xp" | "solved_problems" | "streak";
+
+export type LeaderboardEntry = {
+  rank: number;
+  user_id: string;
+  display_name: string;
+  avatar_url: string | null;
+  city: string | null;
+  score: number;
+  is_me: boolean;
+};
+
+export type LeaderboardResponse = {
+  metric: LeaderboardMetric;
+  items: LeaderboardEntry[];
+  my_entry: LeaderboardEntry | null;
+};
+
 export type CreateClassAssessmentPayload = {
   title: string;
   description?: string | null;
@@ -379,6 +429,31 @@ export function apiGetClassAssessmentProgress(
 ): Promise<TeacherAssessmentProgress> {
   return apiGet<TeacherAssessmentProgress>(
     `/classes/${classId}/assessments/${assessmentId}/progress`,
+    accessToken,
+  );
+}
+
+export function apiGetMyXp(accessToken: string): Promise<UserXp> {
+  return apiGet<UserXp>("/me/xp", accessToken);
+}
+
+export function apiGetMyStreak(accessToken: string): Promise<UserStreak> {
+  return apiGet<UserStreak>("/me/streak", accessToken);
+}
+
+export function apiGetMyAchievements(
+  accessToken: string,
+): Promise<UserAchievementsResponse> {
+  return apiGet<UserAchievementsResponse>("/me/achievements", accessToken);
+}
+
+export function apiGetLeaderboard(
+  metric: LeaderboardMetric,
+  accessToken: string,
+  limit = 20,
+): Promise<LeaderboardResponse> {
+  return apiGet<LeaderboardResponse>(
+    `/leaderboard?metric=${metric}&limit=${limit}`,
     accessToken,
   );
 }

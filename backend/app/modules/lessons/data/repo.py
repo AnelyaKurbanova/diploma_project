@@ -4,6 +4,7 @@ import uuid
 from typing import Sequence
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -243,12 +244,18 @@ class LessonsRepo:
         return [row.problem_id for row in rows]
 
     async def get_progress(
-        self, user_id: uuid.UUID, lesson_id: uuid.UUID
+        self,
+        user_id: uuid.UUID,
+        lesson_id: uuid.UUID,
+        *,
+        for_update: bool = False,
     ) -> LessonProgressModel | None:
         stmt = select(LessonProgressModel).where(
             LessonProgressModel.user_id == user_id,
             LessonProgressModel.lesson_id == lesson_id,
         )
+        if for_update:
+            stmt = stmt.with_for_update()
         return (await self.session.execute(stmt)).scalar_one_or_none()
 
     async def mark_lesson_completed(
@@ -256,24 +263,35 @@ class LessonsRepo:
         user_id: uuid.UUID,
         lesson_id: uuid.UUID,
         time_spent_sec: int | None = None,
-    ) -> LessonProgressModel:
-        existing = await self.get_progress(user_id, lesson_id)
+    ) -> tuple[LessonProgressModel, bool]:
+        existing = await self.get_progress(user_id, lesson_id, for_update=True)
         if existing:
+            was_first_completion = not existing.completed
             existing.completed = True
             if time_spent_sec is not None:
                 existing.time_spent_sec = time_spent_sec
             await self.session.flush()
-            return existing
+            return existing, was_first_completion
 
-        row = LessonProgressModel(
-            user_id=user_id,
-            lesson_id=lesson_id,
-            completed=True,
-            time_spent_sec=time_spent_sec,
-        )
-        self.session.add(row)
-        await self.session.flush()
-        return row
+        try:
+            async with self.session.begin_nested():
+                row = LessonProgressModel(
+                    user_id=user_id,
+                    lesson_id=lesson_id,
+                    completed=True,
+                    time_spent_sec=time_spent_sec,
+                )
+                self.session.add(row)
+                await self.session.flush()
+                return row, True
+        except IntegrityError:
+            existing = await self.get_progress(user_id, lesson_id, for_update=True)
+            if existing is None:
+                raise
+            if time_spent_sec is not None and existing.time_spent_sec is None:
+                existing.time_spent_sec = time_spent_sec
+                await self.session.flush()
+            return existing, False
 
     async def list_progress_for_user(
         self, user_id: uuid.UUID, lesson_ids: list[uuid.UUID] | None = None

@@ -232,11 +232,11 @@ class ChatService:
 
     async def send_rag_message(self, user_id: uuid.UUID, content: str):
         """RAG-based chat — search user's documents and stream response."""
-        from app.modules.knowledge.application.embedding import embed
+        from app.modules.knowledge.application.embedding import embed_async
         from app.modules.knowledge.data.repo import KnowledgeRepo
 
-        # Search user's documents
-        query_embedding = embed(content)
+        # Search user's documents (non-blocking)
+        query_embedding = await embed_async(content)
         knowledge_repo = KnowledgeRepo(self.session)
         chunks = await knowledge_repo.search(
             query_embedding,
@@ -245,7 +245,14 @@ class ChatService:
         )
 
         if chunks:
-            context = "\n\n---\n\n".join(chunk.content for chunk in chunks)
+            parts = []
+            total = 0
+            for chunk in chunks:
+                if total + len(chunk.content) > settings.RAG_MAX_CONTEXT_CHARS:
+                    break
+                parts.append(chunk.content)
+                total += len(chunk.content)
+            context = "\n\n---\n\n".join(parts)
         else:
             context = "(У вас пока нет загруженных материалов. Загрузите файлы через кнопку выше.)"
 
@@ -260,7 +267,7 @@ class ChatService:
             yield f"data: {json.dumps({'done': True, 'message_id': 'rag'})}\n\n"
 
         except Exception as exc:
-            logger.error("RAG streaming error: %s", exc)
+            logger.error("RAG streaming error: %s", exc, exc_info=True)
             yield f"event: error\ndata: {json.dumps({'message': 'Ошибка AI. Попробуйте снова.'})}\n\n"
 
     async def get_usage(self, user_id: uuid.UUID) -> dict:

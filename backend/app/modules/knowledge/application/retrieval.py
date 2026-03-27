@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.knowledge.application.embedding import embed
+from app.modules.knowledge.application.embedding import embed_async
 from app.modules.knowledge.data.models import RagChunkModel
 from app.modules.knowledge.data.repo import KnowledgeRepo
 
@@ -15,7 +15,7 @@ async def search(
     k: int = 12,
 ) -> list[RagChunkModel]:
     """Search knowledge base by semantic similarity."""
-    query_embedding = embed(query)
+    query_embedding = await embed_async(query)
     repo = KnowledgeRepo(session)
     return await repo.search(
         query_embedding,

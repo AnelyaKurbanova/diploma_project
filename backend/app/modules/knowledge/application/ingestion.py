@@ -4,7 +4,7 @@ from pathlib import Path
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.modules.knowledge.application.embedding import embed_batch
+from app.modules.knowledge.application.embedding import embed_batch_async
 from app.modules.knowledge.data.models import RagDocumentModel
 from app.modules.knowledge.data.repo import KnowledgeRepo
 
@@ -106,7 +106,7 @@ async def ingest_docx(
     )
 
     contents = [c[1] for c in chunk_pairs]
-    embeddings = embed_batch(contents)
+    embeddings = await embed_batch_async(contents)
 
     for idx, ((section, content), embedding) in enumerate(zip(chunk_pairs, embeddings)):
         await repo.create_chunk(

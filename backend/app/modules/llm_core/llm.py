@@ -12,4 +12,5 @@ def get_chat_llm(*, streaming: bool = False, temperature: float = 0.7) -> ChatOp
         api_key=settings.OPENAI_API_KEY,
         streaming=streaming,
         temperature=temperature,
+        request_timeout=settings.LLM_CHAT_TIMEOUT_SEC,
     )
