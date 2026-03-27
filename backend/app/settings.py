@@ -69,10 +69,6 @@ class Settings(BaseSettings):
     LLM_MODEL_NAME: str = "gpt-5-mini"
     LLM_NORMALIZER_TIMEOUT_SEC: float = 300.00
 
-    # Chat
-    CHAT_LESSON_DAILY_LIMIT: int = 20
-    CHAT_HINT_DAILY_LIMIT: int = 10
-
     # AWS S3 (problem images)
     AWS_ACCESS_KEY_ID: str | None = None
     AWS_SECRET_ACCESS_KEY: str | None = None
