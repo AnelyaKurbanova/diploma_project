@@ -12,6 +12,9 @@
   --color-card: #ffffff;
   --font-geist-sans: system-ui;
   --font-geist-mono: ui-monospace;
+
+  /* ÖrkenAI brand fonts */
+  --font-rostov: "Rostov", "Cormorant Garamond", Georgia, serif;
 }
 
 @theme inline {
