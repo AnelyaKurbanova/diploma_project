@@ -132,6 +132,7 @@ app.add_middleware(
         "https://www.orenaitest.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://192.168.0.105:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],

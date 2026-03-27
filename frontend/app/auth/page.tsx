@@ -4,7 +4,6 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
-import { Button } from "@/components/ui/button";
 
 export default function AuthPage() {
   const {
@@ -23,6 +22,7 @@ export default function AuthPage() {
       router.replace("/dashboard");
     }
   }, [isLoading, user, router]);
+
   const [email, setEmail] = useState("");
   const [isEmailSubmitting, setIsEmailSubmitting] = useState(false);
   const [localEmailError, setLocalEmailError] = useState<string | null>(null);
@@ -53,45 +53,79 @@ export default function AuthPage() {
   const effectiveEmailError = localEmailError ?? emailFlowError;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen" style={{ backgroundColor: "#f8fafc" }}>
       <EntHeader />
 
-      {/* Фон и карточка входа */}
-      <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4 py-8">
-        <div className="w-full max-w-[1143px] flex justify-center">
-          <div className="w-96 space-y-6 animate-page-in">
-            <div className="flex flex-col gap-6 rounded-2xl bg-white shadow-[0px_8px_10px_-6px_rgba(0,0,0,0.10),0px_20px_25px_-5px_rgba(0,0,0,0.10)] outline outline-1 outline-offset-[-1px] outline-gray-200 transition-shadow duration-300 hover:shadow-lg">
-              {/* Заголовок */}
-              <div className="w-96 px-6 pt-6">
-                <h1 className="mb-1 text-2xl font-bold leading-8 text-slate-950">
-                  Вход
-                </h1>
-                <p className="text-sm font-normal leading-5 text-slate-500">
-                  Выберите удобный способ входа в систему.
-                </p>
-              </div>
+      <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-8">
+        {/* Auth card */}
+        <div
+          className="w-full max-w-[526px] overflow-hidden rounded-2xl bg-white"
+          style={{ boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)" }}
+        >
+          {/* Banner illustration */}
+          <div className="relative h-[157px] w-full overflow-hidden rounded-t-2xl">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/images/auth-banner.png"
+              alt=""
+              className="absolute left-0 top-[-189px] h-[478px] w-full max-w-none object-cover"
+              style={{ width: "592px" }}
+            />
+          </div>
 
-              {/* Вход через Google и по email */}
-              <div className="w-96 px-6 pb-8 space-y-5">
-                <Button
+          {/* Content */}
+          <div className="flex flex-col gap-4 pb-8 pt-4">
+            {/* Title block */}
+            <div className="flex flex-col gap-1 px-[39px]">
+              <h1
+                className="text-[36px] leading-10 tracking-[-0.5309px] text-[#0f2d51]"
+                style={{ fontFamily: "var(--font-rostov)" }}
+              >
+                Вход
+              </h1>
+              <p
+                className="text-[16px] leading-6 tracking-[-0.3125px] text-[#64748b]"
+                style={{ fontFamily: "var(--font-jost)" }}
+              >
+                Введите свои данные для входа в систему
+              </p>
+            </div>
+
+            {/* Form */}
+            <div className="flex flex-col gap-3 px-[39px]">
+              {/* Google button */}
+              <div className="flex flex-col gap-2">
+                <button
                   type="button"
                   onClick={loginWithGoogle}
                   disabled={isLoading}
-                  size="lg"
-                  className="w-full"
+                  className="flex h-10 w-full items-center justify-center rounded-xl bg-[#0f2d51] px-4 text-[16px] leading-6 tracking-[-0.3125px] text-white transition-colors hover:bg-[#0d2645] disabled:opacity-70"
+                  style={{
+                    fontFamily: "var(--font-jost)",
+                    boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)",
+                  }}
                 >
                   {isLoading ? "Входим..." : "Войти через Google"}
-                </Button>
+                </button>
 
-                <div className="flex items-center gap-2 text-[11px] text-slate-400">
-                  <div className="h-px flex-1 bg-slate-200" />
-                  <span>или по почте</span>
-                  <div className="h-px flex-1 bg-slate-200" />
+                <div className="flex items-center justify-center">
+                  <p
+                    className="text-[14px] leading-5 text-[#4a5565]"
+                    style={{ fontFamily: "var(--font-inter)" }}
+                  >
+                    или по почте
+                  </p>
                 </div>
+              </div>
 
-                <form onSubmit={handleEmailSubmit} className="space-y-3">
-                  <label className="block space-y-1 text-sm">
-                    <span className="font-semibold leading-5 text-gray-700">
+              {/* Email field */}
+              <form onSubmit={handleEmailSubmit} className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2">
+                  <label className="flex flex-col gap-2">
+                    <span
+                      className="text-[14px] font-semibold leading-5 text-[#364153]"
+                      style={{ fontFamily: "var(--font-inter)" }}
+                    >
                       Email
                     </span>
                     <input
@@ -99,49 +133,54 @@ export default function AuthPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="ваш@email.com"
-                      className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm leading-5 text-slate-900 shadow-sm transition-all duration-200 ease-out hover:border-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                      className="h-11 w-full rounded-xl border border-[#d1d5dc] bg-[#fafbfc] px-3 text-[14px] text-black outline-none transition-colors hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                      style={{ fontFamily: "var(--font-inter)" }}
                     />
                   </label>
+                </div>
 
-                  <Button
-                    type="submit"
-                    disabled={isEmailSubmitting}
-                    size="lg"
-                    className="w-full"
-                  >
-                    {isEmailSubmitting ? "Отправляем код..." : "Продолжить по почте"}
-                  </Button>
+                <button
+                  type="submit"
+                  disabled={isEmailSubmitting}
+                  className="flex h-10 w-full items-center justify-center rounded-xl bg-[#5081ba] px-4 text-[16px] leading-6 tracking-[-0.3125px] text-white transition-colors hover:bg-[#4070a9] disabled:opacity-70"
+                  style={{
+                    fontFamily: "var(--font-jost)",
+                    boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  {isEmailSubmitting ? "Отправляем код..." : "Продолжить по почте"}
+                </button>
 
-                  {effectiveEmailError && (
-                    <p className="text-xs text-rose-600">{effectiveEmailError}</p>
-                  )}
-                </form>
+                {effectiveEmailError && (
+                  <p className="text-xs text-rose-600">{effectiveEmailError}</p>
+                )}
+              </form>
 
-                <div className="pt-2 text-center text-xs text-slate-400">
-                  Нет аккаунта?
+              {/* Register link */}
+              <div className="flex items-center justify-center">
+                <p
+                  className="text-[16px] leading-6 tracking-[-0.3125px] text-[#4a5565]"
+                  style={{ fontFamily: "var(--font-jost)" }}
+                >
+                  Нет аккаунта?{" "}
                   <button
                     type="button"
                     onClick={() => router.push("/auth/register")}
-                    className="ml-1 font-semibold text-blue-600"
+                    className="text-[#155dfc] hover:underline"
+                    style={{ fontFamily: "var(--font-jost)" }}
                   >
                     Зарегистрироваться
                   </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Статусы сессии / пояснения */}
-            <div className="space-y-2 text-xs text-gray-600">
-              {user && (
-                <p>
-                  Вы уже вошли как{" "}
-                  <span className="font-medium">{user.email}</span>.
                 </p>
-              )}
-              {error && <p className="text-rose-600">{error}</p>}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Error states */}
+        {error && (
+          <p className="mt-4 text-xs text-rose-600">{error}</p>
+        )}
       </main>
     </div>
   );
