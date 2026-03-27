@@ -140,19 +140,6 @@ export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHead
                 </Link>
               );
             })}
-            <Link
-              href="/aika"
-              className={`flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                pathname === "/aika" || pathname.startsWith("/aika/")
-                  ? "bg-blue-50 text-blue-700"
-                  : "text-slate-600 hover:bg-blue-50 hover:text-blue-700"
-              }`}
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
-              </svg>
-              Aika
-            </Link>
             {ADMIN_ROLES.has(userRole) && (
               <Link
                 href="/admin"
