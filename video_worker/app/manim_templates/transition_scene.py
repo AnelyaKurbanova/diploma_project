@@ -6,7 +6,6 @@ from manim import (
     RIGHT,
     UP,
     FadeIn,
-    FadeOut,
     Line,
     Scene,
     Text,
@@ -50,11 +49,4 @@ class TransitionScene(Scene):
 
         self.play(FadeIn(msg, shift=UP * 0.2), rate_func=smooth, run_time=0.7)
         self.play(Write(line_left), Write(line_right), rate_func=smooth, run_time=0.5)
-        self.wait(1.2)
-        self.play(
-            FadeOut(msg, shift=UP * 0.2),
-            FadeOut(line_left),
-            FadeOut(line_right),
-            rate_func=smooth,
-            run_time=0.5,
-        )
+        self.wait(2.0)

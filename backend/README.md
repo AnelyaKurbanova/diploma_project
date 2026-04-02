@@ -103,8 +103,6 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ### 6) Активировать venv
 ```powershell
 .venv\Scripts\Activate.ps1
-or
-source venv/bin/activate
 ```
 
 ### 7) Установить зависимости

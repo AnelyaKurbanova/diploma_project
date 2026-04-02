@@ -68,10 +68,6 @@ class Settings(BaseSettings):
     OPENAI_API_KEY: str | None = None
     LLM_MODEL_NAME: str = "gpt-5-mini"
     LLM_NORMALIZER_TIMEOUT_SEC: float = 300.00
-
-    # Chat
-    CHAT_LESSON_DAILY_LIMIT: int = 20
-    CHAT_HINT_DAILY_LIMIT: int = 10
     LLM_CHAT_TIMEOUT_SEC: float = 120.0
     RAG_MAX_CONTEXT_CHARS: int = 12000
 
