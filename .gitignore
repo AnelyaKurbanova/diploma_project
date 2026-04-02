@@ -11,8 +11,6 @@ __pycache__/
 build/
 dist/
 
-.tmp_manual_verify
-
 # =========================
 # Virtual environment
 # =========================
@@ -83,3 +81,5 @@ htmlcov/
 *.tmp
 *.bak
 *.swp
+
+docs/

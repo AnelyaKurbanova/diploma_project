@@ -4,9 +4,7 @@ from __future__ import annotations
 import re
 
 from manim import (
-    DOWN,
     LEFT,
-    ORIGIN,
     UP,
     MathTex,
     Rectangle,
@@ -295,46 +293,3 @@ def safe_fit(mob, max_w: float | None = None, max_h: float | None = None):
     if mob.height > max_h:
         mob.scale_to_fit_height(max_h)
     return mob
-
-
-def stack_and_fit(
-    *mobs,
-    buff: float = 0.4,
-    center=None,
-    max_w: float | None = None,
-    max_h: float | None = None,
-) -> VGroup:
-    """Arrange *mobs* vertically with *buff*, scale the combined group to fit
-    within *max_w* / *max_h*, then move it to *center* (default: ORIGIN).
-
-    Returns the VGroup so callers can reference individual element positions
-    after layout.
-    """
-    group = VGroup(*mobs).arrange(DOWN, buff=buff)
-    safe_fit(group, max_w=max_w, max_h=max_h)
-    group.move_to(ORIGIN if center is None else center)
-    return group
-
-
-def reflow_if_needed(
-    *mobs,
-    max_w: float | None = None,
-    max_h: float | None = None,
-    center=None,
-) -> VGroup:
-    """If the combined bounding box of *mobs* exceeds *max_w* or *max_h*,
-    scale the group down and optionally recentre it at *center*.
-
-    Existing relative positions among *mobs* are preserved (only uniform
-    scaling is applied).  Returns the VGroup.
-    """
-    group = VGroup(*mobs)
-    if max_w is None:
-        max_w = config.frame_width * 0.88
-    if max_h is None:
-        max_h = config.frame_height * 0.82
-    if group.width > max_w or group.height > max_h:
-        safe_fit(group, max_w=max_w, max_h=max_h)
-        if center is not None:
-            group.move_to(center)
-    return group

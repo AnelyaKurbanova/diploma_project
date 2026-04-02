@@ -65,7 +65,6 @@ CONTENT_SCHEMA = {
                         "enum": _ALL_TEMPLATES,
                     },
                     "data": {"type": "object"},
-                    "narration": {"type": "string"},
                 },
                 "required": ["template", "data"],
                 "additionalProperties": False,

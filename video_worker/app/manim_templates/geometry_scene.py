@@ -95,8 +95,8 @@ class GeometryScene(Scene):
         side_a = self._labels.get("a", "")
         if side_a:
             brace = Brace(Line(B, C), DOWN, color=DIM)
-            brace_lbl = Text(str(side_a), color=ACCENT, font_size=FONT_SIZE_SMALL)
-            brace_lbl.next_to(brace, DOWN, buff=0.1)
+            brace_lbl = brace.get_text(side_a, font_size=FONT_SIZE_SMALL)
+            brace_lbl.set_color(ACCENT)
             self.play(FadeIn(brace), FadeIn(brace_lbl), run_time=0.5)
 
     def _draw_rectangle(self, center):
@@ -112,12 +112,12 @@ class GeometryScene(Scene):
         h_label = self._labels.get("height", str(h))
 
         brace_w = Brace(rect, DOWN, color=DIM)
-        brace_w_lbl = Text(str(w_label), color=ACCENT, font_size=FONT_SIZE_SMALL)
-        brace_w_lbl.next_to(brace_w, DOWN, buff=0.1)
+        brace_w_lbl = brace_w.get_text(w_label, font_size=FONT_SIZE_SMALL)
+        brace_w_lbl.set_color(ACCENT)
 
         brace_h = Brace(rect, RIGHT, color=DIM)
-        brace_h_lbl = Text(str(h_label), color=ACCENT, font_size=FONT_SIZE_SMALL)
-        brace_h_lbl.next_to(brace_h, RIGHT, buff=0.1)
+        brace_h_lbl = brace_h.get_text(h_label, font_size=FONT_SIZE_SMALL)
+        brace_h_lbl.set_color(ACCENT)
 
         self.play(FadeIn(brace_w), FadeIn(brace_w_lbl), run_time=0.5)
         self.play(FadeIn(brace_h), FadeIn(brace_h_lbl), run_time=0.5)

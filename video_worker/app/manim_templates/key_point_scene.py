@@ -14,7 +14,7 @@ from manim import (
 )
 from manim.utils.rate_functions import smooth
 
-from ._common import add_background, reflow_if_needed, safe_fit, safe_mathtex, section_label, wrap_text_lines
+from ._common import add_background, safe_fit, safe_mathtex, section_label, wrap_text_lines
 from ._style import (
     ACCENT,
     DIM,
@@ -70,25 +70,11 @@ class KeyPointScene(Scene):
         )
         self.play(Flash(formula, color=ACCENT, flash_radius=0.5), run_time=0.4)
 
-        expl = None
         if self._explanation:
             wrapped = wrap_text_lines(self._explanation, max_chars=50)
             expl = Text(wrapped, color=DIM, font_size=FONT_SIZE_SMALL, line_spacing=1.3)
             safe_fit(expl, max_w=config.frame_width * 0.82)
             expl.next_to(box, DOWN, buff=0.5)
-
-        # Reflow the full content stack so nothing overflows the frame
-        all_content = [heading, box, formula]
-        if expl is not None:
-            all_content.append(expl)
-        reflow_if_needed(
-            *all_content,
-            max_w=config.frame_width * 0.88,
-            max_h=config.frame_height * 0.85,
-            center=self.camera.frame_center,
-        )
-
-        if expl is not None:
             self.play(FadeIn(expl, shift=UP * 0.1), rate_func=smooth, run_time=0.6)
 
         self.wait(2.5)

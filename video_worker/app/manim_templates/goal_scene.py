@@ -6,6 +6,7 @@ from manim import (
     UP,
     Circumscribe,
     FadeIn,
+    FadeOut,
     Scene,
     Text,
     Underline,
@@ -50,4 +51,11 @@ class GoalScene(Scene):
             run_time=0.8,
         )
 
-        self.wait(3.3)
+        self.wait(2.5)
+        self.play(
+            FadeOut(goal, shift=DOWN * 0.2),
+            FadeOut(ul, shift=DOWN * 0.2),
+            FadeOut(target_icon, shift=UP * 0.2),
+            rate_func=smooth,
+            run_time=0.7,
+        )

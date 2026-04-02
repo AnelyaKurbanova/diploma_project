@@ -69,7 +69,7 @@ jobs:
             --build-arg NEXT_PUBLIC_GOOGLE_LOGIN_URL=${{ needs.env.outputs.google_login_url }} \
             -t ghcr.io/anelyakurbanova/diploma-frontend:${{ needs.env.outputs.tag }} ./frontend
           docker push ghcr.io/anelyakurbanova/diploma-frontend:${{ needs.env.outputs.tag }}
- 
+
   build-video-worker:
     runs-on: ubuntu-latest
     needs: env

@@ -39,6 +39,7 @@ class SubmissionProgressOut(BaseModel):
     last_answer_choice_ids: list[uuid.UUID] | None = None
     last_answer_text: str | None = None
     last_created_at: datetime | None = None
+    attempt_no: int | None = None
 
 
 class SubmissionProgressItemOut(SubmissionProgressOut):

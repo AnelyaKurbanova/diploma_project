@@ -14,7 +14,7 @@ from manim import (
 )
 from manim.utils.rate_functions import smooth, there_and_back
 
-from ._common import add_background, safe_fit, safe_mathtex, section_label, stack_and_fit, wrap_text_lines
+from ._common import add_background, safe_fit, safe_mathtex, section_label, wrap_text_lines
 from ._style import (
     ACCENT,
     DIM,
@@ -58,25 +58,7 @@ class QuizScene(Scene):
 
         answer = safe_mathtex(self._answer_latex, scale=FORMULA_SCALE, color=SUCCESS_COLOR)
         safe_fit(answer, max_w=config.frame_width * 0.82)
-
-        # ── Build optional explanation and pre-stack with answer ───────────
-        expl = None
-        answer_items: list = [answer]
-        if self._explanation:
-            wrapped_e = wrap_text_lines(self._explanation, max_chars=50)
-            expl = Text(wrapped_e, color=DIM, font_size=FONT_SIZE_SMALL, line_spacing=1.2)
-            safe_fit(expl, max_w=config.frame_width * 0.82)
-            answer_items.append(expl)
-
-        # Centre the answer block in the lower half, bounded so it never
-        # overlaps the question text above or the frame edge below.
-        stack_and_fit(
-            *answer_items,
-            buff=0.45,
-            max_w=config.frame_width * 0.88,
-            max_h=config.frame_height * 0.42,
-            center=self.camera.frame_center + DOWN * 1.0,
-        )
+        answer.move_to(self.camera.frame_center + DOWN * 0.2)
 
         self.play(FadeIn(answer, shift=UP * 0.3), rate_func=smooth, run_time=0.8)
         self.play(
@@ -84,7 +66,11 @@ class QuizScene(Scene):
             run_time=0.8,
         )
 
-        if expl is not None:
+        if self._explanation:
+            wrapped_e = wrap_text_lines(self._explanation, max_chars=50)
+            expl = Text(wrapped_e, color=DIM, font_size=FONT_SIZE_SMALL, line_spacing=1.2)
+            safe_fit(expl, max_w=config.frame_width * 0.82)
+            expl.next_to(answer, DOWN, buff=0.45)
             self.play(FadeIn(expl, shift=UP * 0.1), rate_func=smooth, run_time=0.5)
 
         self.wait(2.0)

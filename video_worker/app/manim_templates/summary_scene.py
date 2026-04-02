@@ -15,7 +15,7 @@ from manim import (
 )
 from manim.utils.rate_functions import smooth, there_and_back
 
-from ._common import add_background, latex_to_text, reflow_if_needed, safe_fit, safe_mathtex, section_label, wrap_text_lines
+from ._common import add_background, latex_to_text, safe_fit, safe_mathtex, section_label, wrap_text_lines
 from ._style import (
     ACCENT,
     DIM,
@@ -84,14 +84,10 @@ class SummaryScene(Scene):
         safe_fit(summary, max_w=config.frame_width * 0.85, max_h=config.frame_height * 0.25)
         summary.next_to(box, direction=DOWN, buff=0.45)
 
-        # Reflow the entire visible stack (check mark + formula box + summary)
-        # so nothing overflows in width or height, preserving relative positions.
-        reflow_if_needed(
-            check, box, formula, summary,
-            max_w=config.frame_width * 0.88,
-            max_h=config.frame_height * 0.88,
-            center=self.camera.frame_center,
-        )
+        combined = VGroup(box, formula, summary)
+        if combined.height > config.frame_height * 0.85:
+            combined.scale_to_fit_height(config.frame_height * 0.8)
+            combined.move_to(self.camera.frame_center)
 
         self.play(FadeIn(summary, shift=UP * 0.15), rate_func=smooth, run_time=0.8)
         self.wait(3.0)

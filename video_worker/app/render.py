@@ -1,18 +1,9 @@
 from __future__ import annotations
 
-import logging
 import os
-import re
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, List, Mapping, Optional
-
-from .ffmpeg import merge_audio_video
-from .settings import Settings
-from .tts import generate_speech
-
-
-LOGGER = logging.getLogger(__name__)
+from typing import Any, Dict, List, Mapping
 
 
 TEMPLATE_CLASS_BY_NAME = {
@@ -39,69 +30,12 @@ TEMPLATE_CLASS_BY_NAME = {
     "transition": "TransitionScene",
 }
 
-_BANNED_NARRATION_PHRASES = (
-    "на экране",
-    "появляется",
-    "появляются",
-    "исчезает",
-    "стрелки",
-    "элементы",
-    "должен быть",
-    "должна быть",
-    "должно быть",
-)
 
-
-def _sanitize_narration(text: str) -> str:
-    """Make narration sound like teaching, not stage directions.
-
-    Primary protection is the backend prompt; this is a small safety net for
-    occasional "на экране..." phrases that degrade audio quality.
-    """
-    t = (text or "").strip()
-    if not t:
-        return t
-
-    # Strip the most common intro: "А сейчас на экране ..."
-    t = re.sub(
-        r"(?i)^\s*(а\s*)?(сейчас|теперь)\s+на\s+экране\s+",
-        "Теперь ",
-        t,
-    )
-    t = re.sub(r"(?i)\b(должен|должна|должно)\s+быть\b\s*", "", t)
-
-    # Replace "появляются стрелки" style directives with a neutral phrase.
-    if re.search(r"(?i)\bстрелк", t):
-        t = re.sub(
-            r"(?i)[^.?!]*\b(появля(ется|ются)|появились)\b[^.?!]*\bстрелк[^.?!]*[.?!]?",
-            "Дальше разберём направление преобразований. ",
-            t,
-        )
-
-    # Remove remaining obvious stage-direction fragments (best-effort).
-    for phrase in _BANNED_NARRATION_PHRASES:
-        t = re.sub(rf"(?i)\b{re.escape(phrase)}\b", "", t)
-
-    t = re.sub(r"\s{2,}", " ", t).strip(" ,;:-")
-    return t.strip()
-
-
-def render_scenes(
-    content_json: Mapping[str, Any],
-    out_dir: Path,
-    settings: Optional[Settings] = None,
-) -> List[Path]:
+def render_scenes(content_json: Mapping[str, Any], out_dir: Path) -> List[Path]:
     """Render all scenes described in content_json into mp4 files using Manim CLI.
 
-    If settings is provided and ELEVENLABS_API_KEY is non-empty, each scene with
-    a non-empty ``narration`` field will have TTS audio generated and merged into
-    the rendered MP4. Falls back to a silent MP4 on any TTS/merge error.
-
-    Returns a list of paths to the final (possibly voiced) mp4 files, ordered as
-    in content_json.
+    Returns a list of paths to the rendered mp4 files, ordered as in content_json.
     """
-
-    elevenlabs_enabled = bool(settings and settings.elevenlabs_api_key)
 
     out_dir.mkdir(parents=True, exist_ok=True)
     scenes = list(content_json.get("scenes") or [])
@@ -150,28 +84,7 @@ def render_scenes(
                 f"was found under {videos_root}"
             )
 
-        silent_mp4 = candidates[0]
-        final_mp4 = silent_mp4
-
-        narration = (scene.get("narration") or "").strip()
-        if elevenlabs_enabled and narration:
-            narration = _sanitize_narration(narration)
-            audio_path = out_dir / f"scene_{idx:02d}.mp3"
-            voiced_path = out_dir / f"scene_{idx:02d}_voiced.mp4"
-            try:
-                generate_speech(narration, settings, audio_path)  # type: ignore[arg-type]
-                final_mp4 = merge_audio_video(silent_mp4, audio_path, voiced_path)
-                LOGGER.info("TTS merged for scene %d (%s)", idx, template)
-            except Exception:
-                LOGGER.warning(
-                    "TTS/merge failed for scene %d (%s); using silent video",
-                    idx,
-                    template,
-                    exc_info=True,
-                )
-                final_mp4 = silent_mp4
-
-        rendered_paths.append(final_mp4)
+        rendered_paths.append(candidates[0])
 
     return rendered_paths
 

@@ -29,15 +29,15 @@ async def _update_lesson_video_url_from_job(
     session: AsyncSession,
     job: Any,
     s3_url: str,
-) -> int:
+) -> None:
     """Update lesson video block URL directly from completed job payload.
 
-    If lesson_id is missing or invalid, this function is a no-op and returns 0.
+    If lesson_id is missing or invalid, this function is a no-op.
     """
     request_json = job.request_json if isinstance(job.request_json, dict) else {}
     lesson_id_raw = request_json.get("lesson_id")
     if not lesson_id_raw:
-        return 0
+        return
 
     try:
         lesson_id = str(uuid.UUID(str(lesson_id_raw)))
@@ -46,10 +46,10 @@ async def _update_lesson_video_url_from_job(
             "Skip lesson video URL update: invalid lesson_id",
             extra={"job_id": str(job.id), "lesson_id": str(lesson_id_raw)},
         )
-        return 0
+        return
 
     # We keep this idempotent: replace URL in all video blocks of the lesson.
-    result = await session.execute(
+    await session.execute(
         text(
             """
             UPDATE lesson_content_blocks
@@ -61,13 +61,6 @@ async def _update_lesson_video_url_from_job(
         ),
         {"video_url": s3_url, "lesson_id": lesson_id},
     )
-    updated = int(result.rowcount or 0)
-    if updated == 0:
-        LOGGER.warning(
-            "Lesson video URL update affected no rows",
-            extra={"job_id": str(job.id), "lesson_id": lesson_id},
-        )
-    return updated
 
 
 async def handle_requested_message(
@@ -77,10 +70,8 @@ async def handle_requested_message(
     rabbit: Rabbit,
     work_dir: Path,
     content_max_retries: int,
-    settings: Any = None,
 ) -> None:
     job_uuid = uuid.UUID(job_id_str)
-    completion_persisted = False
 
     async with session_factory() as session:
         try:
@@ -132,7 +123,7 @@ async def handle_requested_message(
             content = validate_content(content_raw)
 
             job_work_dir = work_dir / job_id_str
-            scene_paths = await asyncio.to_thread(render_scenes, content, job_work_dir, settings)
+            scene_paths = await asyncio.to_thread(render_scenes, content, job_work_dir)
             timings["rendering_ms"] = int((time.perf_counter() - t1) * 1000)
 
             # 2) Merging
@@ -165,10 +156,14 @@ async def handle_requested_message(
                 "presigned_url": presigned_url,
                 "timings": timings,
             }
-            # Persist completion in DB first (source of truth), independent from
-            # frontend/websocket consumers and independent from event publishing.
-            lesson_blocks_updated = await _update_lesson_video_url_from_job(session, job, s3_url)
-            result_json["lesson_video_blocks_updated"] = lesson_blocks_updated
+            try:
+                await _update_lesson_video_url_from_job(session, job, s3_url)
+            except Exception:  # noqa: BLE001
+                LOGGER.exception(
+                    "Failed to update lesson video URL from completed job",
+                    extra={"job_id": job_id_str},
+                )
+
             await set_result(
                 session=session,
                 job=job,
@@ -176,18 +171,11 @@ async def handle_requested_message(
                 result_json=result_json,
                 error_text=None,
             )
-            completion_persisted = True
 
-            try:
-                await rabbit.publish_event(
-                    "video.completed",
-                    {"job_id": job_id_str, "s3_url": s3_url},
-                )
-            except Exception:  # noqa: BLE001
-                LOGGER.exception(
-                    "Failed to publish video.completed event after DB persistence",
-                    extra={"job_id": job_id_str},
-                )
+            await rabbit.publish_event(
+                "video.completed",
+                {"job_id": job_id_str, "s3_url": s3_url},
+            )
             LOGGER.info(
                 "Job completed successfully",
                 extra={"job_id": job_id_str},
@@ -209,12 +197,6 @@ async def handle_requested_message(
                 extra={"job_id": job_id_str},
             )
         except Exception as exc:  # noqa: BLE001
-            if completion_persisted:
-                LOGGER.exception(
-                    "Post-completion error occurred; DB completion already persisted",
-                    extra={"job_id": job_id_str},
-                )
-                return
             await set_result(
                 session=session,
                 job=job,
@@ -251,11 +233,6 @@ async def _async_main() -> None:
     )
     await rabbit.connect()
 
-    if settings.elevenlabs_api_key:
-        LOGGER.info("ElevenLabs TTS enabled (voice_id=%s)", settings.elevenlabs_voice_id)
-    else:
-        LOGGER.info("ElevenLabs TTS disabled (ELEVENLABS_API_KEY not set); videos will be silent")
-
     async def handler(job_id: str) -> None:
         await handle_requested_message(
             job_id_str=job_id,
@@ -264,7 +241,6 @@ async def _async_main() -> None:
             rabbit=rabbit,
             work_dir=settings.work_dir,
             content_max_retries=settings.content_max_retries,
-            settings=settings,
         )
 
     await rabbit.consume_requested(handler)
