@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,10 +17,33 @@ MAX_CHUNK_CHARS = MAX_CHUNK_TOKENS * CHARS_PER_TOKEN
 OVERLAP_CHARS = OVERLAP_TOKENS * CHARS_PER_TOKEN
 
 
+class IngestionError(RuntimeError):
+    pass
+
+
 def _convert_docx_to_markdown(file_path: Path) -> str:
     import pypandoc
 
     return pypandoc.convert_file(str(file_path), "md", format="docx")
+
+
+def _convert_epub_to_markdown(file_path: Path) -> str:
+    import pypandoc
+
+    return pypandoc.convert_file(str(file_path), "md", format="epub")
+
+
+_MD_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]+\)")
+_MD_LINK_RE = re.compile(r"\[[^\]]+\]\([^)]+\)")
+
+
+def _extract_textish(md: str) -> str:
+    """Best-effort: remove markdown images/links and collapse whitespace."""
+    s = _MD_IMAGE_RE.sub(" ", md)
+    s = _MD_LINK_RE.sub(" ", s)
+    s = re.sub(r"[`*_>#-]+", " ", s)
+    s = re.sub(r"\s+", " ", s).strip()
+    return s
 
 
 def _split_into_sections(md: str) -> list[tuple[str | None, str]]:
@@ -94,6 +118,8 @@ async def ingest_docx(
     session: AsyncSession,
     file_path: Path,
     subject_code: str,
+    *,
+    original_filename: str | None = None,
 ) -> tuple[RagDocumentModel, int]:
     """Convert docx to markdown, chunk, embed and store in the knowledge base."""
     md = _convert_docx_to_markdown(file_path)
@@ -101,7 +127,48 @@ async def ingest_docx(
 
     repo = KnowledgeRepo(session)
     doc = await repo.create_document(
-        filename=file_path.name,
+        filename=original_filename or file_path.name,
+        subject_code=subject_code,
+    )
+
+    contents = [c[1] for c in chunk_pairs]
+    embeddings = embed_batch(contents)
+
+    for idx, ((section, content), embedding) in enumerate(zip(chunk_pairs, embeddings)):
+        await repo.create_chunk(
+            document_id=doc.id,
+            content=content,
+            embedding=embedding,
+            section=section,
+            chunk_index=idx,
+            metadata={"section": section} if section else None,
+        )
+
+    await session.commit()
+    await session.refresh(doc)
+    return doc, len(chunk_pairs)
+
+
+async def ingest_epub(
+    session: AsyncSession,
+    file_path: Path,
+    subject_code: str,
+    *,
+    original_filename: str | None = None,
+) -> tuple[RagDocumentModel, int]:
+    """Convert epub to markdown, chunk, embed and store in the knowledge base."""
+    md = _convert_epub_to_markdown(file_path)
+    extracted = _extract_textish(md)
+    if len(extracted) < 2000:
+        raise IngestionError(
+            "EPUB contains too little extractable text. "
+            "It may be an image-only/scan EPUB or protected (DRM)."
+        )
+    chunk_pairs = _build_chunks(md)
+
+    repo = KnowledgeRepo(session)
+    doc = await repo.create_document(
+        filename=original_filename or file_path.name,
         subject_code=subject_code,
     )
 

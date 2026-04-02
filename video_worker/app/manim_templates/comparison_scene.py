@@ -15,7 +15,7 @@ from manim import (
 )
 from manim.utils.rate_functions import smooth
 
-from ._common import add_background, safe_fit, safe_mathtex, section_label, wrap_text_lines
+from ._common import add_background, reflow_if_needed, safe_fit, safe_mathtex, section_label, wrap_text_lines
 from ._style import (
     DIM,
     ERROR_COLOR,
@@ -62,14 +62,23 @@ class ComparisonScene(Scene):
         rc = safe_mathtex(self._right_content, scale=FORMULA_SCALE * 0.85, color=right_color)
 
         half_w = config.frame_width * 0.42
+        col_max_h = config.frame_height * 0.58
 
         left_col = VGroup(lt, lc).arrange(DOWN, buff=0.5)
-        safe_fit(left_col, max_w=half_w, max_h=config.frame_height * 0.6)
+        safe_fit(left_col, max_w=half_w, max_h=col_max_h)
         left_col.move_to(LEFT * config.frame_width * 0.22 + DOWN * 0.1)
 
         right_col = VGroup(rt, rc).arrange(DOWN, buff=0.5)
-        safe_fit(right_col, max_w=half_w, max_h=config.frame_height * 0.6)
+        safe_fit(right_col, max_w=half_w, max_h=col_max_h)
         right_col.move_to(RIGHT * config.frame_width * 0.22 + DOWN * 0.1)
+
+        # Final combined reflow: ensure side-by-side layout fits within frame
+        reflow_if_needed(
+            left_col, right_col,
+            max_w=config.frame_width * 0.92,
+            max_h=config.frame_height * 0.72,
+            center=self.camera.frame_center + DOWN * 0.1,
+        )
 
         divider = DashedLine(
             UP * config.frame_height * 0.35,

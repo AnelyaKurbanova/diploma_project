@@ -28,6 +28,11 @@ class Settings(BaseSettings):
         86_400, alias="S3_PRESIGN_EXPIRES_SECONDS"
     )
 
+    # ElevenLabs TTS
+    elevenlabs_api_key: str = Field("", alias="ELEVENLABS_API_KEY")
+    elevenlabs_voice_id: str = Field("pNInz6obpgDQGcFmaJgB", alias="ELEVENLABS_VOICE_ID")
+    elevenlabs_model_id: str = Field("eleven_multilingual_v2", alias="ELEVENLABS_MODEL_ID")
+
     # Worker behavior
     work_dir: Path = Field(Path("/tmp/video_jobs"), alias="WORK_DIR")
     content_max_retries: int = 2

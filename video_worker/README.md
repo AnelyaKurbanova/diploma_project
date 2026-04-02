@@ -21,6 +21,18 @@ It operates on a shared `jobs` table in Postgres and publishes completion/failur
 - **S3_BUCKET** (required): Target S3 bucket name.
 - **S3_PRESIGN_EXPIRES_SECONDS** (optional, default `86400`): Presigned URL TTL in seconds.
 - **WORK_DIR** (optional, default `/tmp/video_jobs`): Local working directory for per-job rendering.
+- **ELEVENLABS_API_KEY** (optional): Enables per-scene narration synthesis. If empty, worker renders silent video.
+- **ELEVENLABS_VOICE_ID** (optional, default from settings): Voice selector. Can be either a real `voice_id` or a voice `name` (for example `tengriProf`).
+- **ELEVENLABS_MODEL_ID** (optional, default `eleven_multilingual_v2`): ElevenLabs TTS model id (for example `eleven_v3`).
+
+## ElevenLabs TTS Notes
+
+- TTS is best-effort per scene: if synthesis fails, worker logs warning and keeps a silent scene video.
+- The worker resolves `ELEVENLABS_VOICE_ID` as follows:
+  1. Calls `GET /v1/voices` with your API key.
+  2. Matches by `voice_id` **or** by `name`.
+  3. Uses canonical `voice_id` in `POST /v1/text-to-speech/{voice_id}`.
+- This allows using a JS-SDK style voice name in `.env`, while keeping REST calls compatible with ElevenLabs API.
 
 ## RabbitMQ Contract
 
@@ -154,6 +166,26 @@ Ensure the container can reach Postgres, RabbitMQ, and S3 (via AWS networking an
    - A `video.completed` event is published to RabbitMQ.
 
 On any error, status is set to `failed`, `error_text` is recorded, a `video.failed` event is published, and the message is acknowledged.
+
+## Troubleshooting
+
+### Worker starts and immediately processes an old `job_id`
+
+This is usually RabbitMQ re-delivery of an unacked message from `video.worker`, not a new request.
+
+- If this is expected, let the worker finish and ack it.
+- If you want a clean start for local debugging, purge `video.worker` queue before running the worker.
+
+### ElevenLabs `404 voice_not_found`
+
+- Your API key does not have access to the configured voice.
+- Verify the voice is present in `GET /v1/voices` for the same key.
+- Try setting `ELEVENLABS_VOICE_ID` to an exact `voice_id` instead of a name.
+
+### ElevenLabs `404 Not Found` on `/v1/text-to-speech`
+
+- This endpoint requires `/{voice_id}` suffix.
+- Ensure you run the latest worker code and fully restart the process after updates.
 
 ## Tests
 

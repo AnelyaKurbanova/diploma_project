@@ -69,8 +69,12 @@ class NumberLineScene(Scene):
                     direction=UP,
                     color=HIGHLIGHT_COLOR,
                 )
-                brace_label = brace.get_text(f"[{s}, {e}]", font_size=FONT_SIZE_SMALL)
-                brace_label.set_color(HIGHLIGHT_COLOR)
+                brace_label = Text(
+                    f"[{s}, {e}]",
+                    color=HIGHLIGHT_COLOR,
+                    font_size=FONT_SIZE_SMALL,
+                )
+                brace_label.next_to(brace, UP, buff=0.1)
                 self.play(FadeIn(brace), FadeIn(brace_label), rate_func=smooth, run_time=0.7)
 
         for pt_info in self._points:
