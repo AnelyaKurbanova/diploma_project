@@ -304,7 +304,7 @@ PLAN_JSON:
   ]
 }}
 """
-
+ 
         response = self._client.chat.completions.create(
             model=self._model,
             temperature=0.2,
