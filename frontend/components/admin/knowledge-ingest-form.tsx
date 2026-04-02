@@ -89,8 +89,9 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
       setError("Выберите файл и предмет");
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".docx")) {
-      setError("Поддерживаются только файлы .docx");
+    const lowerName = file.name.toLowerCase();
+    if (!(lowerName.endsWith(".docx") || lowerName.endsWith(".epub"))) {
+      setError("Поддерживаются только файлы .docx и .epub");
       return;
     }
 
@@ -136,7 +137,7 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
     <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
       <h2 className="text-lg font-bold text-slate-900">Загрузка учебников в базу знаний</h2>
       <p className="mt-1 text-sm text-slate-500">
-        Загрузите .docx с теорией по предмету. Материалы используются для RAG-генерации лекций.
+        Загрузите .docx или .epub с теорией по предмету. Материалы используются для RAG-генерации лекций.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -160,12 +161,12 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
 
         <div>
           <label className="mb-1 block text-sm font-medium text-slate-700">
-            Файл .docx
+            Файл .docx или .epub
           </label>
           <input
             id="knowledge-file-input"
             type="file"
-            accept=".docx"
+            accept=".docx,.epub"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
             className="block w-full max-w-md text-sm text-slate-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
           />
