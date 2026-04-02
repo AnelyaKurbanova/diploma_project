@@ -7,6 +7,10 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { ActivityHeatmap } from "@/components/profile/activity-heatmap";
+import { useMyAchievements, useMyStreak, useMyXp } from "@/lib/swr-hooks";
+import { AchievementsPanel } from "@/components/gamification/achievements-panel";
+import { XpCard } from "@/components/gamification/xp-card";
+import { StreakCard } from "@/components/gamification/streak-card";
 
 type MeResponse = {
   id: string;
@@ -75,6 +79,13 @@ export default function ProfilePage() {
   const [friendEmail, setFriendEmail] = useState("");
   const [addingFriend, setAddingFriend] = useState(false);
   const [showAddFriend, setShowAddFriend] = useState(false);
+  const { xp, isLoading: xpLoading } = useMyXp();
+  const { streak, isLoading: streakLoading } = useMyStreak();
+  const {
+    achievements,
+    isLoading: achievementsLoading,
+    error: achievementsError,
+  } = useMyAchievements();
 
   const loadAll = async (token: string) => {
     const [meData, profileData, statsData, socialData] = await Promise.all([
@@ -236,6 +247,13 @@ export default function ProfilePage() {
           <div className="space-y-4">
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
+                color="green"
+                iconSrc="/icons/stat-achievements.png"
+                iconAlt="XP"
+                value={xpLoading ? "..." : xp.total_xp}
+                label="Всего XP"
+              />
+              <StatCard
                 color="blue"
                 iconSrc="/icons/stat-progress.png"
                 iconAlt="Задачи"
@@ -243,59 +261,33 @@ export default function ProfilePage() {
                 label="Задач выполнено"
               />
               <StatCard
-                color="green"
-                iconSrc="/icons/stat-achievements.png"
-                iconAlt="Прогресс"
-                value={`${stats?.overall_progress ?? 0}%`}
-                label="Общий прогресс"
-              />
-              <StatCard
                 color="orange"
                 iconSrc="/icons/stat-tasks.png"
                 iconAlt="Достижения"
-                value={stats?.completed_lectures ?? 0}
+                value={achievementsLoading ? "..." : achievements.unlocked_count}
                 label="Достижений"
               />
               <StatCard
                 color="red"
                 iconSrc="/icons/stat-streak.png"
                 iconAlt="Серия"
-                value={Math.max(1, Math.round((stats?.accuracy ?? 0) / 12))}
+                value={streakLoading ? "..." : streak.current_streak}
                 label="Дней подряд"
               />
             </section>
 
+            <section className="grid gap-4 lg:grid-cols-2">
+              <XpCard xp={xp} isLoading={xpLoading} />
+              <StreakCard streak={streak} isLoading={streakLoading} />
+            </section>
+
             <ActivityHeatmap activity={social?.activity ?? []} />
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-4 text-xl font-bold">Достижения</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <AchievementCard
-                  title="Первые шаги"
-                  subtitle={`Выполнено ${Math.min(5, stats?.solved_tasks ?? 0)} задач`}
-                  progress={Math.min(100, ((stats?.solved_tasks ?? 0) / 5) * 100)}
-                />
-                <AchievementCard
-                  title="Ежедневная активность"
-                  subtitle={`Серия ${Math.max(1, Math.round((stats?.accuracy ?? 0) / 12))} дней`}
-                  progress={Math.min(100, (stats?.accuracy ?? 0) * 1.2)}
-                />
-                <AchievementCard
-                  title="Мастер"
-                  subtitle={`Пройдено ${stats?.completed_lectures ?? 0} уроков`}
-                  progress={
-                    stats?.total_lectures
-                      ? Math.min(100, (stats.completed_lectures / stats.total_lectures) * 100)
-                      : 0
-                  }
-                />
-                <AchievementCard
-                  title="Прогресс"
-                  subtitle={`Точность ${stats?.accuracy ?? 0}%`}
-                  progress={stats?.accuracy ?? 0}
-                />
-              </div>
-            </section>
+            <AchievementsPanel
+              achievements={achievements}
+              isLoading={achievementsLoading}
+              error={achievementsError}
+            />
           </div>
 
           <aside className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -414,29 +406,6 @@ function StatCard({
         <p className="max-w-full text-center text-sm font-medium leading-tight text-slate-500 sm:text-base">
           <span className="line-clamp-2 break-words">{label}</span>
         </p>
-      </div>
-    </article>
-  );
-}
-
-function AchievementCard({
-  title,
-  subtitle,
-  progress,
-}: {
-  title: string;
-  subtitle: string;
-  progress: number;
-}) {
-  return (
-    <article className="rounded-xl border border-blue-200 bg-white p-3">
-      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-      <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-      <div className="mt-2 h-2 rounded-full bg-slate-200">
-        <div
-          className="h-2 rounded-full bg-blue-500"
-          style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
-        />
       </div>
     </article>
   );

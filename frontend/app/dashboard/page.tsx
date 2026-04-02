@@ -20,6 +20,10 @@ import { RecommendationCard } from "@/components/dashboard/recommendation-card";
 import { TeacherDashboard } from "@/components/dashboard/teacher-dashboard";
 import { buttonClasses } from "@/components/ui/button";
 import Link from "next/link";
+import { useMyAchievements, useMyStreak, useMyXp } from "@/lib/swr-hooks";
+import { XpCard } from "@/components/gamification/xp-card";
+import { StreakCard } from "@/components/gamification/streak-card";
+import { AchievementsPanel } from "@/components/gamification/achievements-panel";
 
 type SubjectProgress = {
   code: string;
@@ -115,6 +119,13 @@ export default function DashboardPage() {
   const [joinError, setJoinError] = useState<string | null>(null);
   const [studentAssessments, setStudentAssessments] = useState<StudentAssessment[]>([]);
   const [assessmentsLoading, setAssessmentsLoading] = useState(false);
+  const { xp, isLoading: xpLoading, error: xpError } = useMyXp();
+  const { streak, isLoading: streakLoading, error: streakError } = useMyStreak();
+  const {
+    achievements,
+    isLoading: achievementsLoading,
+    error: achievementsError,
+  } = useMyAchievements();
 
   useEffect(() => {
     if (isLoading) return;
@@ -265,6 +276,26 @@ export default function DashboardPage() {
           <div className="animate-page-in" style={{ animationDelay: "0.18s" }}>
             <StatCard label="Точность" value={`${stats?.accuracy ?? 0}%`} icon={<TargetIcon className="h-7 w-7 text-rose-500" />} />
           </div>
+        </div>
+
+        <div className="mb-8 grid gap-4 xl:grid-cols-2">
+          <div className="animate-page-in h-full" style={{ animationDelay: "0.22s" }}>
+            <XpCard xp={xp} isLoading={xpLoading} error={xpError} />
+          </div>
+          <div className="animate-page-in h-full" style={{ animationDelay: "0.26s" }}>
+            <StreakCard streak={streak} isLoading={streakLoading} error={streakError} />
+          </div>
+        </div>
+
+        <div className="mb-8 animate-page-in" style={{ animationDelay: "0.3s" }}>
+          <AchievementsPanel
+            achievements={achievements}
+            isLoading={achievementsLoading}
+            error={achievementsError}
+            compact
+            unlockedOnly
+            limit={8}
+          />
         </div>
 
         <div className="mb-8 grid gap-6 lg:grid-cols-2">

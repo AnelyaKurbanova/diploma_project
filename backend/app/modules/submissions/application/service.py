@@ -16,6 +16,7 @@ from app.modules.classes.data.repo import ClassRepo
 from app.modules.problems.application.canonicalize import normalize_for_storage
 from app.modules.problems.data.models import (
     ProblemAnswerKeyModel,
+    ProblemDifficulty,
     ProblemModel,
     ProblemStatus,
     ProblemType,
@@ -28,6 +29,7 @@ from app.modules.submissions.api.schemas import (
     SubmissionProgressOut,
     SubmissionProgressItemOut,
 )
+from app.modules.gamification.application.service import GamificationService
 from app.modules.submissions.data.models import SubmissionModel, SubmissionStatus
 from app.modules.submissions.data.repo import SubmissionsRepo
 
@@ -328,6 +330,16 @@ class SubmissionService:
                     submission,
                     answer.choice_ids,
                 )
+
+            gamification = GamificationService(self.session)
+            await gamification.on_problem_submission(
+                user_id,
+                problem_id=problem.id,
+                difficulty=ProblemDifficulty(problem.difficulty),
+                submission_id=submission.id,
+                is_correct=is_correct,
+                occurred_at=submission.submitted_at,
+            )
 
         created_at = submission.submitted_at or datetime.now(timezone.utc)
         message = tr("graded") if status is SubmissionStatus.GRADED else tr("sent_to_review")
