@@ -19,8 +19,6 @@ class ChatRepo:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
-    # ── Conversations ──
-
     async def get_conversation(self, conversation_id: uuid.UUID) -> ChatConversationModel | None:
         return await self.session.get(ChatConversationModel, conversation_id)
 
@@ -67,8 +65,6 @@ class ChatRepo:
         )
         await self.session.execute(stmt)
 
-    # ── Messages ──
-
     async def add_message(
         self,
         *,
@@ -99,7 +95,6 @@ class ChatRepo:
             .where(ChatMessageModel.conversation_id == conversation_id)
         )
         if before_id is not None:
-            # cursor-based: get the created_at of the cursor message
             cursor_msg = await self.session.get(ChatMessageModel, before_id)
             if cursor_msg:
                 stmt = stmt.where(
@@ -114,20 +109,17 @@ class ChatRepo:
             ChatMessageModel.id.desc(),
         ).limit(limit)
         rows = (await self.session.execute(stmt)).scalars().all()
-        return list(reversed(rows))  # return oldest-first
+        return list(reversed(rows))
 
     async def get_all_messages_for_context(
         self, conversation_id: uuid.UUID,
     ) -> list[ChatMessageModel]:
-        """Get all messages for LLM context (no pagination)."""
         stmt = (
             select(ChatMessageModel)
             .where(ChatMessageModel.conversation_id == conversation_id)
             .order_by(ChatMessageModel.created_at.asc())
         )
         return list((await self.session.execute(stmt)).scalars().all())
-
-    # ── Daily Usage ──
 
     async def get_or_create_daily_usage(
         self, user_id: uuid.UUID,
@@ -154,12 +146,9 @@ class ChatRepo:
         usage.hint_message_count += 1
         await self.session.flush()
 
-    # ── Submission count (for hint eligibility) ──
-
     async def count_user_submissions(
         self, user_id: uuid.UUID, problem_id: uuid.UUID,
     ) -> int:
-        """Count total submissions for a user+problem (ignoring assessment context)."""
         from app.modules.submissions.data.models import SubmissionModel
         stmt = select(func.count()).where(
             SubmissionModel.user_id == user_id,

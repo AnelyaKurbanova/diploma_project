@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.errors import BadRequest, Forbidden, NotFound, TooManyRequests
+from app.core.errors import BadRequest, Forbidden, NotFound
 from app.settings import settings
 from app.modules.chat.data.models import (
     ChatContextType,
@@ -39,7 +39,6 @@ class ChatService:
         lesson_id: uuid.UUID | None,
         problem_id: uuid.UUID | None,
     ):
-        # Validate params
         if context_type == ChatContextType.LESSON and lesson_id is None:
             raise BadRequest("lesson_id required for lesson context")
         if context_type == ChatContextType.PROBLEM and problem_id is None:
@@ -91,7 +90,6 @@ class ChatService:
         return int((next_midnight - now).total_seconds())
 
     async def _check_daily_limit(self, user_id: uuid.UUID, context_type: ChatContextType) -> None:
-        # Limits disabled — usage still tracked for analytics
         pass
 
     async def send_message(
@@ -100,32 +98,26 @@ class ChatService:
         user_id: uuid.UUID,
         content: str,
     ):
-        """Generator that yields SSE events for a user message."""
         conv = await self.verify_ownership(conversation_id, user_id)
         await self._check_daily_limit(user_id, conv.context_type)
 
-        # Save user message
         await self.repo.add_message(
             conversation_id=conversation_id,
             role=ChatMessageRole.USER,
             content=content,
         )
 
-        # Increment daily counter
         if conv.context_type == ChatContextType.LESSON:
             await self.repo.increment_lesson_count(user_id)
         else:
             await self.repo.increment_hint_count(user_id)
 
-        # Build context
         if conv.context_type == ChatContextType.LESSON:
             context = await build_lesson_context(self.session, conv.lesson_id)
         else:
             context = await build_problem_context(self.session, conv.problem_id, user_id)
 
-        # Get conversation history
         all_messages = await self.repo.get_all_messages_for_context(conversation_id)
-        # Exclude the just-added user message (it's the input)
         history = [
             {"role": msg.role.value, "content": msg.content}
             for msg in all_messages[:-1]
@@ -134,7 +126,6 @@ class ChatService:
         await self.repo.touch_conversation(conversation_id)
         await self.session.commit()
 
-        # Stream response
         full_response = []
         try:
             if conv.context_type == ChatContextType.LESSON:
@@ -146,7 +137,6 @@ class ChatService:
                 full_response.append(token)
                 yield f"data: {json.dumps({'token': token})}\n\n"
 
-            # Save assistant message
             assistant_content = "".join(full_response)
             msg = await self.repo.add_message(
                 conversation_id=conversation_id,
@@ -159,7 +149,6 @@ class ChatService:
         except Exception as exc:
             logger.error("LLM streaming error: %s", exc)
             if full_response:
-                # Mid-stream failure: save partial
                 partial = "".join(full_response) + " [generation interrupted]"
                 await self.repo.add_message(
                     conversation_id=conversation_id,
@@ -174,7 +163,6 @@ class ChatService:
         conversation_id: uuid.UUID,
         user_id: uuid.UUID,
     ):
-        """Generator that yields SSE events for a hint request."""
         conv = await self.verify_ownership(conversation_id, user_id)
 
         if conv.context_type != ChatContextType.PROBLEM:
@@ -182,13 +170,10 @@ class ChatService:
 
         await self._check_daily_limit(user_id, ChatContextType.PROBLEM)
 
-        # Increment hint counter
         await self.repo.increment_hint_count(user_id)
 
-        # Build context
         context = await build_problem_context(self.session, conv.problem_id, user_id)
 
-        # Get conversation history
         all_messages = await self.repo.get_all_messages_for_context(conversation_id)
         history = [
             {"role": msg.role.value, "content": msg.content}
@@ -198,7 +183,6 @@ class ChatService:
         await self.repo.touch_conversation(conversation_id)
         await self.session.commit()
 
-        # Stream hint
         full_response = []
         try:
             stream = stream_problem_hint(context, history)
@@ -230,12 +214,16 @@ class ChatService:
                 await self.session.commit()
             yield f"event: error\ndata: {json.dumps({'message': 'AI response failed. Please try again.'})}\n\n"
 
-    async def send_rag_message(self, user_id: uuid.UUID, content: str):
-        """RAG-based chat — search user's documents and stream response."""
+    async def send_rag_message(
+        self,
+        user_id: uuid.UUID,
+        content: str,
+        *,
+        rag_debug: bool = False,
+    ):
         from app.modules.knowledge.application.embedding import embed_async
         from app.modules.knowledge.data.repo import KnowledgeRepo
 
-        # Search user's documents (non-blocking)
         query_embedding = await embed_async(content)
         knowledge_repo = KnowledgeRepo(self.session)
         chunks = await knowledge_repo.search(
@@ -245,16 +233,38 @@ class ChatService:
         )
 
         if chunks:
-            parts = []
+            parts: list[str] = []
+            used_ids: list[uuid.UUID] = []
             total = 0
             for chunk in chunks:
                 if total + len(chunk.content) > settings.RAG_MAX_CONTEXT_CHARS:
                     break
                 parts.append(chunk.content)
+                used_ids.append(chunk.id)
                 total += len(chunk.content)
             context = "\n\n---\n\n".join(parts)
         else:
             context = "(У вас пока нет загруженных материалов. Загрузите файлы через кнопку выше.)"
+            used_ids = []
+
+        if rag_debug:
+            used_set = {str(i) for i in used_ids}
+            payload = {
+                "rag_debug": True,
+                "query": content[:200],
+                "chunks": [
+                    {
+                        "chunk_id": str(c.id),
+                        "document_id": str(c.document_id),
+                        "chunk_index": c.chunk_index,
+                        "in_prompt": str(c.id) in used_set,
+                        "preview": c.content[:450],
+                    }
+                    for c in chunks
+                ],
+                "context_chars": len(context),
+            }
+            yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
 
         full_response = []
         try:

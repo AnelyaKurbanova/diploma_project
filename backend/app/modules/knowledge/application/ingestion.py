@@ -132,7 +132,7 @@ async def ingest_docx(
     )
 
     contents = [c[1] for c in chunk_pairs]
-    embeddings = embed_batch(contents)
+    embeddings = await embed_batch_async(contents)
 
     for idx, ((section, content), embedding) in enumerate(zip(chunk_pairs, embeddings)):
         await repo.create_chunk(
