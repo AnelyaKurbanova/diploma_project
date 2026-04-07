@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -78,7 +80,21 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         response.headers["X-Request-ID"] = request_id
         return response
 
-app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    try:
+        from app.modules.knowledge.application.embedding import preload_model
+        await asyncio.to_thread(preload_model)
+        logger.info("Embedding model pre-loaded")
+    except Exception as exc:
+        logger.warning("Could not pre-load embedding model: %s", exc)
+    await init_redis_cache(settings.REDIS_URL)
+    yield
+    await close_redis_cache()
+
+
+app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
 
 # --- OpenTelemetry (no-op when OTEL_EXPORTER_OTLP_ENDPOINT is not set) ---
 setup_tracing(app)
@@ -115,21 +131,12 @@ app.add_middleware(
         "https://www.orenaitest.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://192.168.0.105:3000",
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    await init_redis_cache(settings.REDIS_URL)
-
-
-@app.on_event("shutdown")
-async def on_shutdown() -> None:
-    await close_redis_cache()
-
 
 @app.get("/health")
 async def health():

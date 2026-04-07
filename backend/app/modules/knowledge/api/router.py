@@ -30,12 +30,18 @@ async def ingest_document(
 ):
     if not file.filename or not file.filename.lower().endswith(".docx"):
         raise HTTPException(status_code=400, detail="Only .docx files are supported")
+    original_name = Path(file.filename).name[:255]
     with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
         content = await file.read()
         tmp.write(content)
         tmp_path = Path(tmp.name)
     try:
-        doc, chunks_count = await ingest_docx(session, tmp_path, subject_code)
+        doc, chunks_count = await ingest_docx(
+            session,
+            tmp_path,
+            subject_code,
+            original_filename=original_name,
+        )
         return IngestResponse(
             document_id=doc.id,
             chunks_count=chunks_count,

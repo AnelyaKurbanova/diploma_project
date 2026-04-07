@@ -1,10 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import type { JSX } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSWRConfig } from "swr";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet, apiPost } from "@/lib/api";
 import {
@@ -16,12 +15,12 @@ import {
   useTopicProgress,
 } from "@/lib/swr-hooks";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { LectureContent } from "@/components/ui/lecture-content";
+import { LectureContent, lectureMarkdownFromBody } from "@/components/ui/lecture-content";
+import { LectureHtmlContent } from "@/components/ui/lecture-html-content";
 import { LessonPlayerLayout } from "@/components/learning/lesson-player-layout";
 import type { BreadcrumbItem } from "@/components/ui/breadcrumbs";
 import { ProblemContent } from "@/components/ui/problem-content";
 
-type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string };
 
 type BlockProblem = { problem_id: string; order_no: number };
@@ -69,10 +68,6 @@ type ProfileResponse = {
   [key: string]: unknown;
 };
 
-function hasHtmlTags(input: string): boolean {
-  return /<[^>]+>/.test(input);
-}
-
 const panelClass =
   "rounded-3xl bg-white border border-gray-100 p-8 shadow-sm transition-all hover:shadow-md hover:border-blue-100";
 
@@ -99,16 +94,17 @@ function LectureBlock({ block }: { block: ContentBlock }) {
       )}
 
       {block.body &&
-        (hasHtmlTags(block.body) ? (
-          <div
-            className="prose max-w-none prose-headings:text-slate-900 prose-p:text-slate-700 prose-strong:text-slate-900 prose-a:text-blue-600 prose-code:text-blue-600 [&_img]:mx-auto [&_img]:my-8 [&_img]:max-h-[520px] [&_img]:w-full [&_img]:rounded-2xl [&_img]:border [&_img]:border-slate-200 [&_img]:bg-white [&_img]:object-contain"
-            dangerouslySetInnerHTML={{ __html: block.body }}
-          />
-        ) : (
-          <div className="text-slate-800">
-            <LectureContent body={block.body} />
-          </div>
-        ))}
+        (() => {
+          const md = lectureMarkdownFromBody(block.body);
+          if (md !== null) {
+            return (
+              <div className="text-slate-800">
+                <LectureContent body={md} />
+              </div>
+            );
+          }
+          return <LectureHtmlContent html={block.body} />;
+        })()}
     </section>
   );
 }
@@ -337,6 +333,7 @@ function ProblemSetBlock({
 }
 
 export default function LessonDetailTabsPage() {
+  const { mutate } = useSWRConfig();
   const { code, grade, topicId, lessonId } = useParams<{
     code: string;
     grade: string;
@@ -423,11 +420,12 @@ export default function LessonDetailTabsPage() {
       await apiPost(`/lessons/${lessonId}/complete`, undefined, accessToken);
       setCompleted(true);
       await mutateTopicProgress();
+      await mutate(["/me/notifications", accessToken]);
     } catch {
     } finally {
       setCompleting(false);
     }
-  }, [accessToken, lessonId, completing, completed, mutateTopicProgress]);
+  }, [accessToken, lessonId, completing, completed, mutateTopicProgress, mutate]);
 
   useEffect(() => {
     if (!lesson || completed || !lessonEndRef.current) return;
@@ -670,16 +668,17 @@ export default function LessonDetailTabsPage() {
                     ))
                   ) : lesson.theory_body ? (
                     <section className={panelClass}>
-                      {hasHtmlTags(lesson.theory_body) ? (
-                        <div
-                          className="prose max-w-none prose-headings:text-slate-900 prose-p:text-slate-700 prose-strong:text-slate-900 prose-a:text-blue-600 prose-code:text-blue-600 [&_img]:mx-auto [&_img]:my-8 [&_img]:max-h-[520px] [&_img]:w-full [&_img]:rounded-2xl [&_img]:border [&_img]:border-slate-200 [&_img]:bg-white [&_img]:object-contain"
-                          dangerouslySetInnerHTML={{ __html: lesson.theory_body }}
-                        />
-                      ) : (
-                        <div className="text-slate-800">
-                          <LectureContent body={lesson.theory_body} />
-                        </div>
-                      )}
+                      {(() => {
+                        const md = lectureMarkdownFromBody(lesson.theory_body);
+                        if (md !== null) {
+                          return (
+                            <div className="text-slate-800">
+                              <LectureContent body={md} />
+                            </div>
+                          );
+                        }
+                        return <LectureHtmlContent html={lesson.theory_body} />;
+                      })()}
                     </section>
                   ) : (
                     <div className="flex flex-col items-center justify-center rounded-3xl border border-gray-100 bg-white py-16 text-center">
@@ -731,25 +730,6 @@ export default function LessonDetailTabsPage() {
             </div>
 
             <div ref={lessonEndRef} className="h-1 w-full" />
-
-            <div className="mt-10 flex justify-center">
-              {completed ? (
-                <div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-6 py-3 text-sm font-bold text-emerald-700">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                  </svg>
-                  Урок отмечен как пройденный
-                </div>
-              ) : (
-                <button
-                  onClick={handleComplete}
-                  disabled={completing}
-                  className="rounded-2xl bg-gradient-to-r from-indigo-600 to-violet-600 px-10 py-3 text-sm font-extrabold text-white shadow-xl shadow-indigo-500/20 transition-all hover:scale-[1.02] hover:shadow-indigo-500/35 disabled:opacity-50 disabled:hover:scale-100"
-                >
-                  {completing ? "Сохранение..." : "Отметить урок пройденным"}
-                </button>
-              )}
-            </div>
           </>
         )}
       </LessonPlayerLayout>

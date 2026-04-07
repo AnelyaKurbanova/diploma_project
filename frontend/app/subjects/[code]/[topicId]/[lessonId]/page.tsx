@@ -1,17 +1,17 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import type { JSX } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSWRConfig } from "swr";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet, apiPost } from "@/lib/api";
 import { useLesson, useProfile, useSubjects, useTopic } from "@/lib/swr-hooks";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { LectureContent } from "@/components/ui/lecture-content";
+import { LectureContent, lectureMarkdownFromBody } from "@/components/ui/lecture-content";
+import { LectureHtmlContent } from "@/components/ui/lecture-html-content";
 import { ProblemContent } from "@/components/ui/problem-content";
 
-type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string };
 
 type BlockProblem = { problem_id: string; order_no: number };
@@ -49,11 +49,10 @@ type SubmissionProgress = {
   last_is_correct: boolean | null;
 };
 
-type ProfileResponse = { full_name: string | null; avatar_url?: string | null; [key: string]: unknown };
-
 function hasHtmlTags(input: string): boolean {
   return /<[^>]+>/.test(input);
 }
+type ProfileResponse = { full_name: string | null; avatar_url?: string | null; [key: string]: unknown };
 
 function LectureBlock({ block }: { block: ContentBlock }) {
   return (
@@ -66,16 +65,12 @@ function LectureBlock({ block }: { block: ContentBlock }) {
           {block.title}
         </h2>
       )}
-      {block.body && (
-        hasHtmlTags(block.body) ? (
-          <div
-            className="prose prose-slate mx-auto max-w-3xl prose-p:text-base prose-p:leading-8 prose-headings:font-bold [&_img]:mx-auto [&_img]:my-8 [&_img]:max-h-[420px] [&_img]:w-full [&_img]:rounded-2xl [&_img]:border [&_img]:border-slate-200 [&_img]:bg-white [&_img]:object-contain"
-            dangerouslySetInnerHTML={{ __html: block.body }}
-          />
-        ) : (
-          <LectureContent body={block.body} />
-        )
-      )}
+      {block.body &&
+        (() => {
+          const md = lectureMarkdownFromBody(block.body);
+          if (md !== null) return <LectureContent body={md} />;
+          return <LectureHtmlContent html={block.body} />;
+        })()}
     </section>
   );
 }
@@ -260,6 +255,7 @@ function ProblemSetBlock({
 }
 
 export default function LessonDetailPage() {
+  const { mutate } = useSWRConfig();
   const { code, topicId, lessonId } = useParams<{ code: string; topicId: string; lessonId: string }>();
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
@@ -296,12 +292,13 @@ export default function LessonDetailPage() {
     try {
       await apiPost(`/lessons/${lessonId}/complete`, undefined, accessToken);
       setCompleted(true);
+      await mutate(["/me/notifications", accessToken]);
     } catch {
       // ignore
     } finally {
       setCompleting(false);
     }
-  }, [accessToken, lessonId, completing, completed]);
+  }, [accessToken, lessonId, completing, completed, mutate]);
 
   useEffect(() => {
     if (!lesson || completed || !lessonEndRef.current) return;
@@ -399,14 +396,11 @@ export default function LessonDetailPage() {
               </div>
             ) : lesson.theory_body ? (
               <section className="animate-page-in animate-stagger-2 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-                {hasHtmlTags(lesson.theory_body) ? (
-                  <div
-                    className="prose prose-slate mx-auto max-w-3xl prose-p:text-base prose-p:leading-8 prose-headings:font-bold [&_img]:mx-auto [&_img]:my-8 [&_img]:max-h-[420px] [&_img]:w-full [&_img]:rounded-2xl [&_img]:border [&_img]:border-slate-200 [&_img]:bg-white [&_img]:object-contain"
-                    dangerouslySetInnerHTML={{ __html: lesson.theory_body }}
-                  />
-                ) : (
-                  <LectureContent body={lesson.theory_body} />
-                )}
+                {(() => {
+                  const md = lectureMarkdownFromBody(lesson.theory_body);
+                  if (md !== null) return <LectureContent body={md} />;
+                  return <LectureHtmlContent html={lesson.theory_body} />;
+                })()}
               </section>
             ) : (
               <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 text-center">
@@ -415,24 +409,6 @@ export default function LessonDetailPage() {
             )}
 
             <div ref={lessonEndRef} className="h-1 w-full" />
-            <div className="mt-10 flex justify-center">
-              {completed ? (
-                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 px-6 py-3 text-sm font-semibold text-emerald-700">
-                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
-                  </svg>
-                  Урок отмечен как пройденный
-                </div>
-              ) : (
-                <button
-                  onClick={handleComplete}
-                  disabled={completing}
-                  className="rounded-xl bg-blue-600 px-8 py-3 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {completing ? "Сохранение..." : "Отметить урок пройденным"}
-                </button>
-              )}
-            </div>
           </>
         )}
       </main>
