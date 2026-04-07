@@ -4,6 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import {
+  apiMarkAllNotificationsRead,
+  apiMarkNotificationRead,
+  type UserNotification,
+} from "@/lib/api";
+import { useMyNotifications } from "@/lib/swr-hooks";
 
 type DashboardHeaderProps = {
   userName: string;
@@ -78,6 +84,14 @@ function TrophyIcon({ className }: { className?: string }) {
   );
 }
 
+function UserPlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v6m3-3h-6M15.75 18.75a6.728 6.728 0 0 0-7.5 0m7.5 0a9 9 0 1 0-7.5 0m7.5 0A8.966 8.966 0 0 1 12 21a8.966 8.966 0 0 1-3.75-.825M15 7.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+    </svg>
+  );
+}
+
 const ROLE_LABELS: Record<string, string> = {
   student: "Ученик",
   teacher: "Учитель",
@@ -86,30 +100,66 @@ const ROLE_LABELS: Record<string, string> = {
   content_maker: "Контент-мейкер",
 };
 
+function formatNotificationTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "";
+  }
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function NotificationItemIcon({
+  notification,
+}: {
+  notification: UserNotification;
+}) {
+  const iconClassName = "h-5 w-5";
+  if (notification.type === "achievement_unlocked") {
+    return <TrophyIcon className={iconClassName} />;
+  }
+  return <UserPlusIcon className={iconClassName} />;
+}
+
 export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout } = useAuth();
+  const { accessToken, logout } = useAuth();
+  const {
+    notifications,
+    isLoading: notificationsLoading,
+    mutate: mutateNotifications,
+  } = useMyNotifications();
 
   const avatarSrc = avatarUrl || "/images/default-avatar.png";
 
   const [menuOpen, setMenuOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsBusy, setNotificationsBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
+  const notificationsRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
-    if (!menuOpen) return;
+    if (!menuOpen && !notificationsOpen) return;
     function handleClickOutside(event: MouseEvent) {
-      if (
-        menuRef.current &&
-        event.target instanceof Node &&
-        !menuRef.current.contains(event.target)
-      ) {
+      if (!(event.target instanceof Node)) {
+        return;
+      }
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
         setMenuOpen(false);
+      }
+      if (notificationsRef.current && !notificationsRef.current.contains(event.target)) {
+        setNotificationsOpen(false);
       }
     }
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setMenuOpen(false);
+        setNotificationsOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -118,11 +168,51 @@ export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHead
       document.removeEventListener("mousedown", handleClickOutside);
       document.removeEventListener("keydown", handleEscape);
     };
-  }, [menuOpen]);
+  }, [menuOpen, notificationsOpen]);
 
   const handleLogout = async () => {
     await logout();
     router.push("/auth");
+  };
+
+  const handleMarkAllNotificationsRead = async () => {
+    if (!accessToken || notifications.unread_count === 0) return;
+    setNotificationsBusy(true);
+    try {
+      await apiMarkAllNotificationsRead(accessToken);
+      await mutateNotifications();
+    } catch (error) {
+      console.error("Failed to mark all notifications as read", error);
+    } finally {
+      setNotificationsBusy(false);
+    }
+  };
+
+  const handleNotificationClick = async (notification: UserNotification) => {
+    if (!accessToken) {
+      setNotificationsOpen(false);
+      if (notification.action_url) {
+        router.push(notification.action_url);
+      }
+      return;
+    }
+
+    setNotificationsBusy(true);
+    try {
+      if (!notification.is_read) {
+        await apiMarkNotificationRead(notification.id, accessToken);
+      }
+      await mutateNotifications();
+    } catch (error) {
+      console.error("Failed to mark notification as read", error);
+    } finally {
+      setNotificationsBusy(false);
+      setNotificationsOpen(false);
+    }
+
+    if (notification.action_url) {
+      router.push(notification.action_url);
+    }
   };
 
   return (
@@ -196,22 +286,111 @@ export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHead
 
           {/* Bell + Profile */}
           <div className="flex items-center">
-            {/* Bell notification button */}
-            <button
-              type="button"
-              className="relative flex items-center justify-center p-2"
-              aria-label="Уведомления"
-            >
-              <BellIcon className="h-6 w-6 text-[#0a0a0a]" />
-              {/* Red badge */}
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full border-2 border-white bg-[#ef4444]" />
-            </button>
+            <div ref={notificationsRef} className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  setNotificationsOpen((open) => !open);
+                  setMenuOpen(false);
+                }}
+                className="relative flex items-center justify-center p-2"
+                aria-label="Уведомления"
+              >
+                <BellIcon className="h-6 w-6 text-[#0a0a0a]" />
+                {notifications.unread_count > 0 ? (
+                  <span className="absolute right-0.5 top-0.5 min-w-5 rounded-full bg-[#ef4444] px-1.5 py-0.5 text-center text-[11px] font-semibold leading-none text-white">
+                    {notifications.unread_count > 9 ? "9+" : notifications.unread_count}
+                  </span>
+                ) : null}
+              </button>
+
+              {notificationsOpen && (
+                <div className="absolute right-0 mt-2 w-[22rem] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5">
+                  <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-4 py-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">Уведомления</p>
+                      <p className="text-xs text-slate-500">
+                        {notifications.unread_count > 0
+                          ? `Непрочитанных: ${notifications.unread_count}`
+                          : "Все уведомления прочитаны"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleMarkAllNotificationsRead}
+                      disabled={notifications.unread_count === 0 || notificationsBusy}
+                      className="text-xs font-medium text-blue-600 transition hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                    >
+                      Прочитать все
+                    </button>
+                  </div>
+
+                  <div className="max-h-96 overflow-y-auto">
+                    {notificationsLoading ? (
+                      <div className="space-y-3 px-4 py-4">
+                        {Array.from({ length: 3 }).map((_, idx) => (
+                          <div key={idx} className="animate-pulse rounded-2xl bg-slate-50 p-3">
+                            <div className="mb-2 h-3 w-28 rounded bg-slate-200" />
+                            <div className="mb-2 h-3 w-full rounded bg-slate-200" />
+                            <div className="h-3 w-24 rounded bg-slate-200" />
+                          </div>
+                        ))}
+                      </div>
+                    ) : notifications.items.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-slate-500">
+                        Пока уведомлений нет.
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-slate-100">
+                        {notifications.items.map((notification) => (
+                          <button
+                            key={notification.id}
+                            type="button"
+                            onClick={() => handleNotificationClick(notification)}
+                            className="flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-slate-50"
+                          >
+                            <div
+                              className={`mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+                                notification.type === "achievement_unlocked"
+                                  ? "bg-amber-50 text-amber-600"
+                                  : "bg-blue-50 text-blue-600"
+                              }`}
+                            >
+                              <NotificationItemIcon notification={notification} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-start justify-between gap-3">
+                                <p className="text-sm font-semibold text-slate-900">
+                                  {notification.title}
+                                </p>
+                                {!notification.is_read ? (
+                                  <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-blue-500" />
+                                ) : null}
+                              </div>
+                              <p className="mt-1 text-sm text-slate-600">
+                                {notification.message}
+                              </p>
+                              <p className="mt-2 text-xs text-slate-400">
+                                {formatNotificationTime(notification.created_at)}
+                              </p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Profile */}
             <div ref={menuRef} className="relative ml-1">
               <button
                 type="button"
-                onClick={() => setMenuOpen((open) => !open)}
+                onClick={() => {
+                  setMenuOpen((open) => !open);
+                  setNotificationsOpen(false);
+                }}
                 className="flex items-center gap-0 rounded-[10px]"
               >
                 {/* Avatar with teal border */}

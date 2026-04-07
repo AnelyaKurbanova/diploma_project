@@ -5,11 +5,13 @@ import {
   apiGet,
   apiGetLeaderboard,
   apiGetMyAchievements,
+  apiGetMyNotifications,
   apiGetMyStreak,
   apiGetMyXp,
   type LeaderboardMetric,
   type LeaderboardResponse,
   type UserAchievementsResponse,
+  type UserNotificationsResponse,
   type UserStreak,
   type UserXp,
 } from "@/lib/api";
@@ -18,6 +20,12 @@ import { useAuth } from "@/lib/auth-context";
 const SWR_CONFIG = {
   revalidateOnFocus: false,
   dedupingInterval: 60_000,
+};
+
+const NOTIFICATIONS_SWR_CONFIG = {
+  revalidateOnFocus: true,
+  dedupingInterval: 15_000,
+  refreshInterval: 30_000,
 };
 
 function fetcher<T>(path: string, token: string) {
@@ -198,6 +206,22 @@ export function useMyAchievements() {
   );
   return {
     achievements: data ?? { items: [], unlocked_count: 0, total: 0 },
+    error,
+    isLoading,
+    mutate,
+  };
+}
+
+export function useMyNotifications() {
+  const { accessToken } = useAuth();
+  const key = accessToken ? ["/me/notifications", accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR<UserNotificationsResponse>(
+    key,
+    ([, token]) => apiGetMyNotifications(token),
+    NOTIFICATIONS_SWR_CONFIG,
+  );
+  return {
+    notifications: data ?? { items: [], unread_count: 0 },
     error,
     isLoading,
     mutate,

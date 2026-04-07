@@ -23,18 +23,34 @@ from app.modules.users.api.schemas import (
     FriendAddIn,
     FriendOut,
     FriendRequestOut,
+    NotificationListOut,
     OnboardingIn,
     PublicStatsOut,
     PublicUserProfileOut,
     SocialOut,
+    UserNotificationOut,
     UserProfileOut,
     UserProfileUpdate,
 )
-from app.modules.users.data.models import UserModel, UserProfileModel, UserRole
-from app.modules.users.data.repo import UserFriendRepo, UserFriendRequestRepo, UserProfileRepo, UserRepo
+from app.modules.users.data.models import UserModel, UserNotificationModel, UserProfileModel, UserRole
+from app.modules.users.data.repo import (
+    UserFriendRepo,
+    UserFriendRequestRepo,
+    UserNotificationRepo,
+    UserProfileRepo,
+    UserRepo,
+)
 
 
 router = APIRouter(prefix="/me", tags=["users"])
+
+
+def _display_name(user_row: UserModel, profile_row: UserProfileModel | None) -> str:
+    return (
+        profile_row.full_name
+        if profile_row and profile_row.full_name
+        else user_row.email.split("@")[0]
+    )
 
 
 async def _load_activity_days(session: AsyncSession, user_id) -> list[ActivityDayOut]:
@@ -87,15 +103,10 @@ async def _load_friends(
     rows = (await session.execute(friend_rows_stmt)).all()
     friends: list[FriendOut] = []
     for user_row, profile_row in rows:
-        display_name = (
-            profile_row.full_name
-            if profile_row and profile_row.full_name
-            else user_row.email.split("@")[0]
-        )
         friends.append(
             FriendOut(
                 id=user_row.id,
-                full_name=display_name,
+                full_name=_display_name(user_row, profile_row),
                 role=user_row.role,
                 avatar_url=profile_row.avatar_url if profile_row else None,
             )
@@ -132,20 +143,65 @@ async def _load_incoming_requests(
         if not pair:
             continue
         req_user, req_profile = pair
-        display_name = (
-            req_profile.full_name
-            if req_profile and req_profile.full_name
-            else req_user.email.split("@")[0]
-        )
         out.append(
             FriendRequestOut(
                 requester_id=req.requester_id,
-                requester_name=display_name,
+                requester_name=_display_name(req_user, req_profile),
                 requester_role=req_user.role,
                 created_at=req.created_at,
             )
         )
     return out
+
+
+async def _load_notification_actor_map(
+    session: AsyncSession,
+    actor_ids: list[uuid.UUID],
+) -> dict[uuid.UUID, tuple[UserModel, UserProfileModel | None]]:
+    if not actor_ids:
+        return {}
+
+    stmt = (
+        select(UserModel, UserProfileModel)
+        .outerjoin(UserProfileModel, UserProfileModel.user_id == UserModel.id)
+        .where(UserModel.id.in_(actor_ids))
+    )
+    rows = (await session.execute(stmt)).all()
+    return {user_row.id: (user_row, profile_row) for user_row, profile_row in rows}
+
+
+def _notification_action_url(notification: UserNotificationModel) -> str:
+    if notification.type == "friend_added" and notification.actor_user_id is not None:
+        return f"/profile/{notification.actor_user_id}"
+    return "/profile"
+
+
+def _to_notification_out(
+    notification: UserNotificationModel,
+    actor_map: dict[uuid.UUID, tuple[UserModel, UserProfileModel | None]],
+) -> UserNotificationOut:
+    actor_name: str | None = None
+    actor_avatar_url: str | None = None
+    if notification.actor_user_id is not None:
+        actor_pair = actor_map.get(notification.actor_user_id)
+        if actor_pair is not None:
+            actor_user, actor_profile = actor_pair
+            actor_name = _display_name(actor_user, actor_profile)
+            actor_avatar_url = actor_profile.avatar_url if actor_profile else None
+
+    return UserNotificationOut(
+        id=notification.id,
+        type=notification.type,
+        title=notification.title,
+        message=notification.message,
+        is_read=notification.is_read,
+        created_at=notification.created_at,
+        read_at=notification.read_at,
+        actor_user_id=notification.actor_user_id,
+        actor_name=actor_name,
+        actor_avatar_url=actor_avatar_url,
+        action_url=_notification_action_url(notification),
+    )
 
 
 def _to_profile_out(current_user, profile) -> UserProfileOut:
@@ -211,6 +267,58 @@ async def get_my_social(
     )
 
 
+@router.get("/notifications", response_model=NotificationListOut)
+async def get_my_notifications(
+    limit: int = 20,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    notification_repo = UserNotificationRepo(session)
+    notifications = await notification_repo.list_for_user(current_user.id, limit=max(1, min(limit, 100)))
+    unread_count = await notification_repo.count_unread(current_user.id)
+    actor_ids = list(
+        {
+            row.actor_user_id
+            for row in notifications
+            if row.actor_user_id is not None
+        }
+    )
+    actor_map = await _load_notification_actor_map(session, actor_ids)
+    return NotificationListOut(
+        items=[
+            _to_notification_out(row, actor_map)
+            for row in notifications
+        ],
+        unread_count=unread_count,
+    )
+
+
+@router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(
+    notification_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    notification_repo = UserNotificationRepo(session)
+    notification = await notification_repo.get_by_id_for_user(notification_id, current_user.id)
+    if notification is None:
+        raise NotFound("Уведомление не найдено")
+    await notification_repo.mark_read(notification)
+    await session.commit()
+    return {"ok": True}
+
+
+@router.post("/notifications/read-all")
+async def mark_all_notifications_read(
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    notification_repo = UserNotificationRepo(session)
+    await notification_repo.mark_all_read(current_user.id)
+    await session.commit()
+    return {"ok": True}
+
+
 @router.post("/friends")
 async def add_friend(
     body: FriendAddIn,
@@ -220,6 +328,8 @@ async def add_friend(
     user_repo = UserRepo(session)
     friend_repo = UserFriendRepo(session)
     request_repo = UserFriendRequestRepo(session)
+    profile_repo = UserProfileRepo(session)
+    notification_repo = UserNotificationRepo(session)
 
     target_user = None
     if body.friend_user_id is not None:
@@ -239,6 +349,17 @@ async def add_friend(
         raise BadRequest("У вас уже есть входящая заявка от этого пользователя")
 
     created = await request_repo.create_request(current_user.id, target_user.id)
+    if created:
+        current_profile = await profile_repo.get_by_user_id(current_user.id)
+        actor_name = _display_name(current_user, current_profile)
+        await notification_repo.create(
+            user_id=target_user.id,
+            actor_user_id=current_user.id,
+            type="friend_request_received",
+            title="Новая заявка в друзья",
+            message=f"{actor_name} хочет добавить вас в друзья.",
+            payload={"friend_user_id": str(current_user.id)},
+        )
     await session.commit()
 
     if not created:
@@ -254,6 +375,9 @@ async def accept_friend_request(
 ):
     request_repo = UserFriendRequestRepo(session)
     friend_repo = UserFriendRepo(session)
+    user_repo = UserRepo(session)
+    profile_repo = UserProfileRepo(session)
+    notification_repo = UserNotificationRepo(session)
 
     request_row = await request_repo.get_between(requester_id, current_user.id)
     if request_row is None:
@@ -261,6 +385,18 @@ async def accept_friend_request(
 
     await request_repo.delete_request(requester_id, current_user.id)
     await friend_repo.create_friendship(current_user.id, requester_id)
+    current_profile = await profile_repo.get_by_user_id(current_user.id)
+    actor_name = _display_name(current_user, current_profile)
+    requester_user = await user_repo.get_by_id(requester_id)
+    if requester_user is not None:
+        await notification_repo.create(
+            user_id=requester_id,
+            actor_user_id=current_user.id,
+            type="friend_added",
+            title="У вас новый друг",
+            message=f"{actor_name} подтвердил(а) заявку в друзья.",
+            payload={"friend_user_id": str(current_user.id)},
+        )
     await session.commit()
     return {"ok": True}
 
@@ -320,11 +456,7 @@ async def get_public_profile(
         raise NotFound("Пользователь не найден")
     target_profile = await profile_repo.get_by_user_id(target_user.id)
 
-    full_name = (
-        target_profile.full_name
-        if target_profile and target_profile.full_name
-        else target_user.email.split("@")[0]
-    )
+    full_name = _display_name(target_user, target_profile)
     is_friend = await friend_repo.are_friends(current_user.id, target_user.id)
     if is_friend:
         friendship_status = "friends"

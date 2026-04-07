@@ -262,6 +262,10 @@ class TestApiUsersFlows:
 
         self.friendships: set[tuple[uuid.UUID, uuid.UUID]] = set()
         self.requests: dict[tuple[uuid.UUID, uuid.UUID], SimpleNamespace] = {}
+        self.notifications: dict[uuid.UUID, list[SimpleNamespace]] = {
+            self.user_a.id: [],
+            self.user_b.id: [],
+        }
 
         self.school_id = uuid.uuid4()
         self.teacher_code = "teacher-123"
@@ -367,6 +371,63 @@ class TestApiUsersFlows:
             async def list_outgoing(self, requester_id: uuid.UUID):
                 return [row for (req_id, _tgt_id), row in self_ref.requests.items() if req_id == requester_id]
 
+        class FakeUserNotificationRepo:
+            def __init__(self, _session):
+                self._session = _session
+
+            async def create(
+                self,
+                *,
+                user_id: uuid.UUID,
+                type: str,
+                title: str,
+                message: str,
+                actor_user_id: uuid.UUID | None = None,
+                payload: dict | None = None,
+            ):
+                row = SimpleNamespace(
+                    id=uuid.uuid4(),
+                    user_id=user_id,
+                    actor_user_id=actor_user_id,
+                    type=type,
+                    title=title,
+                    message=message,
+                    payload=payload,
+                    is_read=False,
+                    read_at=None,
+                    created_at=self_ref.now,
+                )
+                self_ref.notifications.setdefault(user_id, []).append(row)
+                return row
+
+            async def list_for_user(self, user_id: uuid.UUID, *, limit: int = 20):
+                rows = list(self_ref.notifications.get(user_id, []))
+                rows.sort(key=lambda row: (row.is_read, -row.created_at.timestamp()))
+                return rows[:limit]
+
+            async def count_unread(self, user_id: uuid.UUID) -> int:
+                return sum(1 for row in self_ref.notifications.get(user_id, []) if not row.is_read)
+
+            async def get_by_id_for_user(self, notification_id: uuid.UUID, user_id: uuid.UUID):
+                for row in self_ref.notifications.get(user_id, []):
+                    if row.id == notification_id:
+                        return row
+                return None
+
+            async def mark_read(self, row):
+                row.is_read = True
+                row.read_at = self_ref.now
+                return row
+
+            async def mark_all_read(self, user_id: uuid.UUID) -> int:
+                count = 0
+                for row in self_ref.notifications.get(user_id, []):
+                    if not row.is_read:
+                        row.is_read = True
+                        row.read_at = self_ref.now
+                        count += 1
+                return count
+
         class FakeSchoolRepo:
             def __init__(self, _session):
                 self._session = _session
@@ -386,6 +447,13 @@ class TestApiUsersFlows:
 
         async def fake_load_incoming_requests(_session, _request_repo, _user_id, *, limit=20):
             return []
+
+        async def fake_load_notification_actor_map(_session, actor_ids):
+            return {
+                actor_id: (self_ref.users[actor_id], self_ref.profiles.get(actor_id))
+                for actor_id in actor_ids
+                if actor_id in self_ref.users
+            }
 
         class FakeDashboardService:
             def __init__(self, _session):
@@ -417,10 +485,16 @@ class TestApiUsersFlows:
         monkeypatch.setattr(users_router_module, "UserProfileRepo", FakeUserProfileRepo)
         monkeypatch.setattr(users_router_module, "UserFriendRepo", FakeUserFriendRepo)
         monkeypatch.setattr(users_router_module, "UserFriendRequestRepo", FakeUserFriendRequestRepo)
+        monkeypatch.setattr(users_router_module, "UserNotificationRepo", FakeUserNotificationRepo)
         monkeypatch.setattr(users_router_module, "SchoolRepo", FakeSchoolRepo)
         monkeypatch.setattr(users_router_module, "_load_activity_days", fake_load_activity_days)
         monkeypatch.setattr(users_router_module, "_load_friends", fake_load_friends)
         monkeypatch.setattr(users_router_module, "_load_incoming_requests", fake_load_incoming_requests)
+        monkeypatch.setattr(
+            users_router_module,
+            "_load_notification_actor_map",
+            fake_load_notification_actor_map,
+        )
         monkeypatch.setattr(users_router_module, "DashboardService", FakeDashboardService)
         monkeypatch.setattr(users_router_module, "verify_teacher_code", fake_verify_teacher_code)
 
@@ -520,6 +594,66 @@ class TestApiUsersFlows:
             assert cancel_resp.status_code == 200
             assert cancel_resp.json()["ok"] is True
 
+    def test_notifications_for_friend_request_and_accept(self):
+        with TestClient(app) as client:
+            send_resp = client.post(
+                "/me/friends",
+                headers={"Authorization": "Bearer fake"},
+                json={"friend_user_id": str(self.user_b.id)},
+            )
+            assert send_resp.status_code == 200
+
+            notifications_b = client.get(
+                "/me/notifications",
+                headers={"Authorization": "Bearer fake", "X-Test-User": "b"},
+            )
+            assert notifications_b.status_code == 200
+            data_b = notifications_b.json()
+            assert data_b["unread_count"] == 1
+            assert data_b["items"][0]["type"] == "friend_request_received"
+            notification_id = data_b["items"][0]["id"]
+
+            read_resp = client.post(
+                f"/me/notifications/{notification_id}/read",
+                headers={"Authorization": "Bearer fake", "X-Test-User": "b"},
+            )
+            assert read_resp.status_code == 200
+
+            notifications_b_after_read = client.get(
+                "/me/notifications",
+                headers={"Authorization": "Bearer fake", "X-Test-User": "b"},
+            )
+            assert notifications_b_after_read.status_code == 200
+            assert notifications_b_after_read.json()["unread_count"] == 0
+
+            accept_resp = client.post(
+                f"/me/friends/requests/{self.user_a.id}/accept",
+                headers={"Authorization": "Bearer fake", "X-Test-User": "b"},
+            )
+            assert accept_resp.status_code == 200
+
+            notifications_a = client.get(
+                "/me/notifications",
+                headers={"Authorization": "Bearer fake"},
+            )
+            assert notifications_a.status_code == 200
+            data_a = notifications_a.json()
+            assert data_a["unread_count"] == 1
+            assert data_a["items"][0]["type"] == "friend_added"
+
+            read_all_resp = client.post(
+                "/me/notifications/read-all",
+                headers={"Authorization": "Bearer fake"},
+            )
+            assert read_all_resp.status_code == 200
+
+            notifications_a_after_read_all = client.get(
+                "/me/notifications",
+                headers={"Authorization": "Bearer fake"},
+            )
+            assert notifications_a_after_read_all.status_code == 200
+            assert notifications_a_after_read_all.json()["unread_count"] == 0
+
     def test_onboarding_teacher_sets_role_and_school(self):
         with TestClient(app) as client:
             onboarding_resp = client.post(
@@ -589,4 +723,3 @@ class TestApiUsersFlows:
                 },
             )
             assert resp.status_code == 400
-
