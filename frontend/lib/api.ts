@@ -303,6 +303,25 @@ export type UserAchievementsResponse = {
   total: number;
 };
 
+export type UserNotification = {
+  id: string;
+  type: "achievement_unlocked" | "friend_request_received" | "friend_added";
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+  read_at: string | null;
+  actor_user_id: string | null;
+  actor_name: string | null;
+  actor_avatar_url: string | null;
+  action_url: string | null;
+};
+
+export type UserNotificationsResponse = {
+  items: UserNotification[];
+  unread_count: number;
+};
+
 export type LeaderboardMetric = "xp" | "solved_problems" | "streak";
 
 export type LeaderboardEntry = {
@@ -445,6 +464,25 @@ export function apiGetMyAchievements(
   accessToken: string,
 ): Promise<UserAchievementsResponse> {
   return apiGet<UserAchievementsResponse>("/me/achievements", accessToken);
+}
+
+export function apiGetMyNotifications(
+  accessToken: string,
+): Promise<UserNotificationsResponse> {
+  return apiGet<UserNotificationsResponse>("/me/notifications", accessToken);
+}
+
+export function apiMarkNotificationRead(
+  notificationId: string,
+  accessToken: string,
+): Promise<void> {
+  return apiPost<void>(`/me/notifications/${notificationId}/read`, undefined, accessToken);
+}
+
+export function apiMarkAllNotificationsRead(
+  accessToken: string,
+): Promise<void> {
+  return apiPost<void>("/me/notifications/read-all", undefined, accessToken);
 }
 
 export function apiGetLeaderboard(

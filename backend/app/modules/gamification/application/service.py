@@ -28,6 +28,7 @@ from app.modules.gamification.data.repo import (
     UserXpRepo,
 )
 from app.modules.problems.data.models import ProblemDifficulty
+from app.modules.users.data.repo import UserNotificationRepo
 
 
 logger = logging.getLogger(__name__)
@@ -64,6 +65,7 @@ class GamificationService:
         self.user_streak_repo = UserStreakRepo(session)
         self.user_xp_repo = UserXpRepo(session)
         self.stats_repo = GamificationStatsRepo(session)
+        self.notification_repo = UserNotificationRepo(session)
 
     async def _get_or_create_xp_row(
         self,
@@ -330,6 +332,16 @@ class GamificationService:
             try:
                 async with self.session.begin_nested():
                     await self.user_achievement_repo.unlock(user_id, achievement.id)
+                    await self.notification_repo.create(
+                        user_id=user_id,
+                        type="achievement_unlocked",
+                        title="Новое достижение",
+                        message=f"Вы получили достижение «{achievement.title}».",
+                        payload={
+                            "achievement_id": str(achievement.id),
+                            "achievement_code": achievement.code,
+                        },
+                    )
             except IntegrityError:
                 logger.info(
                     "Achievement already unlocked concurrently",

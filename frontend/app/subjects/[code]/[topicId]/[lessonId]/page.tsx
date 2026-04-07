@@ -1,9 +1,9 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import type { JSX } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSWRConfig } from "swr";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet, apiPost } from "@/lib/api";
 import { useLesson, useProfile, useSubjects, useTopic } from "@/lib/swr-hooks";
@@ -13,7 +13,6 @@ import { LectureHtmlContent } from "@/components/ui/lecture-html-content";
 import { ProblemContent } from "@/components/ui/problem-content";
 import { ChatWidget } from "@/components/chat/ChatWidget";
 
-type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string };
 
 type BlockProblem = { problem_id: string; order_no: number };
@@ -51,6 +50,9 @@ type SubmissionProgress = {
   last_is_correct: boolean | null;
 };
 
+function hasHtmlTags(input: string): boolean {
+  return /<[^>]+>/.test(input);
+}
 type ProfileResponse = { full_name: string | null; avatar_url?: string | null; [key: string]: unknown };
 
 function LectureBlock({ block }: { block: ContentBlock }) {
@@ -254,6 +256,7 @@ function ProblemSetBlock({
 }
 
 export default function LessonDetailPage() {
+  const { mutate } = useSWRConfig();
   const { code, topicId, lessonId } = useParams<{ code: string; topicId: string; lessonId: string }>();
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
@@ -290,12 +293,13 @@ export default function LessonDetailPage() {
     try {
       await apiPost(`/lessons/${lessonId}/complete`, undefined, accessToken);
       setCompleted(true);
+      await mutate(["/me/notifications", accessToken]);
     } catch {
       // ignore
     } finally {
       setCompleting(false);
     }
-  }, [accessToken, lessonId, completing, completed]);
+  }, [accessToken, lessonId, completing, completed, mutate]);
 
   useEffect(() => {
     if (!lesson || completed || !lessonEndRef.current) return;

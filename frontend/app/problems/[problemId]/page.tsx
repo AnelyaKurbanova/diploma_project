@@ -1,8 +1,9 @@
 'use client';
 
 import confetti from "canvas-confetti";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useSWRConfig } from "swr";
 import { apiGet, apiGetStudentAssessmentDetail, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
@@ -85,6 +86,7 @@ function fireConfetti() {
 }
 
 export default function ProblemDetailsPage() {
+  const { mutate } = useSWRConfig();
   const { problemId } = useParams<{ problemId: string }>();
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
@@ -104,10 +106,10 @@ export default function ProblemDetailsPage() {
     "correct" | "incorrect" | null
   >(null);
   const [initialProgressLoaded, setInitialProgressLoaded] = useState(false);
-  const [attemptNo, setAttemptNo] = useState<number | null>(null);
+  const [, setAttemptNo] = useState<number | null>(null);
   const [imageLightboxIndex, setImageLightboxIndex] = useState<number | null>(null);
   const [navProblemIds, setNavProblemIds] = useState<string[] | null>(null);
-  const [navSolvedIds, setNavSolvedIds] = useState<string[]>([]);
+  const [, setNavSolvedIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -361,6 +363,7 @@ export default function ProblemDetailsPage() {
 
       setSubmissionResult(result);
       setAttemptNo((prev) => (prev ?? 0) + 1);
+      await mutate(["/me/notifications", accessToken]);
 
       if (result.status === "graded") {
         if (result.is_correct) {
@@ -379,7 +382,7 @@ export default function ProblemDetailsPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [problem, accessToken, canSubmit, isChoiceType, selectedChoiceIds, answerText, assessmentId]);
+  }, [problem, accessToken, canSubmit, isChoiceType, selectedChoiceIds, answerText, assessmentId, mutate]);
 
   if (isLoading || !user || !profile) {
     return (

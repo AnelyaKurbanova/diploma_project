@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import type { UserAchievementsResponse, UserAchievement } from "@/lib/api";
 
@@ -211,10 +211,6 @@ export function AchievementsPanel({
   const filteredItems = allFilteredItems.slice(0, limit ?? allFilteredItems.length);
   const [activeIndex, setActiveIndex] = useState(0);
 
-  useEffect(() => {
-    setActiveIndex(0);
-  }, [achievements.items.length, compact, unlockedOnly, limit]);
-
   if (isLoading) {
     return (
       <section className="rounded-2xl border border-gray-100 bg-white p-6">
@@ -269,9 +265,10 @@ export function AchievementsPanel({
     );
   }
 
-  const canGoPrev = activeIndex > 0;
-  const canGoNext = activeIndex < filteredItems.length - 1;
-  const activeItem = filteredItems[activeIndex] ?? filteredItems[0];
+  const safeActiveIndex = Math.min(activeIndex, Math.max(0, filteredItems.length - 1));
+  const canGoPrev = safeActiveIndex > 0;
+  const canGoNext = safeActiveIndex < filteredItems.length - 1;
+  const activeItem = filteredItems[safeActiveIndex] ?? filteredItems[0];
 
   return (
     <section className={`rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md ${compact ? "flex flex-col" : ""}`}>
@@ -293,7 +290,7 @@ export function AchievementsPanel({
           {filteredItems.length > 1 && (
             <div className="mt-3 flex shrink-0 items-center justify-between border-t border-gray-100 pt-3">
               <div className="text-xs text-slate-400">
-                {activeIndex + 1} / {filteredItems.length}
+                {safeActiveIndex + 1} / {filteredItems.length}
               </div>
               <div className="flex items-center gap-2">
                 <button

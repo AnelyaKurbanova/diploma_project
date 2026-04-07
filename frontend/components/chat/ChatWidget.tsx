@@ -18,17 +18,16 @@ const STORAGE_KEY = "chat_widget_open";
 
 export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps) {
   const { accessToken } = useAuth();
-  const [isOpen, setIsOpen] = useState(false);
+  const [isOpen, setIsOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(STORAGE_KEY) === "true";
+  });
   const [conversationId, setConversationId] = useState<string | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const { isStreaming, streamingContent, error, sendMessage, sendHint } =
     useChatStream(accessToken);
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (localStorage.getItem(STORAGE_KEY) === "true") setIsOpen(true);
-  }, []);
 
   const toggleOpen = useCallback(() => {
     setIsOpen((prev) => {

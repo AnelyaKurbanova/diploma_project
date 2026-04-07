@@ -1,10 +1,9 @@
-/* eslint-disable react-hooks/exhaustive-deps */
 'use client';
 
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import type { JSX } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import { useSWRConfig } from "swr";
 import { useAuth } from "@/lib/auth-context";
 import { apiGet, apiPost } from "@/lib/api";
 import {
@@ -22,7 +21,6 @@ import { LessonPlayerLayout } from "@/components/learning/lesson-player-layout";
 import type { BreadcrumbItem } from "@/components/ui/breadcrumbs";
 import { ProblemContent } from "@/components/ui/problem-content";
 
-type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string };
 
 type BlockProblem = { problem_id: string; order_no: number };
@@ -335,6 +333,7 @@ function ProblemSetBlock({
 }
 
 export default function LessonDetailTabsPage() {
+  const { mutate } = useSWRConfig();
   const { code, grade, topicId, lessonId } = useParams<{
     code: string;
     grade: string;
@@ -421,11 +420,12 @@ export default function LessonDetailTabsPage() {
       await apiPost(`/lessons/${lessonId}/complete`, undefined, accessToken);
       setCompleted(true);
       await mutateTopicProgress();
+      await mutate(["/me/notifications", accessToken]);
     } catch {
     } finally {
       setCompleting(false);
     }
-  }, [accessToken, lessonId, completing, completed, mutateTopicProgress]);
+  }, [accessToken, lessonId, completing, completed, mutateTopicProgress, mutate]);
 
   useEffect(() => {
     if (!lesson || completed || !lessonEndRef.current) return;
