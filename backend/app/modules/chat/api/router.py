@@ -122,16 +122,12 @@ async def get_usage(
     return await svc.get_usage(current_user.id)
 
 
-# ── Aika RAG endpoints ──
-
-
 @router.post("/aika/upload")
 async def upload_file_for_rag(
     file: UploadFile = File(...),
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
 ):
-    """Upload a file (txt, md, docx, pdf) and ingest into pgvector for RAG."""
     from app.modules.knowledge.application.ingestion import _build_chunks
     from app.modules.knowledge.application.embedding import embed_batch_async
     from app.modules.knowledge.data.repo import KnowledgeRepo
@@ -149,7 +145,12 @@ async def upload_file_for_rag(
                 content = await file.read()
                 tmp.write(content)
                 tmp.flush()
-            doc, count = await ingest_docx(session, Path(tmp_path), subject_code)
+            doc, count = await ingest_docx(
+                session,
+                Path(tmp_path),
+                subject_code,
+                original_filename=Path(filename).name,
+            )
         finally:
             if tmp_path and os.path.exists(tmp_path):
                 os.unlink(tmp_path)
@@ -178,7 +179,6 @@ async def upload_file_for_rag(
         from app.core.errors import BadRequest
         raise BadRequest("Поддерживаются файлы .txt, .md, .docx, .pdf")
 
-    # Common path for txt/md/pdf
     chunks = _build_chunks(raw)
     if not chunks:
         from app.core.errors import BadRequest
@@ -232,8 +232,8 @@ async def send_rag_message(
     body: MessageCreate,
     session: AsyncSession = Depends(get_session),
     current_user=Depends(get_current_user),
+    debug: bool = Query(False),
 ):
-    """RAG-based chat — searches user's uploaded documents for context."""
     rl = _get_chat_rate_limiter()
     await rl.enforce(key=f"chat:user:{current_user.id}", limit=30, window_seconds=60)
     svc = ChatService(session)
@@ -241,6 +241,7 @@ async def send_rag_message(
         svc.send_rag_message(
             user_id=current_user.id,
             content=body.content,
+            rag_debug=bool(debug and settings.DEBUG),
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},

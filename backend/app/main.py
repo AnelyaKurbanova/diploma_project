@@ -83,7 +83,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Pre-load embedding model in a thread so first request isn't blocked
     try:
         from app.modules.knowledge.application.embedding import preload_model
         await asyncio.to_thread(preload_model)
