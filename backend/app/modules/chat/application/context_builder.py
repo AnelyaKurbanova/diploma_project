@@ -6,14 +6,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.modules.lessons.data.models import LessonModel
 from app.modules.lessons.data.repo import LessonsRepo
 from app.modules.problems.data.models import ProblemModel
 from app.modules.submissions.data.models import SubmissionModel
 
 
 async def build_lesson_context(session: AsyncSession, lesson_id: uuid.UUID) -> str:
-    """Assemble lesson context for the LLM system prompt."""
     repo = LessonsRepo(session)
     lesson = await repo.get_lesson_with_blocks(lesson_id)
 
@@ -31,7 +29,6 @@ async def build_lesson_context(session: AsyncSession, lesson_id: uuid.UUID) -> s
             heading = block.title or "Video"
             parts.append(f"\n## {heading}\n{block.video_description}")
         elif block.block_type.value == "problem_set" and block.problem_links:
-            # Include problem statements (without answers)
             for link in block.problem_links:
                 problem = await session.get(ProblemModel, link.problem_id)
                 if problem:
@@ -45,7 +42,6 @@ async def build_problem_context(
     problem_id: uuid.UUID,
     user_id: uuid.UUID,
 ) -> str:
-    """Assemble problem context for the LLM system prompt (no correct answer)."""
     stmt = (
         select(ProblemModel)
         .where(ProblemModel.id == problem_id)
@@ -61,13 +57,11 @@ async def build_problem_context(
     parts.append(f"Type: {problem.type.value}")
     parts.append(f"\nStatement:\n{problem.statement}")
 
-    # Include choices WITHOUT marking correct one
     if problem.choices:
         parts.append("\nChoices:")
         for choice in sorted(problem.choices, key=lambda c: c.order_no):
             parts.append(f"- {choice.choice_text}")
 
-    # Include student's previous wrong attempts
     stmt = (
         select(SubmissionModel)
         .where(
