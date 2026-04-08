@@ -240,10 +240,10 @@ class CatalogRepo:
         return row
 
     async def delete_topic(self, topic_id: uuid.UUID) -> None:
-        # Перед удалением проверяем, есть ли уроки, связанные с этой темой.
-        # В БД стоит ограничение FOREIGN KEY (lessons.topic_id -> topics.id, ondelete=RESTRICT),
-        # поэтому «глухое» удаление приведёт к IntegrityError. Отдаём управляемую
-        # ошибку конфликта, чтобы клиент мог показать понятное сообщение.
+                                                                           
+                                                                                                
+                                                                                 
+                                                                         
         lesson_count_stmt = (
             select(func.count())
             .select_from(LessonModel)

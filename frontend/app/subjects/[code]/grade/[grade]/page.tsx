@@ -30,8 +30,6 @@ export default function SubjectGradePage() {
     }
   }, [isLoading, user, router]);
 
-  // Как только загрузились темы, сразу переходим на первую тему,
-  // где уже произойдёт редирект на первый урок и откроется страница курса.
   useEffect(() => {
     if (!code || !grade) return;
     if (!topics || topics.length === 0) return;
@@ -54,7 +52,7 @@ export default function SubjectGradePage() {
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -79,7 +77,7 @@ export default function SubjectGradePage() {
   const userRole = user.role ?? "student";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader
         userName={userName}
         userRole={userRole}
@@ -88,13 +86,13 @@ export default function SubjectGradePage() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <nav className="mb-6 flex items-center gap-2 text-sm text-slate-400 animate-page-in">
-          <Link href="/subjects" className="transition-colors hover:text-blue-600">
+          <Link href="/subjects" className="transition-colors hover:text-[#5081ba]">
             Предметы
           </Link>
           <span>/</span>
           <Link
             href={`/subjects/${code}`}
-            className="transition-colors hover:text-blue-600"
+            className="transition-colors hover:text-[#5081ba]"
           >
             {subject?.name_ru ?? code}
           </Link>
@@ -120,7 +118,7 @@ export default function SubjectGradePage() {
           </div>
         )}
 
-        {/* Список тем больше не показываем — эта страница только перенаправляет к плееру курса. */}
+        {}
       </main>
     </div>
   );

@@ -12,7 +12,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql as pg
 
 
-# revision identifiers, used by Alembic.
+                                        
 revision = "e8f9a0b1c2d3"
 down_revision = "161990f656a1"
 branch_labels = None
@@ -57,7 +57,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_lessons_status"), "lessons", ["status"], unique=False)
 
-    # Keep existing lessons visible to students after introducing moderation flow.
+                                                                                  
     conn.execute(sa.text("UPDATE lessons SET status = 'published'"))
 
 

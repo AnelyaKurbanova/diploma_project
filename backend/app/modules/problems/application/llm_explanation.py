@@ -89,8 +89,8 @@ async def generate_explanation(
         if not explanation:
             return None
 
-        # Добавляем в конец объяснения явный текстовый ответ без форматирования LaTeX,
-        # чтобы автор и ученик ясно видели, какое значение ожидает система.
+                                                                                      
+                                                                           
         canonical_answer = normalize_for_storage(correct_answer) or correct_answer.strip()
         if canonical_answer:
             suffix = f" (Ожидаемый ответ от ученика: {canonical_answer})"
@@ -98,7 +98,7 @@ async def generate_explanation(
                 explanation = f"{explanation.rstrip()}{suffix}"
 
         return explanation
-    except Exception as exc:  # pragma: no cover - защитный код
+    except Exception as exc:                                   
         await log_llm_token_usage(
             request_type="problems.generate_explanation",
             model_name=settings.LLM_MODEL_NAME,

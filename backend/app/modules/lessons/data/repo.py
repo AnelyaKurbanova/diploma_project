@@ -200,10 +200,10 @@ class LessonsRepo:
         problem_ids: list[uuid.UUID],
     ) -> None:
         """Replace the full set of problems for a content block."""
-        # Keep input stable and deduplicated to avoid PK/UNIQUE violations.
+                                                                           
         unique_problem_ids: list[uuid.UUID] = list(dict.fromkeys(problem_ids))
 
-        # Delete existing
+                         
         stmt = select(BlockProblemMapModel).where(
             BlockProblemMapModel.content_block_id == block_id
         )
@@ -212,7 +212,7 @@ class LessonsRepo:
             await self.session.delete(row)
         await self.session.flush()
 
-        # Insert new
+                    
         for idx, pid in enumerate(unique_problem_ids):
             self.session.add(
                 BlockProblemMapModel(

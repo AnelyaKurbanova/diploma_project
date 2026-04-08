@@ -59,6 +59,27 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   hard: "bg-rose-50 text-rose-700",
 };
 
+const TYPE_LABELS: Record<string, string> = {
+  one_choice: "Один ответ",
+  multi_choice: "Несколько ответов",
+  text_input: "Текстовый ответ",
+};
+
+type SolveStatusFilter = "all" | "solved" | "incorrect" | "unattempted";
+type SortOption = "newest" | "difficulty_asc" | "difficulty_desc" | "points_asc" | "points_desc";
+
+const PAGE_SIZE = 12;
+const FONT_ROSTOV = "var(--font-rostov)";
+const FONT_JOST = "var(--font-jost)";
+const FONT_JAKARTA = "var(--font-jakarta), 'Plus Jakarta Sans', sans-serif";
+
+function difficultyRank(value: string): number {
+  if (value === "easy") return 1;
+  if (value === "medium") return 2;
+  if (value === "hard") return 3;
+  return 99;
+}
+
 export default function ProblemsPage() {
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
@@ -66,8 +87,13 @@ export default function ProblemsPage() {
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all");
+  const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedStatus, setSelectedStatus] = useState<SolveStatusFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortBy, setSortBy] = useState<SortOption>("newest");
+  const [currentPage, setCurrentPage] = useState(1);
   const [loadError, setLoadError] = useState<string | null>(null);
-   const [progressByProblem, setProgressByProblem] = useState<Record<string, SubmissionProgress>>({});
+  const [progressByProblem, setProgressByProblem] = useState<Record<string, SubmissionProgress>>({});
 
   useEffect(() => {
     if (isLoading) return;
@@ -132,9 +158,64 @@ export default function ProblemsPage() {
   }, [accessToken, profile, problems]);
 
   const filteredProblems = useMemo(() => {
-    if (selectedDifficulty === "all") return problems;
-    return problems.filter((p) => p.difficulty === selectedDifficulty);
-  }, [problems, selectedDifficulty]);
+    const query = searchQuery.trim().toLowerCase();
+    const base = problems.filter((p) => {
+      if (selectedDifficulty !== "all" && p.difficulty !== selectedDifficulty) return false;
+      if (selectedType !== "all" && p.type !== selectedType) return false;
+
+      const progress = progressByProblem[p.id];
+      if (selectedStatus === "solved") {
+        if (!(progress?.last_status === "graded" && progress.last_is_correct === true)) return false;
+      } else if (selectedStatus === "incorrect") {
+        if (!(progress?.last_status === "graded" && progress.last_is_correct === false)) return false;
+      } else if (selectedStatus === "unattempted") {
+        if (progress?.has_attempt) return false;
+      }
+
+      if (query) {
+        const inTitle = p.title.toLowerCase().includes(query);
+        const inStatement = p.statement.toLowerCase().includes(query);
+        if (!inTitle && !inStatement) return false;
+      }
+      return true;
+    });
+
+    const sorted = [...base];
+    if (sortBy === "difficulty_asc") {
+      sorted.sort((a, b) => difficultyRank(a.difficulty) - difficultyRank(b.difficulty));
+    } else if (sortBy === "difficulty_desc") {
+      sorted.sort((a, b) => difficultyRank(b.difficulty) - difficultyRank(a.difficulty));
+    } else if (sortBy === "points_asc") {
+      sorted.sort((a, b) => a.points - b.points);
+    } else if (sortBy === "points_desc") {
+      sorted.sort((a, b) => b.points - a.points);
+    }
+    return sorted;
+  }, [
+    problems,
+    progressByProblem,
+    selectedDifficulty,
+    selectedType,
+    selectedStatus,
+    searchQuery,
+    sortBy,
+  ]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredProblems.length / PAGE_SIZE));
+  const paginatedProblems = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredProblems.slice(start, start + PAGE_SIZE);
+  }, [filteredProblems, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDifficulty, selectedType, selectedStatus, searchQuery, sortBy]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   useEffect(() => {
     if (typeof window === "undefined" || filteredProblems.length === 0) return;
@@ -150,18 +231,31 @@ export default function ProblemsPage() {
         "problems_nav",
         JSON.stringify({
           ids: filteredProblems.map((p) => p.id),
-          filter: selectedDifficulty,
+          filter: {
+            difficulty: selectedDifficulty,
+            type: selectedType,
+            status: selectedStatus,
+            search: searchQuery,
+            sortBy,
+          },
           solvedIds,
         }),
       );
     } catch {
-      // ignore
     }
-  }, [filteredProblems, selectedDifficulty, progressByProblem]);
+  }, [
+    filteredProblems,
+    selectedDifficulty,
+    selectedType,
+    selectedStatus,
+    searchQuery,
+    sortBy,
+    progressByProblem,
+  ]);
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -175,54 +269,135 @@ export default function ProblemsPage() {
   const userRole = user.role ?? "student";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="mb-8 flex items-start justify-between gap-4 animate-page-in">
+        <div className="mb-6 flex items-start justify-between gap-4 animate-page-in">
           <div>
-            <h1 className="text-2xl font-extrabold sm:text-3xl">Все задачи</h1>
-            <p className="mt-1 text-sm text-slate-500">
+            <h1 className="text-2xl sm:text-3xl" style={{ fontFamily: FONT_ROSTOV, letterSpacing: "-0.4px" }}>Все задачи</h1>
+            <p className="mt-1 text-sm text-slate-500" style={{ fontFamily: FONT_JOST }}>
               Практикуйтесь на задачах разной сложности
             </p>
           </div>
-          <div className="rounded-xl bg-white p-1 shadow-sm animate-page-in" style={{ animationDelay: "0.06s" }}>
-            {["all", "easy", "medium", "hard"].map((difficulty) => (
-              <button
-                key={difficulty}
-                type="button"
-                onClick={() => setSelectedDifficulty(difficulty)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
-                  selectedDifficulty === difficulty
-                    ? "bg-blue-600 text-white"
-                    : "text-slate-600 hover:bg-slate-100"
-                }`}
-              >
-                {difficulty === "all"
-                  ? "Все"
-                  : (DIFFICULTY_LABELS[difficulty] ?? difficulty)}
-              </button>
-            ))}
+          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-2 text-xs font-semibold text-[#5081ba] shadow-sm animate-page-in" style={{ animationDelay: "0.06s", fontFamily: FONT_JAKARTA }}>
+            Найдено: {filteredProblems.length}
           </div>
         </div>
 
+        <section className="mb-6 animate-page-in rounded-[24px] border border-[#f1f5f9] bg-white p-5 shadow-[0px_10px_40px_-10px_rgba(15,45,81,0.08)]" style={{ animationDelay: "0.08s" }}>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="xl:col-span-2">
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Поиск</label>
+              <input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="По названию или условию задачи"
+                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
+                style={{ fontFamily: FONT_JOST }}
+              />
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Сложность</label>
+              <select
+                value={selectedDifficulty}
+                onChange={(e) => setSelectedDifficulty(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
+                style={{ fontFamily: FONT_JOST }}
+              >
+                <option value="all">Все</option>
+                <option value="easy">Легкая</option>
+                <option value="medium">Средняя</option>
+                <option value="hard">Сложная</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Тип</label>
+              <select
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
+                style={{ fontFamily: FONT_JOST }}
+              >
+                <option value="all">Все</option>
+                <option value="one_choice">Один ответ</option>
+                <option value="multi_choice">Несколько ответов</option>
+                <option value="text_input">Текстовый ответ</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Статус</label>
+              <select
+                value={selectedStatus}
+                onChange={(e) => setSelectedStatus(e.target.value as SolveStatusFilter)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
+                style={{ fontFamily: FONT_JOST }}
+              >
+                <option value="all">Все</option>
+                <option value="solved">Решенные</option>
+                <option value="incorrect">С ошибками</option>
+                <option value="unattempted">Без попыток</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Сортировка</label>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
+                style={{ fontFamily: FONT_JOST }}
+              >
+                <option value="newest">По умолчанию</option>
+                <option value="difficulty_asc">Сложность: легкие сначала</option>
+                <option value="difficulty_desc">Сложность: сложные сначала</option>
+                <option value="points_asc">Баллы: по возрастанию</option>
+                <option value="points_desc">Баллы: по убыванию</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>
+              Страница {currentPage} из {totalPages}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedDifficulty("all");
+                setSelectedType("all");
+                setSelectedStatus("all");
+                setSearchQuery("");
+                setSortBy("newest");
+              }}
+              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
+              style={{ fontFamily: FONT_JAKARTA }}
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        </section>
+
         {loadError && (
-          <div className="mb-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          <div className="mb-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600" style={{ fontFamily: FONT_JOST }}>
             {loadError}
           </div>
         )}
 
         {filteredProblems.length === 0 && !loadError ? (
-          <div className="rounded-2xl border border-gray-100 bg-white py-16 text-center text-sm text-slate-400">
-            Задачи пока не добавлены
+          <div className="rounded-2xl border border-gray-100 bg-white py-16 text-center text-sm text-slate-400" style={{ fontFamily: FONT_JOST }}>
+            По выбранным фильтрам задач не найдено
           </div>
         ) : (
           <div className="grid gap-4">
-            {filteredProblems.map((problem, idx) => (
+            {paginatedProblems.map((problem, idx) => (
               <Link
                 key={problem.id}
                 href={`/problems/${problem.id}`}
-                className="block animate-page-in rounded-2xl border border-gray-100 bg-white p-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-blue-100 active:scale-[0.99]"
+                className="block animate-page-in rounded-[24px] border border-[#f1f5f9] bg-white p-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-[#dbeafe] active:scale-[0.99]"
                 style={{ animationDelay: `${Math.min(idx * 0.04, 0.3)}s` }}
               >
                 <div className="mb-2 flex items-center gap-2">
@@ -234,8 +409,11 @@ export default function ProblemsPage() {
                   >
                     {DIFFICULTY_LABELS[problem.difficulty] ?? problem.difficulty}
                   </span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600" style={{ fontFamily: FONT_JAKARTA }}>
                     {problem.points} балл.
+                  </span>
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
+                    {TYPE_LABELS[problem.type] ?? problem.type}
                   </span>
                   {progressByProblem[problem.id]?.has_attempt &&
                     progressByProblem[problem.id]?.last_status === "graded" && (
@@ -252,15 +430,71 @@ export default function ProblemsPage() {
                       </span>
                     )}
                 </div>
-                <h2 className="text-base font-semibold text-slate-900">
+                <h2 className="text-base font-semibold text-slate-900" style={{ fontFamily: FONT_JAKARTA }}>
                   <ProblemContent body={problem.title} variant="inline" />
                 </h2>
-                <ProblemContent
-                  body={problem.statement}
-                  className="mt-2 line-clamp-2 text-sm text-slate-600"
-                />
+                <div style={{ fontFamily: FONT_JOST }}>
+                  <ProblemContent
+                    body={problem.statement}
+                    className="mt-2 line-clamp-2 text-sm text-slate-600"
+                  />
+                </div>
               </Link>
             ))}
+          </div>
+        )}
+
+        {filteredProblems.length > 0 && (
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ fontFamily: FONT_JAKARTA }}
+            >
+              Назад
+            </button>
+            {Array.from({ length: totalPages }).slice(0, 7).map((_, i) => {
+              const pageNum = i + 1;
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
+                    currentPage === pageNum
+                      ? "bg-[#0f2d51] text-white"
+                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            {totalPages > 7 && <span className="px-1 text-slate-400">...</span>}
+            {totalPages > 7 && (
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
+                    currentPage === totalPages
+                    ? "bg-[#0f2d51] text-white"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {totalPages}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ fontFamily: FONT_JAKARTA }}
+            >
+              Вперед
+            </button>
           </div>
         )}
       </main>

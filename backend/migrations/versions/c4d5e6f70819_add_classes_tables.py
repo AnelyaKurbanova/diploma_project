@@ -15,8 +15,8 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # Compatibility revision restored to keep the Alembic graph consistent.
-    # Original schema changes are already represented by other migrations.
+                                                                           
+                                                                          
     pass
 
 

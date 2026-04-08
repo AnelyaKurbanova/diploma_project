@@ -93,12 +93,12 @@ async def generate_distractors(
         for line in lines:
             if not line:
                 continue
-            # убираем возможную нумерацию вида "1) ..." или "- ..."
+                                                                   
             cleaned = line.lstrip("-•0123456789.) ").strip()
             if not cleaned:
                 continue
-            # Если модель вернула несколько чисел в одной строке (например "16 24 64"
-            # или "16, 24, 64."), аккуратно разбиваем их на отдельные варианты.
+                                                                                     
+                                                                               
             candidates: list[str]
             has_letters = re.search(r"[A-Za-zА-Яа-я]", cleaned) is not None
             numbers = re.findall(r"\d+", cleaned)
@@ -122,14 +122,14 @@ async def generate_distractors(
         if options:
             return options
 
-        # Если по строчкам ничего не распарсилось, но модель вернула текст —
-        # вернём этот текст одной строкой, чтобы автор видел результат.
+                                                                            
+                                                                       
         cleaned_all = content.strip()
         if cleaned_all:
             return [cleaned_all]
 
         return []
-    except Exception as exc:  # pragma: no cover - защитный код
+    except Exception as exc:                                   
         await log_llm_token_usage(
             request_type="problems.generate_distractors",
             model_name=settings.LLM_MODEL_NAME,

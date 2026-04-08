@@ -181,7 +181,7 @@ class ClassService:
             due_at=due_at,
             time_limit_min=time_limit_min,
         )
-        # MVP: newly created assessments are immediately available to students.
+                                                                               
         assessment.is_published = True
         await self.repo.add_assessment_items(
             assessment_id=assessment.id,

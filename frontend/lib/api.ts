@@ -1,5 +1,19 @@
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+function resolveApiBaseUrl(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+  if (fromEnv) return fromEnv;
+
+  if (typeof window !== "undefined") {
+    const hostname = window.location.hostname;
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return "http://localhost:8000/api";
+    }
+    return "http://localhost:8000/api";
+  }
+
+  return "http://localhost:8000/api";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 

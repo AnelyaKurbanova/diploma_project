@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import {
@@ -33,7 +34,6 @@ type AuthContextValue = {
   logout: () => Promise<void>;
   refreshToken: () => Promise<string | null>;
   setFromCallback: (accessToken: string) => Promise<void>;
-  // Email-based auth flow
   startEmailLogin: (email: string) => Promise<void>;
   verifyEmailLogin: (email: string, code: string) => Promise<void>;
   startEmailRegister: (email: string) => Promise<void>;
@@ -78,10 +78,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
   const [pendingEmail, setPendingEmail] = useState<string | null>(null);
   const [pendingPurpose, setPendingPurpose] = useState<"login" | "register" | null>(null);
   const [emailFlowError, setEmailFlowError] = useState<string | null>(null);
+  const refreshInFlightRef = useRef<Promise<string | null> | null>(null);
 
   const persistAccessToken = useCallback((token: string | null) => {
     if (typeof window === "undefined") return;
@@ -101,27 +101,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
   );
 
   const refreshToken = useCallback(async (): Promise<string | null> => {
-    if (isRefreshing) return accessToken ?? null;
-    setIsRefreshing(true);
-    try {
-      const data = await postAuthWithCsrf<{ access_token: string }>(
-        "/auth/refresh",
-      );
-      setAccessToken(data.access_token);
-      persistAccessToken(data.access_token);
-      await loadUser(data.access_token);
-      setError(null);
-      return data.access_token;
-    } catch (err) {
-      console.error("Failed to refresh token", err);
-      setAccessToken(null);
-      persistAccessToken(null);
-      setUser(null);
-      return null;
-    } finally {
-      setIsRefreshing(false);
+    if (refreshInFlightRef.current) {
+      return refreshInFlightRef.current;
     }
-  }, [accessToken, isRefreshing, loadUser, persistAccessToken]);
+
+    const refreshPromise = (async () => {
+      try {
+        const data = await postAuthWithCsrf<{ access_token: string }>(
+          "/auth/refresh",
+        );
+        setAccessToken(data.access_token);
+        persistAccessToken(data.access_token);
+        await loadUser(data.access_token);
+        setError(null);
+        return data.access_token;
+      } catch (err) {
+        console.error("Failed to refresh token", err);
+        setAccessToken(null);
+        persistAccessToken(null);
+        setUser(null);
+        return null;
+      } finally {
+        refreshInFlightRef.current = null;
+      }
+    })();
+
+    refreshInFlightRef.current = refreshPromise;
+    return refreshPromise;
+  }, [loadUser, persistAccessToken]);
 
   useEffect(() => {
     setRefreshAccessTokenHandler(async () => {
@@ -130,7 +137,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, [refreshToken]);
 
   useEffect(() => {
-    // Initial hydration from localStorage
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem(ACCESS_TOKEN_STORAGE_KEY);
     if (!stored) {
@@ -144,15 +150,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
         await loadUser(stored);
         setError(null);
       } catch (err) {
-        console.warn("Stored access token is invalid, clearing", err);
-        setAccessToken(null);
-        persistAccessToken(null);
-        setUser(null);
+        console.warn("Stored access token is invalid, trying refresh", err);
+        const refreshed = await refreshToken();
+        if (!refreshed) {
+          setAccessToken(null);
+          persistAccessToken(null);
+          setUser(null);
+        }
       } finally {
         setIsLoading(false);
       }
     })();
-  }, [loadUser, persistAccessToken]);
+  }, [loadUser, persistAccessToken, refreshToken]);
 
   const loginWithGoogle = useCallback(() => {
     if (typeof window === "undefined") return;

@@ -171,7 +171,7 @@ async def generate_problems_from_context(
             max_completion_tokens=4096,
             response_format={"type": "json_object"},
         )
-    except Exception as exc:  # pragma: no cover - защитный код
+    except Exception as exc:                                   
         await log_llm_token_usage(
             request_type="problems.generate_rag_problems",
             model_name=settings.LLM_MODEL_NAME,
@@ -214,12 +214,12 @@ async def generate_problems_from_context(
 
     try:
         data = json.loads(json_block)
-    except Exception as exc:  # pragma: no cover - защитный код
+    except Exception as exc:                                   
         logger.warning("Failed to parse JSON from LLM RAG problems: %s; content=%r", exc, raw[:5000])
         return []
 
-    # Разбираем JSON более устойчиво: валидируем каждую задачу по отдельности,
-    # чтобы одна битая задача не ломала весь результат.
+                                                                              
+                                                       
     raw_items: list[dict] = []
     if isinstance(data, dict) and "problems" in data and isinstance(data["problems"], list):
         raw_items = data["problems"]
@@ -235,18 +235,18 @@ async def generate_problems_from_context(
     for idx, item in enumerate(raw_items):
         try:
             problems.append(GeneratedProblem.model_validate(item))
-        except ValidationError as exc:  # pragma: no cover - защитный код
+        except ValidationError as exc:                                   
             logger.warning("Validation error for RAG problem #%s: %s; item=%r", idx, exc, item)
             continue
 
     if not problems:
-        # Для диагностики выводим «сырое» содержимое ответа модели.
+                                                                   
         snippet = raw[:5000]
         logger.warning(
             "LLM RAG problems empty after validation; raw_response_snippet=%r",
             snippet,
         )
-        # Дублируем в stdout, чтобы точно увидеть в терминале разработки.
+                                                                         
         print("\n===== LLM RAG RAW RESPONSE (snippet) =====")
         print(snippet)
         print("===== END LLM RAG RAW RESPONSE =====\n")

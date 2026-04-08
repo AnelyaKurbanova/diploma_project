@@ -7,7 +7,7 @@ from typing import Optional
 
 from pythonjsonlogger import jsonlogger
 
-# --- Context variables injected per-request ---
+                                                
 _request_id_var: ContextVar[Optional[str]] = ContextVar("request_id", default=None)
 _user_id_var: ContextVar[Optional[str]] = ContextVar("user_id", default=None)
 
@@ -34,14 +34,14 @@ class _ContextInjectingFilter(logging.Filter):
     """Injects request_id, user_id (and trace/span placeholders) into every log record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        record.request_id = _request_id_var.get()  # type: ignore[attr-defined]
-        record.user_id = _user_id_var.get()  # type: ignore[attr-defined]
-        # trace_id / span_id are set by the OTEL logging filter when tracing is on;
-        # provide None defaults here so the formatter never raises KeyError.
+        record.request_id = _request_id_var.get()                              
+        record.user_id = _user_id_var.get()                              
+                                                                                   
+                                                                            
         if not hasattr(record, "trace_id"):
-            record.trace_id = None  # type: ignore[attr-defined]
+            record.trace_id = None                              
         if not hasattr(record, "span_id"):
-            record.span_id = None  # type: ignore[attr-defined]
+            record.span_id = None                              
         return True
 
 
@@ -60,7 +60,7 @@ def setup_logging() -> None:
     handler.addFilter(_ContextInjectingFilter())
     root.handlers = [handler]
 
-    # Silence overly verbose third-party loggers
+                                                
     logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("httpcore").setLevel(logging.WARNING)

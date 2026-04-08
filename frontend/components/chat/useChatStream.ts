@@ -74,7 +74,6 @@ export function useChatStream(accessToken: string | null) {
 
           for (const line of lines) {
             if (line.startsWith("event: error")) {
-              // Next data line has the error
               continue;
             }
             if (!line.startsWith("data: ")) continue;
@@ -99,7 +98,6 @@ export function useChatStream(accessToken: string | null) {
                 setError(event.message);
               }
             } catch {
-              // skip malformed JSON
             }
           }
         }
@@ -185,7 +183,6 @@ export function useChatStream(accessToken: string | null) {
                 setError(event.message);
               }
             } catch {
-              // skip
             }
           }
         }

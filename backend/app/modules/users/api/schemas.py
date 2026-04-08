@@ -109,7 +109,7 @@ class FriendOut(BaseModel):
 
 
 class ActivityDayOut(BaseModel):
-    date: str  # YYYY-MM-DD
+    date: str              
     count: int
 
 

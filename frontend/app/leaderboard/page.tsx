@@ -77,7 +77,7 @@ function PodiumCard({
       </div>
 
       <div className="mt-4 flex items-center gap-3">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {}
         <img
           src={avatarSrc}
           alt={entry.display_name}
@@ -121,18 +121,18 @@ export default function LeaderboardPage() {
     METRIC_OPTIONS.find((item) => item.value === metric) ?? METRIC_OPTIONS[0];
 
   if (isLoading || !user) {
-    return <div className="min-h-screen bg-slate-50" />;
+    return <div className="min-h-screen bg-[#f8fafc]" />;
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={avatarUrl} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <section className="rounded-3xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.24em] text-blue-600">
+              <p className="text-xs font-medium uppercase tracking-[0.24em] text-[#5081ba]">
                 Leaderboard
               </p>
               <h1 className="mt-2 text-3xl font-extrabold text-slate-900">
@@ -153,8 +153,8 @@ export default function LeaderboardPage() {
                     onClick={() => setMetric(option.value)}
                     className={`rounded-full px-4 py-2 text-sm font-medium transition ${
                       active
-                        ? "bg-blue-600 text-white shadow-sm"
-                        : "border border-gray-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700"
+                        ? "bg-[#0f2d51] text-white shadow-sm"
+                        : "border border-gray-200 bg-white text-slate-600 hover:border-[#dbeafe] hover:text-[#0f2d51]"
                     }`}
                   >
                     {option.label}
@@ -216,14 +216,14 @@ export default function LeaderboardPage() {
                     <div
                       key={entry.user_id}
                       className={`flex items-center justify-between gap-4 px-5 py-4 ${
-                        entry.is_me ? "bg-blue-50/60" : ""
+                        entry.is_me ? "bg-[#eff6ff]" : ""
                       }`}
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-sm font-bold text-slate-600">
                           {entry.rank}
                         </div>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {}
                         <img
                           src={avatarSrc}
                           alt={entry.display_name}
@@ -244,7 +244,7 @@ export default function LeaderboardPage() {
                           {metricValueLabel(metric, entry.score)}
                         </p>
                         {entry.is_me ? (
-                          <p className="text-xs text-blue-600">Вы</p>
+                          <p className="text-xs text-[#5081ba]">Вы</p>
                         ) : null}
                       </div>
                     </div>
@@ -254,8 +254,8 @@ export default function LeaderboardPage() {
             </section>
 
             {leaderboard.my_entry && !leaderboard.items.some((item) => item.user_id === leaderboard.my_entry?.user_id) ? (
-              <section className="mt-6 rounded-2xl border border-blue-100 bg-blue-50/70 px-5 py-4">
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-blue-600">
+              <section className="mt-6 rounded-2xl border border-[#dbeafe] bg-[#eff6ff] px-5 py-4">
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-[#5081ba]">
                   Ваша позиция
                 </p>
                 <div className="mt-2 flex items-center justify-between gap-4">

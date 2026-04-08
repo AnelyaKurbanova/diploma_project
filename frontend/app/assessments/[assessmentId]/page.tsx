@@ -119,7 +119,7 @@ export default function AssessmentPage() {
 
   if (isLoading || !user || !accessToken || !profile || pageLoading) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -133,7 +133,7 @@ export default function AssessmentPage() {
   const userRole = profile.role ?? user.role ?? "student";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0e7ff_0%,_#f8fafc_40%,_#f1f5f9_100%)] text-slate-900">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0e7ff_0%,_#f8fafc_40%,_#f1f5f9_100%)] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
       <main className="mx-auto max-w-5xl px-4 py-8 sm:px-6">
         <div className="mb-6 overflow-hidden rounded-3xl border border-indigo-100/70 bg-gradient-to-r from-indigo-600 via-blue-600 to-cyan-600 p-6 text-white shadow-[0_20px_45px_-25px_rgba(37,99,235,0.85)]">

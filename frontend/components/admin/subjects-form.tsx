@@ -205,7 +205,7 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
                   <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-slate-500">
                     {s.topic_count} тем
                   </span>
-                  {/* Описание и привязка к классу убраны из модели предмета */}
+                  {}
                 </div>
                 <div className="ml-4 flex shrink-0 items-center gap-2">
                   <button

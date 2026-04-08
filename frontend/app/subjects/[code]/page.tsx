@@ -60,7 +60,6 @@ export default function SubjectDetailPage() {
     if (!accessToken || !profile || !code) return;
     (async () => {
       try {
-        // Find subject by code from the list
         const subjects = await apiGet<Subject[]>("/subjects", accessToken);
         const found = subjects.find((s) => s.code === code);
         if (!found) {
@@ -76,7 +75,7 @@ export default function SubjectDetailPage() {
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -101,13 +100,13 @@ export default function SubjectDetailPage() {
   const userRole = user.role ?? "student";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        {/* Breadcrumb */}
+        {}
         <nav className="mb-6 flex items-center gap-2 text-sm text-slate-400 animate-page-in">
-          <Link href="/subjects" className="transition-colors hover:text-blue-600">
+          <Link href="/subjects" className="transition-colors hover:text-[#5081ba]">
             Предметы
           </Link>
           <span>/</span>
@@ -137,24 +136,24 @@ export default function SubjectDetailPage() {
               <Link
                 key={g}
                 href={`/subjects/${code}/grade/${g}`}
-                className="group flex flex-col justify-between rounded-2xl border border-gray-100 bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-blue-100 hover:shadow-xl animate-page-in"
+                className="group flex flex-col justify-between rounded-2xl border border-gray-100 bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-[#dbeafe] hover:shadow-xl animate-page-in"
                 style={{ animationDelay: `${Math.min(idx * 0.06, 0.4)}s` }}
               >
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">
                     Класс
                   </p>
-                  <h2 className="mt-2 text-xl font-extrabold text-slate-900 group-hover:text-blue-700">
+                  <h2 className="mt-2 text-xl font-extrabold text-slate-900 group-hover:text-[#0f2d51]">
                     {g} класс
                   </h2>
                   <p className="mt-1 text-xs text-slate-500">
                     Темы и уроки по предмету для {g} класса.
                   </p>
                 </div>
-                <div className="mt-4 flex items-center justify-between text-sm font-medium text-blue-600">
+                <div className="mt-4 flex items-center justify-between text-sm font-medium text-[#5081ba]">
                   <span>Перейти к темам</span>
                   <svg
-                    className="h-4 w-4 text-blue-400 transition-transform group-hover:translate-x-1"
+                    className="h-4 w-4 text-[#93c5fd] transition-transform group-hover:translate-x-1"
                     fill="none"
                     viewBox="0 0 24 24"
                     strokeWidth={1.5}
