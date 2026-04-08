@@ -42,7 +42,6 @@ export default function OnboardingPage() {
   const [interested_subjects, setInterestedSubjects] = useState<string[]>([]);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  // Teacher path
   const [schools, setSchools] = useState<School[]>([]);
   const [schoolsLoading, setSchoolsLoading] = useState(false);
   const [school_id, setSchoolId] = useState<string>("");
@@ -139,7 +138,7 @@ export default function OnboardingPage() {
 
   if (isLoading || !user || !accessToken) {
     return (
-      <div className="min-h-screen bg-white text-slate-900">
+      <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
         <EntHeader />
         <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4 py-8">
           <p className="text-sm text-slate-500">Загрузка...</p>
@@ -149,15 +148,15 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <EntHeader />
 
       <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4 py-8">
         <div className="w-full max-w-[600px] animate-page-in">
           <div className="rounded-2xl bg-white p-8 shadow-[0px_8px_10px_-6px_rgba(0,0,0,0.10),0px_20px_25px_-5px_rgba(0,0,0,0.10)] outline outline-1 outline-offset-[-1px] outline-gray-200 transition-shadow duration-300 hover:shadow-lg">
-            {/* Icon + Welcome */}
+            {}
             <div className="mb-6 flex justify-center">
-              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white">
+              <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#0f2d51] text-white">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
@@ -168,7 +167,7 @@ export default function OnboardingPage() {
               Давайте настроим платформу специально для вас
             </p>
 
-            {/* Progress */}
+            {}
             <div className="mb-6">
               <div className="flex items-center justify-between text-sm text-slate-600">
                 <span>Шаг {step} из {totalSteps}</span>
@@ -176,13 +175,13 @@ export default function OnboardingPage() {
               </div>
               <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-gray-200">
                 <div
-                  className="h-full rounded-full bg-blue-600 transition-all duration-300"
+                  className="h-full rounded-full bg-[#5081ba] transition-all duration-300"
                   style={{ width: `${progressPercent}%` }}
                 />
               </div>
             </div>
 
-            {/* Step content */}
+            {}
             {step === 1 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold text-slate-900">Кто вы?</h2>
@@ -352,7 +351,7 @@ export default function OnboardingPage() {
               <p className="mt-4 text-sm text-rose-600">{submitError}</p>
             )}
 
-            {/* Navigation */}
+            {}
             <div className="mt-8 flex items-center justify-between gap-4">
               <div className="w-24">
                 {step > 1 ? (

@@ -90,7 +90,6 @@ function AchievementItem({
           } ${compact ? "h-9 w-9" : "h-10 w-10"}`}
         >
           {achievement.icon_url ? (
-            // eslint-disable-next-line @next/next/no-img-element
             <img src={achievement.icon_url} alt="" className="h-5 w-5 object-contain" />
           ) : (
             <AchievementIcon iconName={achievement.icon_name} />
@@ -152,7 +151,6 @@ function CompactAchievementCard({
             }`}
           >
             {achievement.icon_url ? (
-              // eslint-disable-next-line @next/next/no-img-element
               <img src={achievement.icon_url} alt="" className="h-5 w-5 object-contain" />
             ) : (
               <AchievementIcon iconName={achievement.icon_name} />

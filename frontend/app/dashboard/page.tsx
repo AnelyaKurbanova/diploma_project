@@ -19,12 +19,12 @@ import {
   useLeaderboard,
 } from "@/lib/swr-hooks";
 
-/* ─── Font shortcuts ─── */
+
 const R = "var(--font-rostov)";
 const J = "var(--font-jost)";
 const K = "var(--font-jakarta), 'Plus Jakarta Sans', sans-serif";
 
-/* ─── Shared card style ─── */
+
 const CARD: React.CSSProperties = {
   background: "white",
   borderRadius: 32,
@@ -32,7 +32,7 @@ const CARD: React.CSSProperties = {
   boxShadow: "0px 10px 40px -10px rgba(15,45,81,0.08)",
 };
 
-/* ─── Types ─── */
+
 type SubjectProgress = {
   code: string;
   name: string;
@@ -59,11 +59,9 @@ type ProfileResponse = {
   [key: string]: unknown;
 };
 
-/* ────────────────────────────────────────────
-   SMALL COMPONENTS
-──────────────────────────────────────────── */
 
-/** Circular SVG progress ring */
+
+
 function CircleProgress({ pct }: { pct: number }) {
   const r = 44;
   const circ = 2 * Math.PI * r;
@@ -88,43 +86,43 @@ function CircleProgress({ pct }: { pct: number }) {
   );
 }
 
-/** Weekly activity bar chart — static Figma data */
-const WEEK_BARS = [
-  { day: "ПН", h: 38.39, color: "#f1f5f9" },
-  { day: "ВТ", h: 76.8,  color: "#5081ba" },
-  { day: "СР", h: 57.59, color: "#5081ba" },
-  { day: "ЧТ", h: 88,    color: "#22d3ee" },
-  { day: "ПТ", h: 43.19, color: "#5081ba" },
-  { day: "СБ", h: 28.8,  color: "#f1f5f9" },
-  { day: "ВС", h: 67.19, color: "#5081ba" },
-];
-
-function WeeklyActivityChart() {
+function ActivityDistributionChart({
+  distribution,
+}: {
+  distribution: DashboardStats["task_distribution"];
+}) {
+  const bars = [
+    { label: "Верно", value: distribution.correct, color: "#22d3ee" },
+    { label: "Неверно", value: distribution.incorrect, color: "#5081ba" },
+    { label: "Не решено", value: distribution.unsolved, color: "#e2e8f0" },
+  ];
+  const maxValue = Math.max(...bars.map((b) => b.value), 1);
   return (
     <div style={{ ...CARD, padding: 25, display: "flex", flexDirection: "column", gap: 24 }}>
       <p style={{ fontFamily: J, fontWeight: 500, fontSize: 18, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#0f2d51", margin: 0 }}>
-        Активность за неделю
+        Распределение задач
       </p>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {/* Bars */}
+        {}
         <div style={{ height: 88, display: "flex", alignItems: "flex-end", gap: 8 }}>
-          {WEEK_BARS.map((b) => (
+          {bars.map((b) => (
             <div
-              key={b.day}
+              key={b.label}
               style={{
                 flex: 1,
-                height: b.h,
+                height: Math.max(8, (b.value / maxValue) * 88),
                 background: b.color,
                 borderRadius: "8px 8px 0 0",
               }}
+              title={`${b.label}: ${b.value}`}
             />
           ))}
         </div>
-        {/* Day labels */}
+        {}
         <div style={{ display: "flex", gap: 8 }}>
-          {WEEK_BARS.map((b) => (
+          {bars.map((b) => (
             <div
-              key={b.day}
+              key={b.label}
               style={{
                 flex: 1,
                 textAlign: "center",
@@ -135,7 +133,7 @@ function WeeklyActivityChart() {
                 color: "#94a3b8",
               }}
             >
-              {b.day}
+              {b.label} ({b.value})
             </div>
           ))}
         </div>
@@ -144,7 +142,7 @@ function WeeklyActivityChart() {
   );
 }
 
-/** Stat card (Задач решено / Точность / Стрик) */
+
 function StatCard({
   label, value, delta, iconBg, icon,
 }: {
@@ -183,12 +181,11 @@ function StatCard({
   );
 }
 
-/** AI Recommendations task card */
+
 function TaskCard({
-  title, description, difficulty, difficultyColor, difficultyBg, duration, type,
+  title, difficulty, difficultyColor, difficultyBg, duration, type,
 }: {
   title: string;
-  description: string;
   difficulty: string;
   difficultyColor: string;
   difficultyBg: string;
@@ -204,7 +201,7 @@ function TaskCard({
       position: "relative",
       minHeight: 201,
     }}>
-      {/* Difficulty badge */}
+      {}
       <div style={{ position: "absolute", top: 24, left: 24 }}>
         <span style={{
           background: difficultyBg,
@@ -221,21 +218,17 @@ function TaskCard({
           {difficulty}
         </span>
       </div>
-      {/* Duration */}
+      {}
       <div style={{ position: "absolute", top: 26, right: 24 }}>
         <span style={{ fontFamily: K, fontWeight: 700, fontSize: 11, lineHeight: "16.5px", color: "#94a3b8" }}>
           {duration}
         </span>
       </div>
-      {/* Title */}
+      {}
       <p style={{ position: "absolute", top: 63, left: 24, right: 24, fontFamily: K, fontWeight: 700, fontSize: 16, lineHeight: "24px", color: "#0f2d51", margin: 0 }}>
         {title}
       </p>
-      {/* Description */}
-      <p style={{ position: "absolute", top: 95, left: 24, right: 24, fontFamily: K, fontWeight: 400, fontSize: 12, lineHeight: "16px", color: "#64748b", margin: 0 }}>
-        {description}
-      </p>
-      {/* Bottom row */}
+      {}
       <div style={{ position: "absolute", bottom: 24, left: 24, right: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <span style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", color: "#94a3b8" }}>
           {type}
@@ -249,7 +242,7 @@ function TaskCard({
   );
 }
 
-/** Leaderboard row */
+
 function LeaderboardRow({
   rank, name, role, xpLabel, delta, isSelf, avatarUrl,
 }: {
@@ -283,7 +276,6 @@ function LeaderboardRow({
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         {avatarUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
           <img src={avatarUrl} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
         ) : (
           <span style={{ fontFamily: K, fontWeight: 700, fontSize: 14, color: "#5081ba" }}>
@@ -307,9 +299,7 @@ function LeaderboardRow({
   );
 }
 
-/* ────────────────────────────────────────────
-   MAIN PAGE
-──────────────────────────────────────────── */
+
 export default function DashboardPage() {
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
@@ -327,13 +317,13 @@ export default function DashboardPage() {
   const { achievements } = useMyAchievements();
   const { leaderboard } = useLeaderboard("xp", 3);
 
-  /* auth redirect */
+  
   useEffect(() => {
     if (isLoading) return;
     if (!user) router.replace("/auth");
   }, [isLoading, user, router]);
 
-  /* profile */
+  
   useEffect(() => {
     if (!accessToken || !user) return;
     (async () => {
@@ -350,7 +340,7 @@ export default function DashboardPage() {
     })();
   }, [accessToken, user, router]);
 
-  /* stats */
+  
   useEffect(() => {
     if (!accessToken || !profile) return;
     (async () => {
@@ -363,7 +353,7 @@ export default function DashboardPage() {
     })();
   }, [accessToken, profile]);
 
-  /* classes */
+  
   useEffect(() => {
     const role = profile?.role ?? user?.role ?? "student";
     if (!accessToken || !profile || role !== "student") return;
@@ -382,7 +372,7 @@ export default function DashboardPage() {
   const userRole = profile?.role ?? user?.role ?? "student";
   const isTeacher = userRole === "teacher";
 
-  /* Loading skeleton */
+  
   if (isLoading || !user || !profile || (!isTeacher && !stats && !loadError)) {
     return (
       <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
@@ -400,7 +390,7 @@ export default function DashboardPage() {
     );
   }
 
-  /* Teacher route */
+  
   if (isTeacher && accessToken) {
     return (
       <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
@@ -410,7 +400,7 @@ export default function DashboardPage() {
     );
   }
 
-  /* ── Derived data ── */
+  
   const progressPct = stats?.overall_progress ?? 0;
   const solvedTasks = stats?.solved_tasks ?? 0;
   const accuracy = stats?.accuracy ?? 0;
@@ -420,34 +410,31 @@ export default function DashboardPage() {
   const xpPct = Math.min(Math.round((totalXp % xpForNextLevel) / xpForNextLevel * 100), 100);
   const xpLevel = Math.floor(totalXp / xpForNextLevel) + 1;
 
-  /* current subject for resume card */
+  
   const sortedSubjects = [...(stats?.subjects_progress ?? [])].sort((a, b) => a.mastery - b.mastery);
   const resumeSubject = sortedSubjects[0];
 
-  /* AI task recs from stats or mock */
+  
   const recs = stats?.recommendations ?? [];
-  const taskCards = recs.length >= 2
-    ? recs.slice(0, 2).map((r, i) => ({
-        title: r.subject_name,
-        description: r.message,
-        difficulty: i === 0 ? "Сложно" : "Средне",
-        difficultyColor: i === 0 ? "#ef4444" : "#22c55e",
-        difficultyBg: i === 0 ? "#fef2f2" : "#f0fdf4",
-        duration: "45 мин",
-        type: "Практика",
-      }))
-    : [
-        { title: "Тригонометрические уравнения", description: "Базовые тригонометрические уравнения и методы решения", difficulty: "Сложно", difficultyColor: "#ef4444", difficultyBg: "#fef2f2", duration: "45 мин", type: "Практика" },
-        { title: "Логарифмические функции", description: "Свойства логарифмов и решение уравнений с логарифмами", difficulty: "Средне", difficultyColor: "#22c55e", difficultyBg: "#f0fdf4", duration: "30 мин", type: "Видео + Тест" },
-      ];
+  const taskCards = recs.slice(0, 2).map((r) => {
+    const isHard = r.mastery < 50;
+    return {
+      title: r.subject_name,
+      difficulty: isHard ? "Низкое освоение" : "Нужно укрепить",
+      difficultyColor: isHard ? "#ef4444" : "#16a34a",
+      difficultyBg: isHard ? "#fef2f2" : "#f0fdf4",
+      duration: `Освоение ${r.mastery}%`,
+      type: "Персональная рекомендация",
+    };
+  });
 
-  /* achievements grid (first 2 unlocked + 2 locked placeholders) */
+  
   const unlockedAch = achievements.items.filter((a) => a.unlocked_at).slice(0, 2);
   const lockedAch = achievements.items.filter((a) => !a.unlocked_at).slice(0, 2);
   while (unlockedAch.length < 2) unlockedAch.push(null as unknown as typeof unlockedAch[0]);
   while (lockedAch.length < 2) lockedAch.push(null as unknown as typeof lockedAch[0]);
 
-  /* leaderboard rows */
+  
   const lbItems = leaderboard.items.slice(0, 3);
   const myEntry = leaderboard.my_entry;
 
@@ -479,9 +466,9 @@ export default function DashboardPage() {
       <main style={{ paddingTop: 36, paddingBottom: 60 }}>
         <div style={{ maxWidth: 1083, margin: "0 auto", padding: "0 30px", display: "flex", flexDirection: "column", gap: 40 }}>
 
-          {/* ══ WELCOME HEADER ══ */}
+          {}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            {/* Left: greeting + subtitle */}
+            {}
             <div style={{ display: "flex", flexDirection: "column", gap: 7.5 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
                 <span style={{ fontSize: 24 }}>👋</span>
@@ -499,7 +486,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Right: XP level badge */}
+            {}
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, opacity: 0.85 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <span style={{ fontFamily: K, fontWeight: 800, fontSize: 11, lineHeight: "16.5px", letterSpacing: 2, textTransform: "uppercase", color: "#5081ba" }}>
@@ -515,12 +502,12 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ══ ROW 1: Resume + Stats | JoinClass + Activity ══ */}
+          {}
           <div style={{ display: "flex", gap: 32 }}>
-            {/* Left column: 694px */}
+            {}
             <div style={{ width: 694, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
 
-              {/* Resume Learning Card */}
+              {}
               <div style={{ ...CARD, padding: 5 }}>
                 <div style={{
                   borderRadius: 28,
@@ -530,25 +517,25 @@ export default function DashboardPage() {
                   alignItems: "center",
                   gap: 32,
                 }}>
-                  {/* Text content */}
+                  {}
                   <div style={{ flex: 1 }}>
-                    {/* Badge */}
+                    {}
                     <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 12px", marginBottom: 16 }}>
                       <span style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", letterSpacing: 1, textTransform: "uppercase", color: "#dbeafe" }}>
                         Продолжить обучение
                       </span>
                     </div>
-                    {/* Course title */}
+                    {}
                     <h2 style={{ fontFamily: J, fontWeight: 500, fontSize: 24, lineHeight: "24px", letterSpacing: "-0.3125px", color: "white", margin: "0 0 12px" }}>
                       {resumeSubject?.name ?? "Математика — Алгебра"}
                     </h2>
-                    {/* Description */}
+                    {}
                     <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "rgba(219,234,254,0.7)", margin: "0 0 28px" }}>
                       {resumeSubject
                         ? `${resumeSubject.completed_topics} из ${resumeSubject.total_topics} тем завершено`
                         : "Продолжи с того места, где остановился"}
                     </p>
-                    {/* CTA */}
+                    {}
                     <Link
                       href="/subjects"
                       style={{
@@ -564,17 +551,16 @@ export default function DashboardPage() {
                       Перейти к урокам
                     </Link>
                   </div>
-                  {/* Circle progress */}
+                  {}
                   <CircleProgress pct={progressPct} />
                 </div>
               </div>
 
-              {/* Stats grid: 3 cards */}
+              {}
               <div style={{ display: "flex", gap: 24, height: 157 }}>
                 <StatCard
                   label="Задач решено"
                   value={String(solvedTasks)}
-                  delta="+5"
                   iconBg="#eff6ff"
                   icon={
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -605,10 +591,10 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Right column: Join Class + Activity */}
+            {}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 32 }}>
 
-              {/* Join Class widget */}
+              {}
               <div style={{
                 ...CARD,
                 padding: "25px 25px 25px 28px",
@@ -668,24 +654,28 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Weekly Activity */}
-              <WeeklyActivityChart />
+              {}
+              <ActivityDistributionChart
+                distribution={
+                  stats?.task_distribution ?? { correct: 0, incorrect: 0, unsolved: 0 }
+                }
+              />
             </div>
           </div>
 
-          {/* ══ ROW 2: AI Recs + Leaderboard | Achievements + AI Insight ══ */}
+          {}
           <div style={{ display: "flex", gap: 32 }}>
-            {/* Left: 701px */}
+            {}
             <div style={{ width: 701, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
 
-              {/* AI Recommendations */}
+              {}
               <div style={{
                 borderRadius: 32, border: "1px solid #f1f5f9",
                 padding: 33, position: "relative", overflow: "hidden",
                 boxShadow: "0px 10px 40px -10px rgba(15,45,81,0.08)",
                 background: "#184070",
               }}>
-                {/* Header row */}
+                {}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
                   <h2 style={{ fontFamily: R, fontSize: 36, lineHeight: "40px", letterSpacing: "-0.5309px", color: "white", margin: 0 }}>
                     AI Рекомендации
@@ -694,17 +684,25 @@ export default function DashboardPage() {
                     Смотреть все
                   </Link>
                 </div>
-                {/* Task cards */}
-                <div style={{ display: "flex", gap: 12, height: 201 }}>
-                  {taskCards.map((t, i) => (
-                    <TaskCard key={i} {...t} />
-                  ))}
-                </div>
+                {}
+                {taskCards.length > 0 ? (
+                  <div style={{ display: "flex", gap: 12, height: 201 }}>
+                    {taskCards.map((t, i) => (
+                      <TaskCard key={i} {...t} />
+                    ))}
+                  </div>
+                ) : (
+                  <div style={{ borderRadius: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", padding: 16 }}>
+                    <p style={{ margin: 0, fontFamily: J, fontSize: 14, lineHeight: "20px", color: "#bfdbfe" }}>
+                      Пока нет персональных рекомендаций. Решите больше задач, чтобы AI сформировал план.
+                    </p>
+                  </div>
+                )}
               </div>
 
-              {/* Leaderboard */}
+              {}
               <div style={{ ...CARD, padding: 33 }}>
-                {/* Header */}
+                {}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <p style={{ fontFamily: K, fontWeight: 700, fontSize: 20, lineHeight: "28px", color: "#0f2d51", margin: 0 }}>
@@ -718,38 +716,35 @@ export default function DashboardPage() {
                     {leaderboard.items.length} участников
                   </span>
                 </div>
-                {/* Rows */}
+                {}
                 <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                  {lbItems.length > 0 ? lbItems.map((item, i) => {
+                  {lbItems.length > 0 ? lbItems.map((item) => {
                     const isSelf = myEntry?.user_id === item.user_id;
                     return (
                       <LeaderboardRow
                         key={item.user_id}
-                        rank={i + 1}
+                        rank={item.rank}
                         name={item.display_name ?? "Участник"}
-                        role={isSelf ? "Rising Star" : "Challenger"}
+                        role={item.city ?? "Участник"}
                         xpLabel={`${(item.score ?? 0).toLocaleString()} XP`}
-                        delta={`+${Math.round((item.score ?? 0) * 0.2)} THIS WEEK`}
+                        delta={`#${item.rank}`}
                         isSelf={isSelf}
                         avatarUrl={item.avatar_url}
                       />
                     );
                   }) : (
-                    /* Fallback demo rows */
-                    [
-                      { rank: 1, name: firstName + " (Ты)", role: "Rising Star", xpLabel: `${totalXp.toLocaleString()} XP`, delta: "+450 THIS WEEK", isSelf: true },
-                      { rank: 2, name: "Айгерим К.", role: "Scholar",    xpLabel: "2,180 XP", delta: "+320 THIS WEEK", isSelf: false },
-                      { rank: 3, name: "Дамир М.",   role: "Challenger", xpLabel: "1,990 XP", delta: "+280 THIS WEEK", isSelf: false },
-                    ].map((row) => <LeaderboardRow key={row.rank} {...row} />)
+                    <p style={{ margin: 0, fontFamily: J, fontSize: 14, lineHeight: "20px", color: "#64748b" }}>
+                      Пока нет данных лидерборда.
+                    </p>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Right: Achievements + AI Insight */}
+            {}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 32 }}>
 
-              {/* Achievements */}
+              {}
               <div style={{ ...CARD, padding: 33 }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
                   <p style={{ fontFamily: J, fontWeight: 500, fontSize: 18, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#0f2d51", margin: 0 }}>
@@ -759,7 +754,7 @@ export default function DashboardPage() {
                     {achievements.unlocked_count} / {achievements.total}
                   </span>
                 </div>
-                {/* 2×2 grid */}
+                {}
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
                   {[...unlockedAch, ...lockedAch].map((ach, i) => {
                     const isLocked = i >= 2 || !ach;
@@ -814,7 +809,7 @@ export default function DashboardPage() {
                 </button>
               </div>
 
-              {/* AI Insight card */}
+              {}
               <div style={{
                 background: "#5081ba", borderRadius: 32, padding: 33,
                 boxShadow: "0px 10px 40px -10px rgba(15,45,81,0.08)",
@@ -825,17 +820,22 @@ export default function DashboardPage() {
                   AI Инсайт
                 </p>
                 <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "rgba(219,234,254,0.8)", margin: 0 }}>
-                  Твои слабые места —{" "}
-                  <span style={{ color: "white", fontWeight: 600 }}>
-                    {sortedSubjects[0]?.name ?? "Тригонометрия"}
-                  </span>{" "}
-                  и{" "}
-                  <span style={{ color: "white", fontWeight: 600 }}>
-                    {sortedSubjects[1]?.name ?? "Логарифмы"}
-                  </span>
-                  . Уделяй им по 20 минут в день.
+                  {sortedSubjects.length >= 2 ? (
+                    <>
+                      Твои слабые места —{" "}
+                      <span style={{ color: "white", fontWeight: 600 }}>{sortedSubjects[0].name}</span> и{" "}
+                      <span style={{ color: "white", fontWeight: 600 }}>{sortedSubjects[1].name}</span>. Уделяй им по 20 минут в день.
+                    </>
+                  ) : sortedSubjects.length === 1 ? (
+                    <>
+                      Сейчас нужно укрепить предмет{" "}
+                      <span style={{ color: "white", fontWeight: 600 }}>{sortedSubjects[0].name}</span>. Добавь 20 минут практики ежедневно.
+                    </>
+                  ) : (
+                    "Недостаточно данных для персонального инсайта. Начни с уроков и задач, чтобы AI собрал аналитику."
+                  )}
                 </p>
-                {/* Suggestion box */}
+                {}
                 <div style={{
                   background: "rgba(255,255,255,0.1)", borderRadius: 16, padding: 16,
                   display: "flex", flexDirection: "column", gap: 8,
@@ -844,9 +844,9 @@ export default function DashboardPage() {
                     Предложение:
                   </p>
                   <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "white", margin: 0 }}>
-                    Пройди блиц-тест по теме «
-                    {sortedSubjects[0]?.name ?? "Тригонометрические уравнения"}
-                    » прямо сейчас
+                    {sortedSubjects[0]
+                      ? `Пройди блиц-тест по теме «${sortedSubjects[0].name}» прямо сейчас`
+                      : "Пройди короткий блиц-тест по доступной теме прямо сейчас"}
                   </p>
                   <Link
                     href="/problems"

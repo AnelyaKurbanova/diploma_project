@@ -21,7 +21,7 @@ class ActivityRepo:
         user_agent: str | None,
         meta: dict[str, Any] | None = None,
     ) -> UserActivityEventModel:
-        # Isolate activity writes so failures here do not poison the outer request transaction.
+                                                                                               
         async with self.session.begin_nested():
             row = UserActivityEventModel(
                 event_type=event_type,

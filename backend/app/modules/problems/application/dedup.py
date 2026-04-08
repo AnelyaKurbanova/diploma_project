@@ -15,13 +15,13 @@ def normalize_statement_for_dedup(text: str) -> str:
     if not text:
         return ""
 
-    # Trim outer whitespace.
+                            
     normalized = text.strip()
 
-    # Normalize newlines (Windows / old Mac -> Unix).
+                                                     
     normalized = normalized.replace("\r\n", "\n").replace("\r", "\n")
 
-    # Collapse consecutive spaces / tabs into a single space.
+                                                             
     normalized = _spaces_re.sub(" ", normalized)
 
     return normalized

@@ -59,7 +59,7 @@ class UserModel(Base):
         SAEnum(
             UserRole,
             name="user_role",
-            # Store enum .value in DB ('student', 'teacher', ...)
+                                                                 
             values_callable=lambda enum_cls: [e.value for e in enum_cls],
         ),
         nullable=False,
@@ -115,7 +115,7 @@ class UserProfileModel(Base):
         server_default="Asia/Almaty",
     )
 
-    # Onboarding-related fields
+                               
     primary_goal: Mapped[str | None] = mapped_column(String(64), nullable=True)
     interested_subjects: Mapped[list | None] = mapped_column(JSONB, nullable=True)
     intro_difficulties: Mapped[str | None] = mapped_column(Text, nullable=True)

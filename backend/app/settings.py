@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     ENV: str = "local"
     DEBUG: bool = True
     DATABASE_URL: str
-    # JWT
+         
     JWT_SECRET: str
     JWT_ALG: str = "HS256"
     JWT_ISSUER: str = "api"
@@ -16,12 +16,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
-    # OTP
+         
     OTP_EXPIRE_MINUTES: int = 10
     OTP_MAX_ATTEMPTS: int = 5
     OTP_RESEND_COOLDOWN_SECONDS: int = 60
 
-    # SMTP
+          
     SMTP_HOST: str | None = None
     SMTP_PORT: int = 587
     SMTP_USER: str | None = None
@@ -29,12 +29,12 @@ class Settings(BaseSettings):
     SMTP_FROM: str = "no-reply@example.com"
     SMTP_TLS: bool = True
 
-    # EMAIL
+           
     EMAIL_PROVIDER: str = "log"
     SENDGRID_API_KEY: str | None = None
     EMAIL_FROM: str | None = None
 
-    # Google OAuth
+                  
     GOOGLE_CLIENT_ID: str
     GOOGLE_CLIENT_SECRET: str
     GOOGLE_REDIRECT_URI: str
@@ -44,9 +44,9 @@ class Settings(BaseSettings):
         "http://127.0.0.1:3000",
     ]
 
-    # Cookies
+             
     COOKIE_SECURE: bool = False
-    COOKIE_SAMESITE: str = "lax"  # lax|strict|none
+    COOKIE_SAMESITE: str = "lax"                   
     COOKIE_DOMAIN: str | None = None
 
     REDIS_URL: str | None = None
@@ -64,24 +64,24 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [item.strip() for item in value.split(",") if item.strip()]
         return value
-    # LLM answer normalization (OpenAI)
+                                       
     OPENAI_API_KEY: str | None = None
     LLM_MODEL_NAME: str = "gpt-5-mini"
     LLM_NORMALIZER_TIMEOUT_SEC: float = 300.00
 
-    # Chat
+          
     CHAT_LESSON_DAILY_LIMIT: int = 20
     CHAT_HINT_DAILY_LIMIT: int = 10
     LLM_CHAT_TIMEOUT_SEC: float = 120.0
     RAG_MAX_CONTEXT_CHARS: int = 12000
 
-    # AWS S3 (problem images)
+                             
     AWS_ACCESS_KEY_ID: str | None = None
     AWS_SECRET_ACCESS_KEY: str | None = None
     AWS_REGION: str = "eu-north-1"
     S3_BUCKET: str = "ph8-bucket"
 
-    # RabbitMQ (for video jobs publishing)
+                                          
     RABBIT_URL: str | None = None
 
 settings = Settings()

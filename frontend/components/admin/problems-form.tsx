@@ -5,7 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
 import { ProblemContent } from "@/components/ui/problem-content";
 
-/* ── Types ─────────────────────────────────────────────────────── */
+
 
 type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string; subject_id: string };
@@ -75,7 +75,7 @@ type ProblemsFormProps = {
   onCreated?: () => void;
 };
 
-/* ── Constants ─────────────────────────────────────────────────── */
+
 
 const PROBLEM_TYPES = [
   { value: "single_choice", label: "Один ответ" },
@@ -149,7 +149,7 @@ type LastPreferences = {
   points: string;
 };
 
-/* ── Component ─────────────────────────────────────────────────── */
+
 
 export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -214,17 +214,17 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
   const perPage = 20;
   const isModerator = userRole === "moderator" || userRole === "admin";
 
-  /* ── Load subjects ──────────────────────────────────────────── */
+  
   useEffect(() => {
     (async () => {
       try {
         const data = await apiGet<Subject[]>("/subjects", accessToken);
         setSubjects(data);
-      } catch { /* ignore */ }
+      } catch {  }
     })();
   }, [accessToken]);
 
-  /* ── Load local preferences and draft on mount ──────────────── */
+  
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -255,15 +255,13 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
           setRestoredFromDraft(true);
           setShowForm(true);
         } catch {
-          // ignore malformed draft
         }
       }
     } catch {
-      // ignore errors with localStorage
     }
   }, []);
 
-  /* ── Load topics when subject changes ───────────────────────── */
+  
   useEffect(() => {
     if (!form.subject_id) { setTopics([]); return; }
     (async () => {
@@ -274,7 +272,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     })();
   }, [accessToken, form.subject_id]);
 
-  /* ── Default topic: last in subject ─────────────────────────── */
+  
   useEffect(() => {
     if (!form.subject_id || editingId) return;
     if (!topics.length) return;
@@ -284,7 +282,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     setForm(prev => ({ ...prev, topic_id: last.id }));
   }, [topics, form.subject_id, form.topic_id, editingId]);
 
-  /* ── Debounced canonical preview ────────────────────────────── */
+  
   useEffect(() => {
     if (canonicalTimeout.current) clearTimeout(canonicalTimeout.current);
     if (!textAnswer.trim()) {
@@ -311,7 +309,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     };
   }, [textAnswer, accessToken]);
 
-  /* ── Autosave draft periodically ─────────────────────────────── */
+  
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!showForm) return;
@@ -325,7 +323,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       try {
         window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       } catch {
-        // ignore
       }
     }, 7000);
     return () => {
@@ -347,7 +344,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       try {
         window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       } catch {
-        // ignore
       }
     };
 
@@ -357,7 +353,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     };
   }, [showForm, form, choices, textAnswer, images]);
 
-  /* ── Load problems list ─────────────────────────────────────── */
+  
   const loadProblems = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!opts?.silent) {
@@ -387,7 +383,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
 
   const isChoiceType = form.type === "single_choice" || form.type === "multiple_choice";
 
-  /* ── Helpers ────────────────────────────────────────────────── */
+  
   const applyDifficultyDefaults = (difficultyValue: string) => {
     const defaults = DIFFICULTY_DEFAULTS[difficultyValue];
     if (!defaults) {
@@ -445,7 +441,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     try {
       window.localStorage.setItem(LAST_PREFS_KEY, JSON.stringify(prefs));
     } catch {
-      // ignore
     }
   };
 
@@ -487,7 +482,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
 
     setForm(prev => {
       if (opts?.keepMeta) {
-        // Сохранить текущие метаданные, очистив только текстовые поля
         return {
           ...prev,
           title: "",
@@ -594,7 +588,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     setSuccess(null);
   };
 
-  /* ── Image upload ───────────────────────────────────────────── */
+  
   const handleImageSelect = async (file: File) => {
     if (images.length >= MAX_IMAGES) return;
     const orderNo = images.length;
@@ -643,7 +637,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     );
   };
 
-  /* ── Submit form ────────────────────────────────────────────── */
+  
   const handleSubmit = async (e: React.FormEvent, options?: { createNext?: boolean }) => {
     e.preventDefault();
     setSubmitting(true);
@@ -692,17 +686,14 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         setSuccess("Задача создана (черновик)");
       }
       persistLastPrefs();
-      // сбрасываем сохранённый черновик
       if (typeof window !== "undefined") {
         try {
           window.localStorage.removeItem(DRAFT_KEY);
         } catch {
-          // ignore
         }
       }
 
       if (options?.createNext) {
-        // подготовить следующую задачу на основе текущих метаданных
         resetForm({ keepMeta: true });
         setShowForm(true);
       } else {
@@ -748,8 +739,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       );
       const rawOptions = (res.options || []).map(opt => opt.trim()).filter(Boolean);
 
-      // Дополнительная защита на фронте: если модель вернула несколько чисел
-      // в одной строке (например "16 24 64"), разбиваем их на отдельные варианты.
       const expandedOptions: string[] = [];
       for (const opt of rawOptions) {
         const hasLetters = /[A-Za-zА-Яа-я]/.test(opt);
@@ -764,8 +753,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       const existingTexts = new Set(choices.map(c => c.choice_text.trim()));
       let newOptions = expandedOptions.filter(opt => opt && !existingTexts.has(opt));
 
-      // Если модель вернула только дубликаты существующих вариантов,
-      // всё равно добавим их, чтобы автор видел результат.
       if (!newOptions.length && rawOptions.length > 0) {
         newOptions = rawOptions;
       }
@@ -861,7 +848,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     }
   };
 
-  /* ── Global hotkeys ─────────────────────────────────────────── */
+  
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!showForm || mode !== "single") return;
@@ -885,8 +872,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     return () => {
       window.removeEventListener("keydown", handler);
     };
-    // Hotkeys intentionally depend only on visibility/mode here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showForm, mode]);
 
   const handleAction = async (problemId: string, action: "submit-review" | "publish" | "reject" | "archive") => {
@@ -982,10 +967,10 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     }
   };
 
-  /* ── Render ─────────────────────────────────────────────────── */
+  
   return (
     <div className="space-y-6">
-      {/* Toolbar */}
+      {}
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => { resetForm(); setShowForm(!showForm); }}
@@ -1034,7 +1019,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         </div>
       </div>
 
-      {/* ── Create / Edit form (single mode) ───────────────────── */}
+      {}
       {mode === "single" && showForm && (
         <form onSubmit={e => handleSubmit(e)} className="space-y-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-3">
@@ -1157,7 +1142,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             </div>
           )}
 
-          {/* ── Section 1: Metadata ─────────────────────────────── */}
+          {}
           <fieldset className="space-y-4 rounded-lg border border-gray-100 p-4">
             <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Метаданные
@@ -1230,7 +1215,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             </div>
           </fieldset>
 
-          {/* ── Section 2: Problem Statement ────────────────────── */}
+          {}
           <fieldset className="space-y-4 rounded-lg border border-gray-100 p-4">
             <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Условие задачи
@@ -1291,7 +1276,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
 
           </fieldset>
 
-          {/* ── Section 4: Answer ──────────────────────────────── */}
+          {}
           <fieldset className="space-y-4 rounded-lg border border-gray-100 p-4">
             <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Ответ
@@ -1436,7 +1421,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             )}
           </fieldset>
 
-          {/* ── Section 5: Advanced settings ────────────────────── */}
+          {}
           <fieldset className="space-y-3 rounded-lg border border-dashed border-gray-200 bg-slate-50/60 p-4">
             <legend className="flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               <span>Дополнительные настройки</span>
@@ -1449,7 +1434,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                       try {
                         window.localStorage.setItem("admin_problems_show_advanced", next ? "1" : "0");
                       } catch {
-                        // ignore
                       }
                     }
                     return next;
@@ -1514,7 +1498,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                             <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
                           </div>
                         ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={img.url}
                             alt={img.alt_text || `Изображение ${idx + 1}`}
@@ -1570,7 +1553,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             )}
           </fieldset>
 
-          {/* ── Preview as student ──────────────────────────────── */}
+          {}
           {previewOpen && (
             <div className="mt-2 rounded-xl border border-gray-100 bg-white p-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -1596,7 +1579,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                       .filter(img => img.url)
                       .sort((a, b) => a.order_no - b.order_no)
                       .map((img, idx) => (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           key={`${img.url}-${idx}`}
                           src={img.url}
@@ -1649,7 +1631,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             </div>
           )}
 
-          {/* ── Errors / Success ───────────────────────────────── */}
+          {}
           {error && <p className="text-sm text-rose-600">{error}</p>}
           {success && <p className="text-sm text-emerald-600">{success}</p>}
 
@@ -1696,7 +1678,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         </form>
       )}
 
-      {/* ── Bulk creation mode ─────────────────────────────────── */}
+      {}
       {mode === "bulk" && (
         <div className="space-y-3 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
@@ -1778,7 +1760,6 @@ TITLE: ...`}
               type="button"
               disabled={!bulkText.trim() || bulkSubmitting}
               onClick={() => {
-                // простой парсинг без сложной валидации
                 const blocks = bulkText.split(/^---$/m).map(b => b.trim()).filter(Boolean);
                 const parsed: BulkParsedProblem[] = [];
                 const errors: string[] = [];
@@ -1809,7 +1790,6 @@ TITLE: ...`}
                     } else if (line.startsWith("A*:")) {
                       const text = line.slice("A*:".length).trim();
                       if (type === "short_text") {
-                        // трактуем как текстовый ответ
                         textAnswer = text;
                       } else {
                         choices.push({
@@ -1918,7 +1898,7 @@ TITLE: ...`}
         </div>
       )}
 
-      {/* ── Problems list ──────────────────────────────────────── */}
+      {}
       <div className="space-y-3">
         {listLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -2248,7 +2228,6 @@ TITLE: ...`}
                       .slice()
                       .sort((a, b) => a.order_no - b.order_no)
                       .map(img => (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           key={img.id}
                           src={img.url}

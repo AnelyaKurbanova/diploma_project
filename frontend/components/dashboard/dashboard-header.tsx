@@ -221,7 +221,7 @@ export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHead
       style={{ boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)" }}
     >
       <div className="flex h-16 items-center justify-between px-8">
-        {/* Logo */}
+        {}
         <Link
           href="/"
           className="shrink-0 text-[24px] leading-10 tracking-[-0.5309px] text-[#0f2d51] font-normal"
@@ -230,9 +230,9 @@ export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHead
           ÖrkenAI
         </Link>
 
-        {/* Right side: nav + bell + profile */}
+        {}
         <div className="flex items-center gap-6">
-          {/* Nav tabs */}
+          {}
           <nav className="flex items-center gap-4">
             {NAV_ITEMS.map((item) => {
               const active =
@@ -284,7 +284,7 @@ export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHead
             )}
           </nav>
 
-          {/* Bell + Profile */}
+          {}
           <div className="flex items-center">
             <div ref={notificationsRef} className="relative">
               <button
@@ -383,7 +383,7 @@ export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHead
               )}
             </div>
 
-            {/* Profile */}
+            {}
             <div ref={menuRef} className="relative ml-1">
               <button
                 type="button"
@@ -393,16 +393,16 @@ export function DashboardHeader({ userName, userRole, avatarUrl }: DashboardHead
                 }}
                 className="flex items-center gap-0 rounded-[10px]"
               >
-                {/* Avatar with teal border */}
+                {}
                 <div className="flex h-[36px] w-[36px] shrink-0 items-center justify-center overflow-hidden rounded-[24px] border border-[#15fcf4] bg-[#eff6ff]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img
                     src={avatarSrc}
                     alt={userName}
                     className="h-full w-full object-cover"
                   />
                 </div>
-                {/* Name + role */}
+                {}
                 <div className="ml-3.5 flex flex-col items-start">
                   <span
                     className="whitespace-nowrap text-[16px] leading-6 tracking-[-0.3125px] text-[#0a0a0a]"

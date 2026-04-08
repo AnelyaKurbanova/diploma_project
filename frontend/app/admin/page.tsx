@@ -143,7 +143,7 @@ export default function AdminPage() {
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -160,7 +160,7 @@ export default function AdminPage() {
   const userName = profile.full_name ?? user.email.split("@")[0];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">

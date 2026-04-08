@@ -60,7 +60,6 @@ function EmailVerifyInner() {
   const [canResend, setCanResend] = useState(false);
   const [resendCounter, setResendCounter] = useState(0);
 
-  // Таймер на 3 минуты
   useEffect(() => {
     if (!email || !purpose) return;
 
@@ -115,7 +114,6 @@ function EmailVerifyInner() {
       }
       router.replace("/dashboard");
     } catch {
-      // сообщение уже попадёт в emailFlowError
     } finally {
       setIsVerifying(false);
     }
@@ -133,7 +131,6 @@ function EmailVerifyInner() {
       }
       setResendCounter((c) => c + 1);
     } catch {
-      // Ошибка отразится в emailFlowError
     }
   };
 
@@ -176,14 +173,14 @@ function EmailVerifyInner() {
       <EntHeader />
 
       <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-8">
-        {/* Auth card */}
+        {}
         <div
           className="w-full max-w-[526px] overflow-hidden rounded-2xl bg-white"
           style={{ boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)" }}
         >
-          {/* Banner illustration */}
+          {}
           <div className="relative h-[157px] w-full overflow-hidden rounded-t-2xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {}
             <img
               src="/images/auth-banner.png"
               alt=""
@@ -192,9 +189,9 @@ function EmailVerifyInner() {
             />
           </div>
 
-          {/* Content */}
+          {}
           <div className="flex flex-col gap-4 pb-8 pt-4">
-            {/* Title block */}
+            {}
             <div className="flex flex-col gap-1 px-[39px]">
               <h1
                 className="text-[36px] leading-10 tracking-[-0.5309px] text-[#0f2d51]"
@@ -213,7 +210,7 @@ function EmailVerifyInner() {
               </p>
             </div>
 
-            {/* Form */}
+            {}
             <div className="flex flex-col gap-3 px-[39px]">
               <form onSubmit={handleSubmit} className="flex flex-col gap-3">
                 <label className="flex flex-col gap-2">
@@ -256,7 +253,7 @@ function EmailVerifyInner() {
                 )}
               </form>
 
-              {/* Resend */}
+              {}
               <div className="flex flex-col items-center gap-2">
                 <p
                   className="text-[14px] leading-5 text-[#4a5565]"

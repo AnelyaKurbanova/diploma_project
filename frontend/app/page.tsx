@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
 
-/* ─── Figma asset URLs ─── */
+
 const HERO_BG     = "https://www.figma.com/api/mcp/asset/939666b1-378c-4925-9aa6-54ac74537d8c";
 const AVATAR_1    = "https://www.figma.com/api/mcp/asset/d9cb896a-ac89-4ebb-99f7-afae8822f661";
 const AVATAR_2    = "https://www.figma.com/api/mcp/asset/8e04bad5-25fb-4875-8be6-4361a3fc07c7";
@@ -19,7 +19,7 @@ const JAKARTA = "var(--font-jakarta), 'Plus Jakarta Sans', 'Noto Sans', sans-ser
 const ROSTOV  = "var(--font-rostov)";
 const JOST    = "var(--font-jost)";
 
-/* ─── Activity heatmap ─── */
+
 const HEAT_COLORS = ["#EFF6FF", "#BFDBFE", "#93C5FD", "#3B82F6", "#1D4ED8"];
 const MONTH_LABELS = ["Янв","Фев","Мар","Апр","Май","Июн","Июл","Авг","Сен","Окт","Ноя","Дек"];
 const DAY_LABELS   = ["Пн","","Ср","","Пт","","Вск"];
@@ -68,7 +68,7 @@ function ActivityHeatmap() {
   );
 }
 
-/* ─── Feature cards ─── */
+
 function ArrowSmIcon() {
   return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -133,7 +133,7 @@ const FEATURES = [
   },
 ];
 
-/* ─── Main page ─── */
+
 export default function Home() {
   const { user, isLoading } = useAuth();
   const router = useRouter();
@@ -148,26 +148,24 @@ export default function Home() {
     <div className="min-h-screen bg-white text-slate-900 overflow-x-hidden">
       <EntHeader />
 
-      {/* ══════════════════════════════════════
-          HERO SECTION
-      ══════════════════════════════════════ */}
+      {}
       <section className="relative overflow-hidden" style={{ height: "555px" }}>
-        {/* Background pattern + overlay */}
+        {}
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {}
           <img alt="" src={HERO_BG} className="absolute inset-0 w-full h-full object-cover" style={{ opacity: 0.1 }} />
           <div className="absolute inset-0" style={{ background: "rgba(80,129,186,0.2)" }} />
         </div>
 
-        {/* Content row */}
+        {}
         <div
           className="relative mx-auto flex items-center justify-center px-6 h-full"
           style={{ maxWidth: "1280px", gap: "56.658px" }}
         >
-          {/* ── Left column ── */}
+          {}
           <div className="relative shrink-0" style={{ width: "584px", height: "429.5px" }}>
 
-            {/* Badge pill — top: 0 */}
+            {}
             <div
               className="absolute top-0 left-0 inline-flex items-center gap-2 border border-white rounded-full shadow-sm"
               style={{ padding: "9px 17px", background: "rgba(255,255,255,0.5)" }}
@@ -189,7 +187,7 @@ export default function Home() {
               </span>
             </div>
 
-            {/* H1 — top: 58px */}
+            {}
             <div className="absolute left-0 right-0" style={{ top: 58 }}>
               <h1
                 style={{
@@ -208,7 +206,7 @@ export default function Home() {
               </h1>
             </div>
 
-            {/* Subtitle — top: 225px */}
+            {}
             <div className="absolute left-0" style={{ top: 225, right: 72, maxWidth: 512 }}>
               <p
                 style={{
@@ -225,12 +223,12 @@ export default function Home() {
               </p>
             </div>
 
-            {/* CTA row — top: 363.5px */}
+            {}
             <div
               className="absolute left-0 right-0 flex items-center"
               style={{ top: 363.5, gap: 16 }}
             >
-              {/* Primary CTA */}
+              {}
               <Link
                 href="/auth/register"
                 className="flex items-center justify-center text-white text-center transition-opacity hover:opacity-90"
@@ -251,7 +249,7 @@ export default function Home() {
                 Попробовать прямо сейчас
               </Link>
 
-              {/* Social proof pill */}
+              {}
               <div
                 className="flex items-center shrink-0"
                 style={{
@@ -264,11 +262,11 @@ export default function Home() {
                 }}
               >
                 <div className="flex items-center" style={{ paddingRight: 8 }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img src={AVATAR_1} alt="" className="rounded-full object-cover" style={{ width: 32, height: 32, border: "2px solid white", marginRight: -8, position: "relative", zIndex: 3 }} />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img src={AVATAR_2} alt="" className="rounded-full object-cover" style={{ width: 32, height: 32, border: "2px solid white", marginRight: -8, position: "relative", zIndex: 2 }} />
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img src={AVATAR_3} alt="" className="rounded-full object-cover" style={{ width: 32, height: 32, border: "2px solid white", position: "relative", zIndex: 1 }} />
                 </div>
                 <p style={{ fontFamily: JAKARTA, fontSize: 12, margin: 0 }}>
@@ -279,9 +277,9 @@ export default function Home() {
             </div>
           </div>
 
-          {/* ── Right column: analytics card ── */}
+          {}
           <div className="relative shrink-0" style={{ width: 432 }}>
-            {/* Cyan blur orb */}
+            {}
             <div
               className="absolute rounded-full"
               style={{
@@ -294,7 +292,7 @@ export default function Home() {
                 pointerEvents: "none",
               }}
             />
-            {/* Amber blur orb */}
+            {}
             <div
               className="absolute rounded-full"
               style={{
@@ -308,7 +306,7 @@ export default function Home() {
               }}
             />
 
-            {/* Card wrapper (598×451, centered, card is 584×431) */}
+            {}
             <div className="flex items-center justify-center" style={{ width: 598.686, height: 451.119 }}>
               <div style={{ transform: "rotate(2deg)" }}>
                 <div
@@ -323,14 +321,14 @@ export default function Home() {
                     overflow: "visible",
                   }}
                 >
-                  {/* Card header */}
+                  {}
                   <div className="absolute flex items-center" style={{ top: 24, left: 24, right: 24, gap: 16 }}>
                     <div className="flex items-center" style={{ gap: 16 }}>
                       <div
                         className="flex items-center justify-center"
                         style={{ width: 48, height: 48, borderRadius: 16, background: "#F8FAFC", flexShrink: 0 }}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {}
                         <img src={CHART_ICON} alt="" style={{ width: 24, height: 24 }} />
                       </div>
                       <div>
@@ -343,12 +341,12 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Chart area */}
+                  {}
                   <div className="absolute" style={{ top: 104, left: 24, right: 24, height: 192 }}>
                     <div className="relative w-full h-full">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      {}
                       <img src={CHART_LINE} alt="" className="w-full h-full object-cover" />
-                      {/* Tooltip */}
+                      {}
                       <div
                         className="absolute"
                         style={{
@@ -365,7 +363,7 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {/* Stats row */}
+                  {}
                   <div className="absolute flex" style={{ top: 320, left: 24, right: 24, height: 84, gap: 16 }}>
                     <div
                       className="flex flex-col"
@@ -403,12 +401,10 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          FEATURES SECTION
-      ══════════════════════════════════════ */}
+      {}
       <section style={{ paddingTop: 50, paddingBottom: 80 }}>
         <div className="mx-auto px-6" style={{ maxWidth: 1143 }}>
-          {/* Heading */}
+          {}
           <div className="text-center" style={{ marginBottom: 150 }}>
             <h2
               style={{
@@ -435,7 +431,7 @@ export default function Home() {
             </p>
           </div>
 
-          {/* 4-column feature grid */}
+          {}
           <div className="grid grid-cols-4 gap-6">
             {FEATURES.map((f) => (
               <div
@@ -449,7 +445,7 @@ export default function Home() {
                   position: "relative",
                 }}
               >
-                {/* Icon container */}
+                {}
                 <div
                   className="flex items-center justify-center"
                   style={{
@@ -463,7 +459,7 @@ export default function Home() {
                   {f.icon}
                 </div>
 
-                {/* Title */}
+                {}
                 <h3
                   style={{
                     fontFamily: JOST,
@@ -477,7 +473,7 @@ export default function Home() {
                   {f.title}
                 </h3>
 
-                {/* Description */}
+                {}
                 <p
                   style={{
                     fontFamily: JOST,
@@ -490,7 +486,7 @@ export default function Home() {
                   {f.description}
                 </p>
 
-                {/* Link */}
+                {}
                 <Link
                   href={f.href}
                   className="absolute bottom-8 left-8 flex items-center gap-1 transition-opacity hover:opacity-70"
@@ -510,13 +506,11 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          ACTIVITY SECTION
-      ══════════════════════════════════════ */}
+      {}
       <section style={{ padding: "48px 0", background: "#F8FAFC" }}>
         <div className="mx-auto px-6" style={{ maxWidth: 1143 }}>
           <div className="flex items-center" style={{ gap: 80 }}>
-            {/* Left: heatmap panel */}
+            {}
             <div
               className="flex-1 bg-white"
               style={{
@@ -542,7 +536,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Right: motivational text */}
+            {}
             <div style={{ width: 285, flexShrink: 0 }}>
               <h2 style={{ fontFamily: ROSTOV, fontSize: 36, lineHeight: "40px", color: "#0F2D51", margin: 0 }}>
                 Наблюдай за активностью и мотивируй себя расти дальше
@@ -552,16 +546,14 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          CODE DEMO SECTION
-      ══════════════════════════════════════ */}
+      {}
       <section style={{ padding: "80px 0", background: "white" }}>
         <div className="mx-auto px-6" style={{ maxWidth: 1143 }}>
           <div className="flex items-center" style={{ gap: 64 }}>
 
-            {/* Left: dark code editor */}
+            {}
             <div className="flex-1 overflow-hidden" style={{ borderRadius: 16, background: "#1E293B" }}>
-              {/* Title bar */}
+              {}
               <div className="flex items-center" style={{ background: "#0F172A", padding: "12px 16px", gap: 18 }}>
                 <div className="flex" style={{ gap: 18 }}>
                   <div className="rounded-full" style={{ width: 12, height: 12, background: "#EF4444" }} />
@@ -573,7 +565,7 @@ export default function Home() {
                 </span>
               </div>
 
-              {/* Code body */}
+              {}
               <div style={{ padding: 32 }}>
                 <p style={{ fontFamily: "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace", fontSize: 14, lineHeight: "23px", color: "#93C5FD", margin: "0 0 16px" }}>
                   import orkenai_math as ai
@@ -620,7 +612,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Right: description */}
+            {}
             <div className="flex-1">
               <h2 style={{ fontFamily: ROSTOV, fontSize: 36, lineHeight: "44px", color: "#0F2D51", margin: "0 0 32px" }}>
                 Ошибайся правильно AI всё исправит
@@ -643,15 +635,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* ══════════════════════════════════════
-          FINAL CTA SECTION
-      ══════════════════════════════════════ */}
+      {}
       <section className="relative overflow-hidden">
-        {/* Backgrounds */}
+        {}
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
           <div className="absolute inset-0" style={{ background: "#0F2D51" }} />
           <div className="absolute inset-0 overflow-hidden" style={{ opacity: 0.2 }}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {}
             <img
               alt=""
               src={CTA_BG}
@@ -664,7 +654,7 @@ export default function Home() {
         <div className="relative flex flex-col items-center" style={{ padding: "128px 24px" }}>
           <div className="flex flex-col items-center" style={{ maxWidth: 896, width: "100%", gap: 32 }}>
 
-            {/* Heading */}
+            {}
             <h2
               className="text-center"
               style={{
@@ -680,7 +670,7 @@ export default function Home() {
               <span style={{ color: "#22D3EE" }}>140 баллам?</span>
             </h2>
 
-            {/* Subtitle */}
+            {}
             <p
               className="text-center"
               style={{
@@ -697,7 +687,7 @@ export default function Home() {
               Начни подготовку сегодня. абсолютно бесплатно
             </p>
 
-            {/* CTA buttons */}
+            {}
             <div className="flex items-center justify-center" style={{ gap: 15.99, paddingTop: 16 }}>
               <Link
                 href="/auth/register"
@@ -734,7 +724,7 @@ export default function Home() {
               </Link>
             </div>
 
-            {/* Stats */}
+            {}
             <div className="flex items-center justify-center" style={{ gap: 32, paddingTop: 16 }}>
               <div className="flex flex-col items-center text-center">
                 <p style={{ fontFamily: JAKARTA, fontWeight: 800, fontSize: 30, lineHeight: "36px", color: "white", margin: 0 }}>94%</p>

@@ -174,7 +174,7 @@ export default function ProfilePage() {
   };
 
   if (isLoading || !user || !accessToken) {
-    return <div className="min-h-screen bg-slate-50" />;
+    return <div className="min-h-screen bg-[#f8fafc]" />;
   }
 
   const userName = profile?.full_name ?? user.email.split("@")[0];
@@ -183,7 +183,7 @@ export default function ProfilePage() {
   const friendsCount = social?.friends?.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={avatarSrc} />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="mb-4">
@@ -216,7 +216,7 @@ export default function ProfilePage() {
             <div className="-mt-8 mb-3 flex items-end justify-between gap-3 sm:-mt-10">
               <div className="flex items-end gap-3">
                 <div className="h-20 w-20 rounded-2xl border-4 border-white bg-white p-1.5 shadow-lg sm:h-24 sm:w-24">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img
                     src={avatarSrc}
                     alt={userName}
@@ -225,7 +225,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="pb-1 sm:pb-0">
                   <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl sm:leading-none">{userName}</h1>
-                  <p className="text-xs font-medium text-blue-600">
+                  <p className="text-xs font-medium text-[#5081ba]">
                     {me?.role ? ROLE_LABELS[me.role] ?? me.role : "Пользователь"}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
@@ -340,14 +340,14 @@ export default function ProfilePage() {
                     type="email"
                     value={friendEmail}
                     onChange={(e) => setFriendEmail(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#5081ba]"
                     placeholder="friend@example.com"
                   />
                   <button
                     type="button"
                     onClick={handleAddFriend}
                     disabled={addingFriend}
-                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="rounded-lg bg-[#0f2d51] px-3 py-2 text-sm font-medium text-white hover:bg-[#184070] disabled:opacity-50"
                   >
                     {addingFriend ? "..." : "Добавить"}
                   </button>
@@ -399,7 +399,7 @@ function StatCard({
     <article className={`aspect-square rounded-2xl border-4 bg-white px-4 py-4 ${palette[color]}`}>
       <div className="grid h-full grid-rows-[40px_1fr_44px] items-center">
         <div className="flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {}
           <img src={iconSrc} alt={iconAlt} className="h-8 w-8 object-contain" />
         </div>
         <p className="text-center text-3xl font-extrabold leading-none text-slate-800 sm:text-4xl">{value}</p>
@@ -414,7 +414,7 @@ function StatCard({
 function Friend({ name, role, avatarUrl }: { name: string; role: string; avatarUrl?: string | null }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {}
       <img
         src={avatarUrl || "/images/default-avatar.png"}
         alt={name}

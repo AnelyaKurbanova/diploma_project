@@ -39,7 +39,7 @@ async def init_redis_cache(url: str | None) -> None:
     This keeps Redis wiring in the infrastructure layer and exposes a
     CacheBackend instance for application code.
     """
-    global _redis_client, _cache_backend  # noqa: PLW0603
+    global _redis_client, _cache_backend                 
 
     if not url:
         return
@@ -48,12 +48,12 @@ async def init_redis_cache(url: str | None) -> None:
         _redis_client = Redis.from_url(url, decode_responses=False)
         _cache_backend = RedisCacheBackend(_redis_client)
 
-    # Optional: lightweight ping to fail fast on misconfiguration.
+                                                                  
     await _redis_client.ping()
 
 
 async def close_redis_cache() -> None:
-    global _redis_client, _cache_backend  # noqa: PLW0603
+    global _redis_client, _cache_backend                 
 
     if _redis_client is not None:
         await _redis_client.close()

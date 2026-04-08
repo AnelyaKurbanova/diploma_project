@@ -47,7 +47,6 @@ export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProp
 
   useEffect(() => {
     void loadClasses();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -58,7 +57,6 @@ export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProp
     setLastCreatedCode(null);
     try {
       const created = await apiCreateClass(newClassName.trim(), accessToken);
-      // Оставляем модалку открытой и показываем код, чтобы его сразу скопировать
       setNewClassName(created.name);
       setLastCreatedCode(created.join_code);
       await loadClasses();
@@ -80,7 +78,6 @@ export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProp
         setCopiedCode((prev) => (prev === code ? null : prev));
       }, 1500);
     } catch {
-      // ignore
     }
   };
 
@@ -152,7 +149,7 @@ export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProp
         </button>
       </div>
 
-      {/* Summary cards */}
+      {}
       <div className="mb-8 grid gap-4 sm:grid-cols-3">
         <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
           <p className="text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -181,14 +178,14 @@ export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProp
         </div>
       </div>
 
-      {/* Error */}
+      {}
       {error && (
         <div className="mb-4 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">
           {error}
         </div>
       )}
 
-      {/* My classes */}
+      {}
       <section className="mb-8 rounded-2xl border border-gray-100 bg-white p-6">
         <h2 className="mb-1 text-base font-bold text-slate-900">Мои классы</h2>
         <p className="mb-4 text-xs text-slate-400">
@@ -266,7 +263,7 @@ export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProp
         )}
       </section>
 
-      {/* Quick actions */}
+      {}
       <section className="grid gap-4 md:grid-cols-2">
         <div className="rounded-2xl border border-gray-100 bg-white p-5">
           <h3 className="mb-1 text-sm font-semibold text-slate-900">
@@ -300,7 +297,7 @@ export function TeacherDashboard({ userName, accessToken }: TeacherDashboardProp
         </div>
       </section>
 
-      {/* Create class modal */}
+      {}
       {createOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 px-4">
           <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">

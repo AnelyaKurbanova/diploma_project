@@ -28,11 +28,11 @@ class DashboardService:
         subjects_progress = await self._get_subjects_progress(user_id)
         recommendations = self._build_recommendations(subjects_progress)
 
-        total_solved = task_stats["correct"] + task_stats["incorrect"]
+        total_solved = task_stats["correct"]
         total_tasks = task_stats["total"]
         accuracy = (
-            round(task_stats["correct"] / total_solved * 100)
-            if total_solved > 0
+            round(task_stats["correct"] / (task_stats["correct"] + task_stats["incorrect"]) * 100)
+            if (task_stats["correct"] + task_stats["incorrect"]) > 0
             else 0
         )
 
@@ -40,7 +40,9 @@ class DashboardService:
         if total_lectures > 0:
             overall_parts.append(round(completed_lectures / total_lectures * 100))
         if total_tasks > 0:
-            overall_parts.append(round(total_solved / total_tasks * 100))
+            overall_parts.append(
+                round((task_stats["correct"] + task_stats["incorrect"]) / total_tasks * 100)
+            )
         overall_progress = (
             round(sum(overall_parts) / len(overall_parts)) if overall_parts else 0
         )

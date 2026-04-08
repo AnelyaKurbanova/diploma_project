@@ -67,9 +67,9 @@ async def _publish_video_requested(job_id: uuid.UUID) -> None:
         await connection.close()
 
 
-# ---------------------------------------------------------------------------
-# Template selection constants (mirrors video_worker/app/validators.py)
-# ---------------------------------------------------------------------------
+                                                                             
+                                                                       
+                                                                             
 
 _ALL_TEMPLATES = {
     "title", "hook", "goal", "recap", "definitions", "key_point",
@@ -101,9 +101,9 @@ _PLAIN_TEXT_FIELDS: dict[str, list[str]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Validation helpers (lightweight, backend-side)
-# ---------------------------------------------------------------------------
+                                                                             
+                                                
+                                                                             
 
 
 def _build_fallback_plan(topic_title: str) -> dict[str, Any]:
@@ -235,7 +235,7 @@ def _validate_content_structure(
     plan_errors = _validate_plan_structure(data)
     errors.extend(plan_errors)
 
-    # Content must follow the generated plan 1:1 (same length and template order).
+                                                                                  
     if plan_json is not None:
         plan_scenes = plan_json.get("scenes")
         if not isinstance(plan_scenes, list):
@@ -267,9 +267,9 @@ def _validate_content_structure(
     return errors
 
 
-# ---------------------------------------------------------------------------
-# Step 1: Plan generation — choose the optimal template sequence
-# ---------------------------------------------------------------------------
+                                                                             
+                                                                
+                                                                             
 
 _PLAN_SYSTEM_PROMPT = (
     "Ты — опытный педагог-методист по математике и дизайнер видеоуроков.\n"
@@ -471,9 +471,9 @@ async def _generate_plan(
     raise Conflict("Не удалось сгенерировать план видео")
 
 
-# ---------------------------------------------------------------------------
-# Step 2: Content generation — fill in data for each scene
-# ---------------------------------------------------------------------------
+                                                                             
+                                                          
+                                                                             
 
 _CONTENT_SYSTEM_PROMPT = (
     "Ты — опытный учитель математики и эксперт по LaTeX.\n"
@@ -686,7 +686,7 @@ def _normalize_content_json(content_json: dict[str, Any]) -> dict[str, Any]:
             return s
         if len(s) <= limit:
             return s
-        # Keep it readable; avoid ending with an orphaned separator.
+                                                                    
         s = s[:limit].rstrip(" ,;:-")
         return s
 
@@ -808,9 +808,9 @@ async def _generate_content_from_plan(
     return data
 
 
-# ---------------------------------------------------------------------------
-# Orchestrator: 2-step generation (plan -> content) with retry
-# ---------------------------------------------------------------------------
+                                                                             
+                                                              
+                                                                             
 
 async def _generate_video_content_json(
     *,
@@ -830,7 +830,7 @@ async def _generate_video_content_json(
     if not topic_title or not rag_chunks:
         raise Conflict("Недостаточно учебных материалов для генерации видео")
 
-    # --- Step 1: generate plan (template sequence) ---
+                                                       
     plan_json = await _generate_plan(
         client=client,
         request_json=request_json,
@@ -843,7 +843,7 @@ async def _generate_video_content_json(
         [s.get("template") for s in plan_json.get("scenes", [])],
     )
 
-    # --- Step 2: generate content with retry on validation errors ---
+                                                                      
     previous_errors: list[str] | None = None
     for attempt in range(_CONTENT_MAX_RETRIES + 1):
         content_json = await _generate_content_from_plan(
@@ -1004,7 +1004,7 @@ class VideoJobService:
                 await session.commit()
 
             await _publish_video_requested(job_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:                
             logger.exception(
                 "Background planning failed for problem video job",
                 extra={"job_id": str(job_id), "problem_id": str(problem_id)},
@@ -1041,7 +1041,7 @@ class VideoJobService:
                 await session.commit()
 
             await _publish_video_requested(job_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:                
             logger.exception(
                 "Background planning failed for topic video job",
                 extra={

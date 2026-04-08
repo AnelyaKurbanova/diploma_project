@@ -31,7 +31,7 @@ def extract_openai_token_usage(response: Any) -> tuple[int | None, int | None, i
             input_tokens = input_tokens or usage_dict.get("prompt_tokens") or usage_dict.get("input_tokens")
             output_tokens = output_tokens or usage_dict.get("completion_tokens") or usage_dict.get("output_tokens")
             total_tokens = total_tokens or usage_dict.get("total_tokens")
-        except Exception:  # pragma: no cover - defensive
+        except Exception:                                
             pass
 
     if total_tokens is None and (input_tokens is not None or output_tokens is not None):
@@ -45,7 +45,7 @@ def _as_int(value: Any) -> int | None:
         return None
     try:
         return int(value)
-    except Exception:  # pragma: no cover - defensive
+    except Exception:                                
         return None
 
 
@@ -83,7 +83,7 @@ async def log_llm_token_usage(
             )
             session.add(row)
             await session.commit()
-    except Exception as exc:  # pragma: no cover - defensive
+    except Exception as exc:                                
         logger.warning(
             "Failed to persist llm_token_usage for request_type=%s: %s",
             request_type,

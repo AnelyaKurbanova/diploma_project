@@ -117,12 +117,12 @@ export default function PublicProfilePage() {
   };
 
   if (isLoading || !user || !accessToken || loading) {
-    return <div className="min-h-screen bg-slate-50" />;
+    return <div className="min-h-screen bg-[#f8fafc]" />;
   }
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
         <DashboardHeader userName={user.email.split("@")[0]} userRole={user.role ?? "student"} />
         <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
           <Link href="/profile" className="text-sm text-slate-500 hover:text-slate-700">
@@ -141,7 +141,7 @@ export default function PublicProfilePage() {
   const avatarSrc = data.avatar_url || "/images/default-avatar.png";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={viewerName} userRole={viewerRole} />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="mb-4">
@@ -163,7 +163,7 @@ export default function PublicProfilePage() {
             <div className="-mt-8 mb-3 flex items-end justify-between gap-3 sm:-mt-10">
               <div className="flex items-end gap-3">
                 <div className="h-20 w-20 rounded-2xl border-4 border-white bg-white p-1.5 shadow-lg sm:h-24 sm:w-24">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img
                     src={avatarSrc}
                     alt={data.full_name}
@@ -172,7 +172,7 @@ export default function PublicProfilePage() {
                 </div>
                 <div className="pb-1 sm:pb-0">
                   <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl sm:leading-none">{data.full_name}</h1>
-                  <p className="text-xs font-medium text-blue-600">
+                  <p className="text-xs font-medium text-[#5081ba]">
                     {ROLE_LABELS[data.role] ?? data.role}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
@@ -300,7 +300,7 @@ function StatCard({
     <article className={`aspect-square rounded-2xl border-4 bg-white px-4 py-4 ${palette[color]}`}>
       <div className="grid h-full grid-rows-[40px_1fr_44px] items-center">
         <div className="flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {}
           <img src={iconSrc} alt={iconAlt} className="h-8 w-8 object-contain" />
         </div>
         <p className="text-center text-3xl font-extrabold leading-none text-slate-800 sm:text-4xl">{value}</p>
@@ -315,7 +315,7 @@ function StatCard({
 function FriendCard({ name, role, avatarUrl }: { name: string; role: string; avatarUrl?: string | null }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {}
       <img
         src={avatarUrl || "/images/default-avatar.png"}
         alt={name}

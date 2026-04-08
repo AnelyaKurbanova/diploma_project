@@ -26,7 +26,6 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
     setLoading(true);
     setError(null);
     try {
-      // Admin-only endpoint for managing schools
       const data = await apiGet<School[]>("/schools/admin", accessToken);
       setSchools(data);
     } catch (err) {
@@ -40,7 +39,6 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
 
   useEffect(() => {
     void loadSchools();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,7 +60,6 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
       setLastCreatedCode(created.teacher_code);
       setName("");
 
-      // Refresh list
       await loadSchools();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при создании школы");
@@ -77,7 +74,6 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
       await navigator.clipboard.writeText(lastCreatedCode);
       setSuccess("Код скопирован в буфер обмена");
     } catch {
-      // ignore
     }
   };
 

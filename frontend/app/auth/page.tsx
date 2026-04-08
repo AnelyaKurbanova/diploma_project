@@ -44,7 +44,6 @@ export default function AuthPage() {
         `/auth/email/verify?purpose=login&email=${encodeURIComponent(trimmed)}`,
       );
     } catch {
-      // Сообщение уже выставлено в emailFlowError
     } finally {
       setIsEmailSubmitting(false);
     }
@@ -57,14 +56,14 @@ export default function AuthPage() {
       <EntHeader />
 
       <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-8">
-        {/* Auth card */}
+        {}
         <div
           className="w-full max-w-[526px] overflow-hidden rounded-2xl bg-white"
           style={{ boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)" }}
         >
-          {/* Banner illustration */}
+          {}
           <div className="relative h-[157px] w-full overflow-hidden rounded-t-2xl">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
+            {}
             <img
               src="/images/auth-banner.png"
               alt=""
@@ -73,9 +72,9 @@ export default function AuthPage() {
             />
           </div>
 
-          {/* Content */}
+          {}
           <div className="flex flex-col gap-4 pb-8 pt-4">
-            {/* Title block */}
+            {}
             <div className="flex flex-col gap-1 px-[39px]">
               <h1
                 className="text-[36px] leading-10 tracking-[-0.5309px] text-[#0f2d51]"
@@ -91,9 +90,9 @@ export default function AuthPage() {
               </p>
             </div>
 
-            {/* Form */}
+            {}
             <div className="flex flex-col gap-3 px-[39px]">
-              {/* Google button */}
+              {}
               <div className="flex flex-col gap-2">
                 <button
                   type="button"
@@ -118,7 +117,7 @@ export default function AuthPage() {
                 </div>
               </div>
 
-              {/* Email field */}
+              {}
               <form onSubmit={handleEmailSubmit} className="flex flex-col gap-2">
                 <div className="flex flex-col gap-2">
                   <label className="flex flex-col gap-2">
@@ -156,7 +155,7 @@ export default function AuthPage() {
                 )}
               </form>
 
-              {/* Register link */}
+              {}
               <div className="flex items-center justify-center">
                 <p
                   className="text-[16px] leading-6 tracking-[-0.3125px] text-[#4a5565]"
@@ -177,7 +176,7 @@ export default function AuthPage() {
           </div>
         </div>
 
-        {/* Error states */}
+        {}
         {error && (
           <p className="mt-4 text-xs text-rose-600">{error}</p>
         )}
