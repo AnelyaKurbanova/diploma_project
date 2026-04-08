@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Jost, Inter } from "next/font/google";
+import { Jost, Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 
@@ -15,6 +15,12 @@ const inter = Inter({
   display: "swap",
 });
 
+const plusJakartaSans = Plus_Jakarta_Sans({
+  subsets: ["latin"],
+  variable: "--font-jakarta",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
   title: "ÖrkenAI — Подготовка к ЕНТ",
   description:
@@ -27,7 +33,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={`${jost.variable} ${inter.variable}`}>
+    <html lang="ru" className={`${jost.variable} ${inter.variable} ${plusJakartaSans.variable}`}>
       <body className="antialiased bg-background text-foreground">
         <AuthProvider>{children}</AuthProvider>
       </body>

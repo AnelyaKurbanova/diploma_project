@@ -2,29 +2,37 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import {
   apiGet,
   apiJoinClassByCode,
-  apiListStudentAssessments,
   apiListStudentClasses,
-  type StudentAssessment,
   type StudentClass,
 } from "@/lib/api";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
-import { StatCard } from "@/components/ui/stat-card";
-import { BarChart } from "@/components/ui/bar-chart";
-import { DonutChart } from "@/components/ui/donut-chart";
-import { SubjectProgressItem } from "@/components/dashboard/subject-progress-item";
-import { RecommendationCard } from "@/components/dashboard/recommendation-card";
 import { TeacherDashboard } from "@/components/dashboard/teacher-dashboard";
-import { buttonClasses } from "@/components/ui/button";
-import Link from "next/link";
-import { useMyAchievements, useMyStreak, useMyXp } from "@/lib/swr-hooks";
-import { XpCard } from "@/components/gamification/xp-card";
-import { StreakCard } from "@/components/gamification/streak-card";
-import { AchievementsPanel } from "@/components/gamification/achievements-panel";
+import {
+  useMyAchievements,
+  useMyStreak,
+  useMyXp,
+  useLeaderboard,
+} from "@/lib/swr-hooks";
 
+/* ─── Font shortcuts ─── */
+const R = "var(--font-rostov)";
+const J = "var(--font-jost)";
+const K = "var(--font-jakarta), 'Plus Jakarta Sans', sans-serif";
+
+/* ─── Shared card style ─── */
+const CARD: React.CSSProperties = {
+  background: "white",
+  borderRadius: 32,
+  border: "1px solid #f1f5f9",
+  boxShadow: "0px 10px 40px -10px rgba(15,45,81,0.08)",
+};
+
+/* ─── Types ─── */
 type SubjectProgress = {
   code: string;
   name: string;
@@ -32,20 +40,6 @@ type SubjectProgress = {
   completed_topics: number;
   total_topics: number;
 };
-
-type TaskDistribution = {
-  correct: number;
-  incorrect: number;
-  unsolved: number;
-};
-
-type Recommendation = {
-  subject_code: string;
-  subject_name: string;
-  mastery: number;
-  message: string;
-};
-
 type DashboardStats = {
   overall_progress: number;
   completed_lectures: number;
@@ -54,10 +48,9 @@ type DashboardStats = {
   total_tasks: number;
   accuracy: number;
   subjects_progress: SubjectProgress[];
-  task_distribution: TaskDistribution;
-  recommendations: Recommendation[];
+  task_distribution: { correct: number; incorrect: number; unsolved: number };
+  recommendations: { subject_code: string; subject_name: string; mastery: number; message: string }[];
 };
-
 type ProfileResponse = {
   full_name: string | null;
   role?: string;
@@ -66,84 +59,289 @@ type ProfileResponse = {
   [key: string]: unknown;
 };
 
-function TrendIcon({ className }: { className?: string }) {
+/* ────────────────────────────────────────────
+   SMALL COMPONENTS
+──────────────────────────────────────────── */
+
+/** Circular SVG progress ring */
+function CircleProgress({ pct }: { pct: number }) {
+  const r = 44;
+  const circ = 2 * Math.PI * r;
+  const filled = circ * Math.min(pct, 100) / 100;
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" />
-    </svg>
+    <div style={{ position: "relative", width: 112, height: 112, flexShrink: 0 }}>
+      <svg width="112" height="112" viewBox="0 0 112 112">
+        <circle cx="56" cy="56" r={r} fill="none" stroke="#e2e8f0" strokeWidth="12" />
+        <circle
+          cx="56" cy="56" r={r}
+          fill="none" stroke="#06b6d4" strokeWidth="12"
+          strokeLinecap="round"
+          strokeDasharray={`${filled} ${circ}`}
+          transform="rotate(-90 56 56)"
+        />
+      </svg>
+      <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontFamily: K, fontWeight: 800, fontSize: 20, lineHeight: "28px", color: "#ffffff" }}>{pct}%</span>
+        <span style={{ fontFamily: K, fontWeight: 700, fontSize: 8, lineHeight: "12px", color: "rgba(219,234,254,0.7)", textTransform: "uppercase", letterSpacing: 1 }}>Модуль</span>
+      </div>
+    </div>
   );
 }
 
-function BookOpenIcon({ className }: { className?: string }) {
+/** Weekly activity bar chart — static Figma data */
+const WEEK_BARS = [
+  { day: "ПН", h: 38.39, color: "#f1f5f9" },
+  { day: "ВТ", h: 76.8,  color: "#5081ba" },
+  { day: "СР", h: 57.59, color: "#5081ba" },
+  { day: "ЧТ", h: 88,    color: "#22d3ee" },
+  { day: "ПТ", h: 43.19, color: "#5081ba" },
+  { day: "СБ", h: 28.8,  color: "#f1f5f9" },
+  { day: "ВС", h: 67.19, color: "#5081ba" },
+];
+
+function WeeklyActivityChart() {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
-    </svg>
+    <div style={{ ...CARD, padding: 25, display: "flex", flexDirection: "column", gap: 24 }}>
+      <p style={{ fontFamily: J, fontWeight: 500, fontSize: 18, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#0f2d51", margin: 0 }}>
+        Активность за неделю
+      </p>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {/* Bars */}
+        <div style={{ height: 88, display: "flex", alignItems: "flex-end", gap: 8 }}>
+          {WEEK_BARS.map((b) => (
+            <div
+              key={b.day}
+              style={{
+                flex: 1,
+                height: b.h,
+                background: b.color,
+                borderRadius: "8px 8px 0 0",
+              }}
+            />
+          ))}
+        </div>
+        {/* Day labels */}
+        <div style={{ display: "flex", gap: 8 }}>
+          {WEEK_BARS.map((b) => (
+            <div
+              key={b.day}
+              style={{
+                flex: 1,
+                textAlign: "center",
+                fontFamily: K,
+                fontWeight: 700,
+                fontSize: 10,
+                lineHeight: "15px",
+                color: "#94a3b8",
+              }}
+            >
+              {b.day}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
   );
 }
 
-function CheckCircleIcon({ className }: { className?: string }) {
+/** Stat card (Задач решено / Точность / Стрик) */
+function StatCard({
+  label, value, delta, iconBg, icon,
+}: {
+  label: string;
+  value: string;
+  delta?: string;
+  iconBg: string;
+  icon: React.ReactNode;
+}) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-    </svg>
+    <div style={{ ...CARD, position: "relative", flex: 1, minHeight: 157 }}>
+      <div style={{
+        position: "absolute", top: 24, left: 24,
+        width: 40, height: 40, borderRadius: 12,
+        background: iconBg,
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {icon}
+      </div>
+      <div style={{ position: "absolute", top: 80, left: 24, right: 24 }}>
+        <p style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", color: "#94a3b8", textTransform: "uppercase", letterSpacing: 1, margin: 0 }}>
+          {label}
+        </p>
+      </div>
+      <div style={{ position: "absolute", top: 99, left: 24, right: 24, display: "flex", alignItems: "baseline", gap: 6 }}>
+        <p style={{ fontFamily: K, fontWeight: 800, fontSize: 24, lineHeight: "32px", color: "#0f2d51", margin: 0 }}>
+          {value}
+        </p>
+        {delta && (
+          <span style={{ fontFamily: K, fontWeight: 700, fontSize: 12, lineHeight: "16px", color: "#22c55e" }}>
+            {delta}
+          </span>
+        )}
+      </div>
+    </div>
   );
 }
 
-function TargetIcon({ className }: { className?: string }) {
+/** AI Recommendations task card */
+function TaskCard({
+  title, description, difficulty, difficultyColor, difficultyBg, duration, type,
+}: {
+  title: string;
+  description: string;
+  difficulty: string;
+  difficultyColor: string;
+  difficultyBg: string;
+  duration: string;
+  type: string;
+}) {
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-4.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0-3a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
-    </svg>
+    <div style={{
+      flex: 1,
+      background: "#f8fafc",
+      border: "1px solid #f1f5f9",
+      borderRadius: 24,
+      position: "relative",
+      minHeight: 201,
+    }}>
+      {/* Difficulty badge */}
+      <div style={{ position: "absolute", top: 24, left: 24 }}>
+        <span style={{
+          background: difficultyBg,
+          color: difficultyColor,
+          fontFamily: K,
+          fontWeight: 700,
+          fontSize: 10,
+          lineHeight: "15px",
+          letterSpacing: "0.5px",
+          textTransform: "uppercase",
+          padding: "4px 12px",
+          borderRadius: 9999,
+        }}>
+          {difficulty}
+        </span>
+      </div>
+      {/* Duration */}
+      <div style={{ position: "absolute", top: 26, right: 24 }}>
+        <span style={{ fontFamily: K, fontWeight: 700, fontSize: 11, lineHeight: "16.5px", color: "#94a3b8" }}>
+          {duration}
+        </span>
+      </div>
+      {/* Title */}
+      <p style={{ position: "absolute", top: 63, left: 24, right: 24, fontFamily: K, fontWeight: 700, fontSize: 16, lineHeight: "24px", color: "#0f2d51", margin: 0 }}>
+        {title}
+      </p>
+      {/* Description */}
+      <p style={{ position: "absolute", top: 95, left: 24, right: 24, fontFamily: K, fontWeight: 400, fontSize: 12, lineHeight: "16px", color: "#64748b", margin: 0 }}>
+        {description}
+      </p>
+      {/* Bottom row */}
+      <div style={{ position: "absolute", bottom: 24, left: 24, right: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", color: "#94a3b8" }}>
+          {type}
+        </span>
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ opacity: 0.4 }}>
+          <circle cx="10" cy="10" r="10" fill="#0f2d51" />
+          <path d="M8 6l4 4-4 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+    </div>
   );
 }
 
-function LightbulbIcon({ className }: { className?: string }) {
+/** Leaderboard row */
+function LeaderboardRow({
+  rank, name, role, xpLabel, delta, isSelf, avatarUrl,
+}: {
+  rank: number;
+  name: string;
+  role: string;
+  xpLabel: string;
+  delta: string;
+  isSelf: boolean;
+  avatarUrl?: string | null;
+}) {
+  const rowBg = isSelf ? "#fef3c7" : "#5081ba";
+  const nameColor = isSelf ? "#5081ba" : "white";
+  const roleColor = isSelf ? "#94a3b8" : "#bfdbfe";
+  const xpColor = "white";
+  const deltaColor = "#22d3ee";
+
   return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" d="M12 18v-5.25m0 0a6.01 6.01 0 0 0 1.5-.189m-1.5.189a6.01 6.01 0 0 1-1.5-.189m3.75 7.478a12.06 12.06 0 0 1-4.5 0m3.75 2.383a14.406 14.406 0 0 1-3 0M14.25 18v-.192c0-.983.658-1.823 1.508-2.316a7.5 7.5 0 1 0-7.517 0c.85.493 1.509 1.333 1.509 2.316V18" />
-    </svg>
+    <div style={{
+      display: "flex", alignItems: "center",
+      background: rowBg, borderRadius: 16, padding: 16, gap: 12,
+      boxShadow: "0px 20px 25px -5px rgba(30,58,138,0.1), 0px 8px 10px -6px rgba(30,58,138,0.1)",
+    }}>
+      <span style={{ fontFamily: K, fontWeight: 800, fontSize: 18, lineHeight: "28px", color: "#22d3ee", width: 24, textAlign: "center", flexShrink: 0 }}>
+        {rank}
+      </span>
+      <div style={{
+        width: 40, height: 40, borderRadius: 12,
+        border: "2px solid #22d3ee",
+        overflow: "hidden", flexShrink: 0, background: "#eff6ff",
+        display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {avatarUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={avatarUrl} alt={name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <span style={{ fontFamily: K, fontWeight: 700, fontSize: 14, color: "#5081ba" }}>
+            {name.charAt(0)}
+          </span>
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontFamily: K, fontWeight: 700, fontSize: 14, lineHeight: "20px", color: nameColor, margin: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          {name}
+        </p>
+        <p style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", color: roleColor, textTransform: "uppercase", margin: 0 }}>
+          {role}
+        </p>
+      </div>
+      <div style={{ textAlign: "right", flexShrink: 0 }}>
+        <p style={{ fontFamily: K, fontWeight: 800, fontSize: 14, lineHeight: "20px", color: xpColor, margin: 0 }}>{xpLabel}</p>
+        <p style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", color: deltaColor, margin: 0 }}>{delta}</p>
+      </div>
+    </div>
   );
 }
 
+/* ────────────────────────────────────────────
+   MAIN PAGE
+──────────────────────────────────────────── */
 export default function DashboardPage() {
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
+
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loadError, setLoadError] = useState(false);
   const [studentClasses, setStudentClasses] = useState<StudentClass[]>([]);
-  const [classesLoading, setClassesLoading] = useState(false);
   const [joinCode, setJoinCode] = useState("");
   const [joining, setJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-  const [studentAssessments, setStudentAssessments] = useState<StudentAssessment[]>([]);
-  const [assessmentsLoading, setAssessmentsLoading] = useState(false);
-  const { xp, isLoading: xpLoading, error: xpError } = useMyXp();
-  const { streak, isLoading: streakLoading, error: streakError } = useMyStreak();
-  const {
-    achievements,
-    isLoading: achievementsLoading,
-    error: achievementsError,
-  } = useMyAchievements();
 
+  const { xp } = useMyXp();
+  const { streak } = useMyStreak();
+  const { achievements } = useMyAchievements();
+  const { leaderboard } = useLeaderboard("xp", 3);
+
+  /* auth redirect */
   useEffect(() => {
     if (isLoading) return;
-    if (!user) {
-      router.replace("/auth");
-    }
+    if (!user) router.replace("/auth");
   }, [isLoading, user, router]);
 
+  /* profile */
   useEffect(() => {
     if (!accessToken || !user) return;
-
     (async () => {
       try {
         const p = await apiGet<ProfileResponse>("/me/profile", accessToken);
         setProfile(p);
       } catch (err) {
-        const status = (err as { status?: number }).status;
-        if (status === 404) {
+        if ((err as { status?: number }).status === 404) {
           router.replace("/onboarding");
           return;
         }
@@ -152,9 +350,9 @@ export default function DashboardPage() {
     })();
   }, [accessToken, user, router]);
 
+  /* stats */
   useEffect(() => {
     if (!accessToken || !profile) return;
-
     (async () => {
       try {
         const d = await apiGet<DashboardStats>("/me/dashboard", accessToken);
@@ -165,425 +363,508 @@ export default function DashboardPage() {
     })();
   }, [accessToken, profile]);
 
-  // Load classes for students
+  /* classes */
   useEffect(() => {
     const role = profile?.role ?? user?.role ?? "student";
     if (!accessToken || !profile || role !== "student") return;
-
     (async () => {
-      setClassesLoading(true);
       try {
         const list = await apiListStudentClasses(accessToken);
         setStudentClasses(list);
       } catch {
-        // тихо игнорируем, раздел ниже покажет пустой список
         setStudentClasses([]);
-      } finally {
-        setClassesLoading(false);
       }
     })();
   }, [accessToken, profile, user]);
 
-  useEffect(() => {
-    const role = profile?.role ?? user?.role ?? "student";
-    if (!accessToken || !profile || role !== "student") return;
-
-    (async () => {
-      setAssessmentsLoading(true);
-      try {
-        const list = await apiListStudentAssessments(accessToken);
-        setStudentAssessments(list);
-      } catch {
-        setStudentAssessments([]);
-      } finally {
-        setAssessmentsLoading(false);
-      }
-    })();
-  }, [accessToken, profile, user]);
-
-  const userName = profile?.full_name ?? user?.email.split("@")[0] ?? "";
-  const userRoleFromProfile = profile?.role ?? user?.role ?? "student";
-  const userRole = userRoleFromProfile;
+  const userName = profile?.full_name ?? user?.email?.split("@")[0] ?? "";
+  const firstName = userName.split(" ")[0] || userName;
+  const userRole = profile?.role ?? user?.role ?? "student";
   const isTeacher = userRole === "teacher";
 
+  /* Loading skeleton */
   if (isLoading || !user || !profile || (!isTeacher && !stats && !loadError)) {
     return (
-      <div className="min-h-screen bg-slate-50">
-        <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
-          <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
-            <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
+      <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
+        <div style={{ background: "white", boxShadow: "0px 10px 15px rgba(0,0,0,0.1)", height: 69, position: "sticky", top: 0, zIndex: 50 }}>
+          <div style={{ height: "100%", display: "flex", alignItems: "center", padding: "0 32px" }}>
+            <div style={{ height: 20, width: 120, borderRadius: 8, background: "#e2e8f0" }} className="animate-pulse" />
           </div>
         </div>
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="h-24 animate-pulse rounded-2xl bg-white" />
-            ))}
-          </div>
-        </main>
+        <div style={{ maxWidth: 1083, margin: "36px auto 0", padding: "0 30px", display: "flex", flexDirection: "column", gap: 24 }}>
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} style={{ height: 80, borderRadius: 32, background: "white" }} className="animate-pulse" />
+          ))}
+        </div>
       </div>
     );
   }
 
+  /* Teacher route */
   if (isTeacher && accessToken) {
     return (
-      <div className="min-h-screen bg-slate-50 text-slate-900">
+      <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
         <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile?.avatar_url ?? null} />
         <TeacherDashboard userName={userName} accessToken={accessToken} />
       </div>
     );
   }
 
-  const barData = (stats?.subjects_progress ?? []).map((s) => ({
-    label: s.name,
-    value: s.mastery,
-  }));
+  /* ── Derived data ── */
+  const progressPct = stats?.overall_progress ?? 0;
+  const solvedTasks = stats?.solved_tasks ?? 0;
+  const accuracy = stats?.accuracy ?? 0;
+  const currentStreak = streak?.current_streak ?? 0;
+  const totalXp = xp?.total_xp ?? 0;
+  const xpForNextLevel = 500;
+  const xpPct = Math.min(Math.round((totalXp % xpForNextLevel) / xpForNextLevel * 100), 100);
+  const xpLevel = Math.floor(totalXp / xpForNextLevel) + 1;
 
-  const donutData = stats
-    ? [
-        { name: `Правильно: ${stats.task_distribution.correct}`, value: stats.task_distribution.correct, color: "#22c55e" },
-        { name: `Неправильно: ${stats.task_distribution.incorrect}`, value: stats.task_distribution.incorrect, color: "#f43f5e" },
-        { name: `Не решено: ${stats.task_distribution.unsolved}`, value: stats.task_distribution.unsolved, color: "#e2e8f0" },
-      ]
-    : [];
+  /* current subject for resume card */
+  const sortedSubjects = [...(stats?.subjects_progress ?? [])].sort((a, b) => a.mastery - b.mastery);
+  const resumeSubject = sortedSubjects[0];
 
-  const completedTasks = stats ? stats.task_distribution.correct + stats.task_distribution.incorrect : 0;
+  /* AI task recs from stats or mock */
+  const recs = stats?.recommendations ?? [];
+  const taskCards = recs.length >= 2
+    ? recs.slice(0, 2).map((r, i) => ({
+        title: r.subject_name,
+        description: r.message,
+        difficulty: i === 0 ? "Сложно" : "Средне",
+        difficultyColor: i === 0 ? "#ef4444" : "#22c55e",
+        difficultyBg: i === 0 ? "#fef2f2" : "#f0fdf4",
+        duration: "45 мин",
+        type: "Практика",
+      }))
+    : [
+        { title: "Тригонометрические уравнения", description: "Базовые тригонометрические уравнения и методы решения", difficulty: "Сложно", difficultyColor: "#ef4444", difficultyBg: "#fef2f2", duration: "45 мин", type: "Практика" },
+        { title: "Логарифмические функции", description: "Свойства логарифмов и решение уравнений с логарифмами", difficulty: "Средне", difficultyColor: "#22c55e", difficultyBg: "#f0fdf4", duration: "30 мин", type: "Видео + Тест" },
+      ];
+
+  /* achievements grid (first 2 unlocked + 2 locked placeholders) */
+  const unlockedAch = achievements.items.filter((a) => a.unlocked_at).slice(0, 2);
+  const lockedAch = achievements.items.filter((a) => !a.unlocked_at).slice(0, 2);
+  while (unlockedAch.length < 2) unlockedAch.push(null as unknown as typeof unlockedAch[0]);
+  while (lockedAch.length < 2) lockedAch.push(null as unknown as typeof lockedAch[0]);
+
+  /* leaderboard rows */
+  const lbItems = leaderboard.items.slice(0, 3);
+  const myEntry = leaderboard.my_entry;
+
+  const handleJoin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!accessToken) return;
+    const trimmed = joinCode.trim();
+    if (!trimmed) return;
+    setJoining(true);
+    setJoinError(null);
+    try {
+      const joined = await apiJoinClassByCode(trimmed, accessToken);
+      setJoinCode("");
+      setStudentClasses((prev) => {
+        const exists = prev.find((c) => c.id === joined.id);
+        return exists ? prev.map((c) => (c.id === joined.id ? joined : c)) : [joined, ...prev];
+      });
+    } catch (err) {
+      setJoinError(err instanceof Error ? err.message : "Не удалось присоединиться к классу");
+    } finally {
+      setJoining(false);
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div style={{ minHeight: "100vh", background: "#f8fafc" }}>
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile?.avatar_url ?? null} />
 
-      <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="mb-8 animate-page-in">
-          <h1 className="text-2xl font-extrabold text-slate-900 sm:text-3xl">
-            Моя панель управления
-          </h1>
-          <p className="mt-1 text-sm text-slate-500">
-            Отслеживайте свой прогресс и достижения
-          </p>
-        </div>
+      <main style={{ paddingTop: 36, paddingBottom: 60 }}>
+        <div style={{ maxWidth: 1083, margin: "0 auto", padding: "0 30px", display: "flex", flexDirection: "column", gap: 40 }}>
 
-        <div className="mb-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="animate-page-in" style={{ animationDelay: "0s" }}>
-            <StatCard label="Общий прогресс" value={`${stats?.overall_progress ?? 0}%`} icon={<TrendIcon className="h-7 w-7 text-blue-500" />} />
-          </div>
-          <div className="animate-page-in" style={{ animationDelay: "0.06s" }}>
-            <StatCard label="Завершено лекций" value={String(stats?.completed_lectures ?? 0)} subValue={`из ${stats?.total_lectures ?? 0}`} icon={<BookOpenIcon className="h-7 w-7 text-blue-500" />} />
-          </div>
-          <div className="animate-page-in" style={{ animationDelay: "0.12s" }}>
-            <StatCard label="Решено задач" value={`${completedTasks}/${stats?.total_tasks ?? 0}`} icon={<CheckCircleIcon className="h-7 w-7 text-emerald-500" />} />
-          </div>
-          <div className="animate-page-in" style={{ animationDelay: "0.18s" }}>
-            <StatCard label="Точность" value={`${stats?.accuracy ?? 0}%`} icon={<TargetIcon className="h-7 w-7 text-rose-500" />} />
-          </div>
-        </div>
-
-        <div className="mb-8 grid gap-4 xl:grid-cols-2">
-          <div className="animate-page-in h-full" style={{ animationDelay: "0.22s" }}>
-            <XpCard xp={xp} isLoading={xpLoading} error={xpError} />
-          </div>
-          <div className="animate-page-in h-full" style={{ animationDelay: "0.26s" }}>
-            <StreakCard streak={streak} isLoading={streakLoading} error={streakError} />
-          </div>
-        </div>
-
-        <div className="mb-8 animate-page-in" style={{ animationDelay: "0.3s" }}>
-          <AchievementsPanel
-            achievements={achievements}
-            isLoading={achievementsLoading}
-            error={achievementsError}
-            compact
-            unlockedOnly
-            limit={8}
-          />
-        </div>
-
-        <div className="mb-8 grid gap-6 lg:grid-cols-2">
-          <section className="animate-page-in animate-stagger-3 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
-            <h2 className="mb-1 text-base font-bold text-slate-900">
-              Уровень освоения по предметам
-            </h2>
-            <p className="mb-4 text-xs text-slate-400">
-              Ваш прогресс в различных предметах
-            </p>
-            {barData.length > 0 ? (
-              <BarChart data={barData} maxValue={100} />
-            ) : (
-              <div className="flex h-[220px] items-center justify-center text-sm text-slate-400">
-                Нет данных
+          {/* ══ WELCOME HEADER ══ */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            {/* Left: greeting + subtitle */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 7.5 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                <span style={{ fontSize: 24 }}>👋</span>
+                <h1 style={{ fontFamily: R, fontSize: 36, lineHeight: "40px", letterSpacing: "-0.5309px", color: "#0f2d51", margin: 0 }}>
+                  С возвращением, {firstName}!
+                </h1>
               </div>
-            )}
-          </section>
-
-          <section className="animate-page-in animate-stagger-4 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
-            <h2 className="mb-1 text-base font-bold text-slate-900">
-              Статистика выполнения заданий
-            </h2>
-            <p className="mb-4 text-xs text-slate-400">
-              Распределение решенных задач
-            </p>
-            <DonutChart data={donutData} />
-          </section>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-2">
-          <section className="animate-page-in animate-stagger-5 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
-            <h2 className="mb-1 text-base font-bold text-slate-900">
-              Прогресс по предметам
-            </h2>
-            <p className="mb-5 text-xs text-slate-400">
-              Детальная информация о вашем прогрессе
-            </p>
-            <div className="space-y-5">
-              {(stats?.subjects_progress ?? []).map((s, i) => (
-                <SubjectProgressItem
-                  key={s.code}
-                  name={s.name}
-                  completedTopics={s.completed_topics}
-                  totalTopics={s.total_topics}
-                  mastery={s.mastery}
-                  index={i}
-                />
-              ))}
-              {(stats?.subjects_progress ?? []).length === 0 && (
-                <p className="py-4 text-center text-sm text-slate-400">
-                  Предметы пока не добавлены
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
+                </svg>
+                <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#64748b", margin: 0 }}>
+                  AI тьютор готов помочь с твоей подготовкой к ЕНТ
                 </p>
-              )}
+              </div>
             </div>
-          </section>
 
-          <section className="animate-page-in animate-stagger-6 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
-            <h2 className="mb-1 text-base font-bold text-slate-900">
-              Рекомендации
-            </h2>
-            <p className="mb-5 text-xs text-slate-400">
-              Следующие шаги в обучении
-            </p>
+            {/* Right: XP level badge */}
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, opacity: 0.85 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <span style={{ fontFamily: K, fontWeight: 800, fontSize: 11, lineHeight: "16.5px", letterSpacing: 2, textTransform: "uppercase", color: "#5081ba" }}>
+                  Уровень {xpLevel}
+                </span>
+                <span style={{ fontFamily: K, fontWeight: 700, fontSize: 11, lineHeight: "16.5px", color: "#94a3b8" }}>
+                  {totalXp} XP
+                </span>
+              </div>
+              <div style={{ width: 192, height: 9, borderRadius: 9999, background: "#e2e8f0", overflow: "hidden" }}>
+                <div style={{ height: "100%", width: `${xpPct}%`, background: "#06b6d4", borderRadius: 9999 }} />
+              </div>
+            </div>
+          </div>
 
-            {completedTasks > 0 && (
-              <div className="mb-4 rounded-xl bg-amber-50 px-4 py-3">
-                <div className="flex items-start gap-2">
-                  <LightbulbIcon className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">
-                      Отличная работа!
+          {/* ══ ROW 1: Resume + Stats | JoinClass + Activity ══ */}
+          <div style={{ display: "flex", gap: 32 }}>
+            {/* Left column: 694px */}
+            <div style={{ width: 694, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
+
+              {/* Resume Learning Card */}
+              <div style={{ ...CARD, padding: 5 }}>
+                <div style={{
+                  borderRadius: 28,
+                  background: "linear-gradient(160.74deg, #0f2d51 0%, #1a4579 100%)",
+                  padding: 32,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 32,
+                }}>
+                  {/* Text content */}
+                  <div style={{ flex: 1 }}>
+                    {/* Badge */}
+                    <div style={{ display: "inline-flex", background: "rgba(255,255,255,0.1)", borderRadius: 8, padding: "4px 12px", marginBottom: 16 }}>
+                      <span style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", letterSpacing: 1, textTransform: "uppercase", color: "#dbeafe" }}>
+                        Продолжить обучение
+                      </span>
+                    </div>
+                    {/* Course title */}
+                    <h2 style={{ fontFamily: J, fontWeight: 500, fontSize: 24, lineHeight: "24px", letterSpacing: "-0.3125px", color: "white", margin: "0 0 12px" }}>
+                      {resumeSubject?.name ?? "Математика — Алгебра"}
+                    </h2>
+                    {/* Description */}
+                    <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "rgba(219,234,254,0.7)", margin: "0 0 28px" }}>
+                      {resumeSubject
+                        ? `${resumeSubject.completed_topics} из ${resumeSubject.total_topics} тем завершено`
+                        : "Продолжи с того места, где остановился"}
                     </p>
-                    <p className="text-xs text-amber-600">
-                      Вы завершили {completedTasks} заданий. Продолжайте в том же духе!
-                    </p>
+                    {/* CTA */}
+                    <Link
+                      href="/subjects"
+                      style={{
+                        display: "inline-flex", alignItems: "center", gap: 12,
+                        background: "white", borderRadius: 16, padding: "16px 32px",
+                        fontFamily: K, fontWeight: 700, fontSize: 14, lineHeight: "20px", color: "#0f2d51",
+                        textDecoration: "none",
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 8h10M9 4l4 4-4 4" stroke="#0f2d51" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                      Перейти к урокам
+                    </Link>
                   </div>
+                  {/* Circle progress */}
+                  <CircleProgress pct={progressPct} />
                 </div>
               </div>
-            )}
 
-            {(stats?.recommendations ?? []).length > 0 && (
-              <div className="mb-4">
-                <p className="mb-2 text-xs font-medium text-slate-500">
-                  Рекомендуемые действия:
-                </p>
-                <div className="space-y-2">
-                  {stats!.recommendations.map((r) => (
-                    <RecommendationCard
-                      key={r.subject_code}
-                      subjectCode={r.subject_code}
-                      subjectName={r.subject_name}
-                      mastery={r.mastery}
-                      message={r.message}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <Link
-              href="/problems"
-              className={buttonClasses({
-                variant: "gradient",
-                size: "lg",
-                className: "mt-2 w-full",
-              })}
-            >
-              Решить больше задач
-            </Link>
-          </section>
-        </div>
-
-        {/* Student classes section */}
-        {userRole === "student" && (
-          <section className="mt-8 grid gap-6 lg:grid-cols-2">
-            <div className="animate-page-in animate-stagger-4 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
-              <h2 className="mb-1 text-base font-bold text-slate-900">
-                Мои классы
-              </h2>
-              <p className="mb-4 text-xs text-slate-400">
-                Присоединяйтесь к классу по коду, который дал вам учитель
-              </p>
-
-              <form
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  if (!accessToken) return;
-                  const trimmed = joinCode.trim();
-                  if (!trimmed) return;
-                  setJoining(true);
-                  setJoinError(null);
-                  try {
-                    const joined = await apiJoinClassByCode(
-                      trimmed,
-                      accessToken,
-                    );
-                    setJoinCode("");
-                    // Если класс уже есть в списке, обновим его, иначе добавим
-                    setStudentClasses((prev) => {
-                      const exists = prev.find((c) => c.id === joined.id);
-                      if (exists) {
-                        return prev.map((c) => (c.id === joined.id ? joined : c));
-                      }
-                      return [joined, ...prev];
-                    });
-                    try {
-                      const assessments = await apiListStudentAssessments(accessToken);
-                      setStudentAssessments(assessments);
-                    } catch {
-                      setStudentAssessments([]);
-                    }
-                  } catch (err) {
-                    const msg =
-                      err instanceof Error
-                        ? err.message
-                        : "Не удалось присоединиться к классу";
-                    setJoinError(msg);
-                  } finally {
-                    setJoining(false);
+              {/* Stats grid: 3 cards */}
+              <div style={{ display: "flex", gap: 24, height: 157 }}>
+                <StatCard
+                  label="Задач решено"
+                  value={String(solvedTasks)}
+                  delta="+5"
+                  iconBg="#eff6ff"
+                  icon={
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4" />
+                    </svg>
                   }
-                }}
-                className="space-y-3"
-              >
-                <label className="block text-sm">
-                  <span className="mb-1 block text-xs font-medium text-slate-500">
-                    Код класса
-                  </span>
+                />
+                <StatCard
+                  label="Точность"
+                  value={`${accuracy}%`}
+                  iconBg="#f1f5f9"
+                  icon={
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f2d51" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18Zm0-4.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm0-3a1.5 1.5 0 1 0 0-3 1.5 1.5 0 0 0 0 3Z" />
+                    </svg>
+                  }
+                />
+                <StatCard
+                  label="Стрик (дней)"
+                  value={String(currentStreak)}
+                  iconBg="#f1f5f9"
+                  icon={
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#0f2d51" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M15.362 5.214A8.252 8.252 0 0 1 12 21 8.25 8.25 0 0 1 6.038 7.047 8.287 8.287 0 0 0 9 9.601a8.983 8.983 0 0 1 3.361-6.867 8.21 8.21 0 0 0 3 2.48Z" />
+                    </svg>
+                  }
+                />
+              </div>
+            </div>
+
+            {/* Right column: Join Class + Activity */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 32 }}>
+
+              {/* Join Class widget */}
+              <div style={{
+                ...CARD,
+                padding: "25px 25px 25px 28px",
+                borderLeft: "4px solid #f1f5f9",
+                display: "flex",
+                flexDirection: "column",
+                gap: 16,
+              }}>
+                <div>
+                  <p style={{ fontFamily: J, fontWeight: 500, fontSize: 18, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#0f2d51", margin: "0 0 4px" }}>
+                    Присоединиться к классу
+                  </p>
+                  <p style={{ fontFamily: J, fontSize: 12, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#94a3b8", margin: 0 }}>
+                    Введи код, который выдал учитель
+                  </p>
+                </div>
+                <form onSubmit={handleJoin} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                   <input
                     type="text"
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                    placeholder="Например, AB3D9F"
-                    className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm uppercase tracking-[0.2em] text-slate-900 shadow-sm focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
+                    placeholder="Код класса (например AB3D9F)"
+                    style={{
+                      width: "100%", height: 39, borderRadius: 8,
+                      border: "1px solid #d1d1d1", padding: "0 16px",
+                      fontFamily: J, fontSize: 14, lineHeight: "24px", letterSpacing: "-0.3125px",
+                      color: "#0a0a0a", background: "white",
+                      outline: "none", boxSizing: "border-box",
+                    }}
                   />
-                </label>
-                {joinError && (
-                  <p className="text-xs text-rose-600">{joinError}</p>
+                  {joinError && (
+                    <p style={{ fontFamily: J, fontSize: 12, color: "#ef4444", margin: 0 }}>{joinError}</p>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={joining || !joinCode.trim()}
+                    style={{
+                      width: "100%", height: 39, borderRadius: 8,
+                      background: "#8aaefd", border: "none", cursor: "pointer",
+                      fontFamily: J, fontWeight: 500, fontSize: 20, lineHeight: "24px", letterSpacing: "-0.3125px",
+                      color: "white",
+                      opacity: joining || !joinCode.trim() ? 0.6 : 1,
+                    }}
+                  >
+                    {joining ? "Присоединяем..." : "Вступить"}
+                  </button>
+                </form>
+                {studentClasses.length > 0 && (
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {studentClasses.slice(0, 2).map((c) => (
+                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #f1f5f9" }}>
+                        <span style={{ fontFamily: J, fontSize: 13, color: "#0f2d51", fontWeight: 500 }}>{c.name}</span>
+                        <span style={{ fontFamily: J, fontSize: 11, color: "#94a3b8" }}>{c.teacher_name ?? "—"}</span>
+                      </div>
+                    ))}
+                  </div>
                 )}
-                <button
-                  type="submit"
-                  disabled={joining || !joinCode.trim()}
-                  className="inline-flex w-full items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-60"
-                >
-                  {joining ? "Присоединяем..." : "Присоединиться к классу"}
-                </button>
-              </form>
+              </div>
+
+              {/* Weekly Activity */}
+              <WeeklyActivityChart />
             </div>
+          </div>
 
-            <div className="animate-page-in animate-stagger-5 rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
-              <h2 className="mb-1 text-base font-bold text-slate-900">
-                Классы, в которых вы учитесь
-              </h2>
-              <p className="mb-4 text-xs text-slate-400">
-                Здесь отображаются классы, созданные учителями.
-              </p>
+          {/* ══ ROW 2: AI Recs + Leaderboard | Achievements + AI Insight ══ */}
+          <div style={{ display: "flex", gap: 32 }}>
+            {/* Left: 701px */}
+            <div style={{ width: 701, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
 
-              {classesLoading ? (
-                <div className="space-y-2">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div
-                      key={i}
-                      className="h-14 animate-pulse rounded-xl bg-gray-50"
-                    />
+              {/* AI Recommendations */}
+              <div style={{
+                borderRadius: 32, border: "1px solid #f1f5f9",
+                padding: 33, position: "relative", overflow: "hidden",
+                boxShadow: "0px 10px 40px -10px rgba(15,45,81,0.08)",
+                background: "#184070",
+              }}>
+                {/* Header row */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+                  <h2 style={{ fontFamily: R, fontSize: 36, lineHeight: "40px", letterSpacing: "-0.5309px", color: "white", margin: 0 }}>
+                    AI Рекомендации
+                  </h2>
+                  <Link href="/problems" style={{ fontFamily: K, fontWeight: 700, fontSize: 12, lineHeight: "16px", color: "#5081ba", textDecoration: "none" }}>
+                    Смотреть все
+                  </Link>
+                </div>
+                {/* Task cards */}
+                <div style={{ display: "flex", gap: 12, height: 201 }}>
+                  {taskCards.map((t, i) => (
+                    <TaskCard key={i} {...t} />
                   ))}
                 </div>
-              ) : studentClasses.length === 0 ? (
-                <p className="py-4 text-sm text-slate-400">
-                  Вы ещё не присоединились ни к одному классу.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {studentClasses.map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center justify-between rounded-2xl border border-gray-100 bg-slate-50/60 px-4 py-3 text-sm"
-                    >
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold text-slate-900">
-                          {c.name}
-                        </p>
-                        <p className="mt-0.5 text-xs text-slate-400">
-                          Учитель: {c.teacher_name ?? "—"}
+              </div>
+
+              {/* Leaderboard */}
+              <div style={{ ...CARD, padding: 33 }}>
+                {/* Header */}
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <p style={{ fontFamily: K, fontWeight: 700, fontSize: 20, lineHeight: "28px", color: "#0f2d51", margin: 0 }}>
+                      Доска почета
+                    </p>
+                    <span style={{ background: "#dbeafe", borderRadius: 8, padding: "4px 12px", fontFamily: K, fontWeight: 800, fontSize: 10, lineHeight: "15px", color: "#5081ba" }}>
+                      По XP
+                    </span>
+                  </div>
+                  <span style={{ fontFamily: K, fontWeight: 700, fontSize: 12, lineHeight: "16px", color: "#94a3b8" }}>
+                    {leaderboard.items.length} участников
+                  </span>
+                </div>
+                {/* Rows */}
+                <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                  {lbItems.length > 0 ? lbItems.map((item, i) => {
+                    const isSelf = myEntry?.user_id === item.user_id;
+                    return (
+                      <LeaderboardRow
+                        key={item.user_id}
+                        rank={i + 1}
+                        name={item.full_name ?? "Участник"}
+                        role={isSelf ? "Rising Star" : "Challenger"}
+                        xpLabel={`${item.value?.toLocaleString() ?? 0} XP`}
+                        delta={`+${Math.round((item.value ?? 0) * 0.2)} THIS WEEK`}
+                        isSelf={isSelf}
+                        avatarUrl={item.avatar_url}
+                      />
+                    );
+                  }) : (
+                    /* Fallback demo rows */
+                    [
+                      { rank: 1, name: firstName + " (Ты)", role: "Rising Star", xpLabel: `${totalXp.toLocaleString()} XP`, delta: "+450 THIS WEEK", isSelf: true },
+                      { rank: 2, name: "Айгерим К.", role: "Scholar",    xpLabel: "2,180 XP", delta: "+320 THIS WEEK", isSelf: false },
+                      { rank: 3, name: "Дамир М.",   role: "Challenger", xpLabel: "1,990 XP", delta: "+280 THIS WEEK", isSelf: false },
+                    ].map((row) => <LeaderboardRow key={row.rank} {...row} />)
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Right: Achievements + AI Insight */}
+            <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 32 }}>
+
+              {/* Achievements */}
+              <div style={{ ...CARD, padding: 33 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
+                  <p style={{ fontFamily: J, fontWeight: 500, fontSize: 18, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#0f2d51", margin: 0 }}>
+                    Достижения
+                  </p>
+                  <span style={{ fontFamily: K, fontWeight: 700, fontSize: 12, color: "#94a3b8" }}>
+                    {achievements.unlocked_count} / {achievements.total}
+                  </span>
+                </div>
+                {/* 2×2 grid */}
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 16 }}>
+                  {[...unlockedAch, ...lockedAch].map((ach, i) => {
+                    const isLocked = i >= 2 || !ach;
+                    return (
+                      <div
+                        key={i}
+                        style={{
+                          borderRadius: 16, padding: 17,
+                          background: isLocked ? "rgba(241,245,249,0.5)" : "#f8fafc",
+                          border: isLocked ? "1px dashed #e2e8f0" : "1px solid #f1f5f9",
+                          opacity: isLocked ? 0.5 : 1,
+                          display: "flex", flexDirection: "column", alignItems: "center", gap: 8,
+                          minHeight: 90,
+                        }}
+                      >
+                        <div style={{
+                          width: 40, height: 40,
+                          display: "flex", alignItems: "center", justifyContent: "center",
+                          boxShadow: isLocked ? "none" : "0px 8px 15px 0px rgba(251,191,36,0.2)",
+                        }}>
+                          {isLocked ? (
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                            </svg>
+                          ) : (
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M11.48 3.499a.562.562 0 0 1 1.04 0l2.125 5.111a.563.563 0 0 0 .475.345l5.518.442c.499.04.701.663.321.988l-4.204 3.602a.563.563 0 0 0-.182.557l1.285 5.385a.562.562 0 0 1-.84.61l-4.725-2.885a.562.562 0 0 0-.586 0L6.982 20.54a.562.562 0 0 1-.84-.61l1.285-5.386a.562.562 0 0 0-.182-.557l-4.204-3.602a.562.562 0 0 1 .321-.988l5.518-.442a.563.563 0 0 0 .475-.345L11.48 3.5Z" />
+                            </svg>
+                          )}
+                        </div>
+                        <p style={{
+                          fontFamily: K, fontWeight: 800, fontSize: 10, lineHeight: "12.5px",
+                          color: isLocked ? "#94a3b8" : "#0f2d51",
+                          textTransform: "uppercase", textAlign: "center", margin: 0,
+                        }}>
+                          {ach?.name ?? (isLocked ? "Заблокировано" : "Достижение")}
                         </p>
                       </div>
-                      <span className="ml-3 text-[10px] text-slate-400">
-                        С {new Date(c.joined_at).toLocaleDateString("ru-RU")}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
-              )}
-            </div>
-          </section>
-        )}
+                <button
+                  onClick={() => router.push("/profile")}
+                  style={{
+                    width: "100%", padding: "18px 2px", borderRadius: 16,
+                    border: "2px solid #f1f5f9", background: "transparent", cursor: "pointer",
+                    fontFamily: K, fontWeight: 700, fontSize: 11, lineHeight: "16.5px",
+                    letterSpacing: "1.1px", textTransform: "uppercase", color: "#94a3b8",
+                  }}
+                >
+                  Все достижения
+                </button>
+              </div>
 
-        {userRole === "student" && (
-          <section className="mt-6 animate-page-in rounded-2xl border border-gray-100 bg-white p-6 transition-shadow duration-300 hover:shadow-md">
-            <h2 className="mb-1 text-base font-bold text-slate-900">
-              Мои контрольные
-            </h2>
-            <p className="mb-4 text-xs text-slate-400">
-              Контрольные, назначенные в ваших классах
-            </p>
-            {assessmentsLoading ? (
-              <div className="space-y-2">
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <div key={i} className="h-14 animate-pulse rounded-xl bg-gray-50" />
-                ))}
-              </div>
-            ) : studentAssessments.length === 0 ? (
-              <p className="py-3 text-sm text-slate-400">
-                Пока нет доступных контрольных.
-              </p>
-            ) : (
-              <div className="space-y-3">
-                {studentAssessments.map((a) => (
-                  <div
-                    key={a.id}
-                    className="rounded-2xl border border-gray-100 bg-slate-50/60 px-4 py-3"
+              {/* AI Insight card */}
+              <div style={{
+                background: "#5081ba", borderRadius: 32, padding: 33,
+                boxShadow: "0px 10px 40px -10px rgba(15,45,81,0.08)",
+                display: "flex", flexDirection: "column", gap: 20,
+                overflow: "hidden",
+              }}>
+                <p style={{ fontFamily: J, fontWeight: 500, fontSize: 24, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#fef3c7", margin: 0 }}>
+                  AI Инсайт
+                </p>
+                <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "rgba(219,234,254,0.8)", margin: 0 }}>
+                  Твои слабые места —{" "}
+                  <span style={{ color: "white", fontWeight: 600 }}>
+                    {sortedSubjects[0]?.name ?? "Тригонометрия"}
+                  </span>{" "}
+                  и{" "}
+                  <span style={{ color: "white", fontWeight: 600 }}>
+                    {sortedSubjects[1]?.name ?? "Логарифмы"}
+                  </span>
+                  . Уделяй им по 20 минут в день.
+                </p>
+                {/* Suggestion box */}
+                <div style={{
+                  background: "rgba(255,255,255,0.1)", borderRadius: 16, padding: 16,
+                  display: "flex", flexDirection: "column", gap: 8,
+                }}>
+                  <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#bfdbfe", margin: 0 }}>
+                    Предложение:
+                  </p>
+                  <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "white", margin: 0 }}>
+                    Пройди блиц-тест по теме «
+                    {sortedSubjects[0]?.name ?? "Тригонометрические уравнения"}
+                    » прямо сейчас
+                  </p>
+                  <Link
+                    href="/problems"
+                    style={{
+                      display: "block", width: "100%", padding: "8px 0",
+                      borderRadius: 12, background: "#fef3c7", textAlign: "center",
+                      fontFamily: K, fontWeight: 700, fontSize: 14, lineHeight: "20px",
+                      color: "#0f2d51", textDecoration: "none",
+                    }}
                   >
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-slate-900">{a.title}</p>
-                      <span className="text-xs text-slate-500">{a.class_name}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {a.items_count} задач, {a.total_points} баллов
-                      {a.time_limit_min ? `, лимит ${a.time_limit_min} мин` : ""}
-                    </p>
-                    <p className="mt-1 text-[11px] text-slate-400">
-                      {a.due_at
-                        ? `Дедлайн: ${new Date(a.due_at).toLocaleString("ru-RU")}`
-                        : "Без дедлайна"}
-                    </p>
-                    <div className="mt-2">
-                      <Link
-                        href={`/assessments/${a.id}`}
-                        className={buttonClasses({ variant: "outline", size: "sm" })}
-                      >
-                        Открыть контрольную
-                      </Link>
-                    </div>
-                  </div>
-                ))}
+                    НАЧАТЬ БЛИЦ
+                  </Link>
+                </div>
               </div>
-            )}
-          </section>
-        )}
+            </div>
+          </div>
+
+        </div>
       </main>
     </div>
   );
