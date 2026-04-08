@@ -726,10 +726,10 @@ export default function DashboardPage() {
                       <LeaderboardRow
                         key={item.user_id}
                         rank={i + 1}
-                        name={item.full_name ?? "Участник"}
+                        name={item.display_name ?? "Участник"}
                         role={isSelf ? "Rising Star" : "Challenger"}
-                        xpLabel={`${item.value?.toLocaleString() ?? 0} XP`}
-                        delta={`+${Math.round((item.value ?? 0) * 0.2)} THIS WEEK`}
+                        xpLabel={`${(item.score ?? 0).toLocaleString()} XP`}
+                        delta={`+${Math.round((item.score ?? 0) * 0.2)} THIS WEEK`}
                         isSelf={isSelf}
                         avatarUrl={item.avatar_url}
                       />
@@ -795,7 +795,7 @@ export default function DashboardPage() {
                           color: isLocked ? "#94a3b8" : "#0f2d51",
                           textTransform: "uppercase", textAlign: "center", margin: 0,
                         }}>
-                          {ach?.name ?? (isLocked ? "Заблокировано" : "Достижение")}
+                          {ach?.title ?? (isLocked ? "Заблокировано" : "Достижение")}
                         </p>
                       </div>
                     );
