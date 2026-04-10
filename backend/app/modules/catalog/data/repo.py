@@ -103,6 +103,15 @@ class CatalogRepo:
 
     async def delete_subject(self, subject_id: uuid.UUID) -> None:
         row = await self.get_subject(subject_id)
+        lesson_count_stmt = (
+            select(func.count())
+            .select_from(LessonModel)
+            .join(TopicModel, LessonModel.topic_id == TopicModel.id)
+            .where(TopicModel.subject_id == subject_id)
+        )
+        lesson_count = (await self.session.execute(lesson_count_stmt)).scalar_one()
+        if lesson_count:
+            raise Conflict(tr("subject_has_lessons_cannot_delete"))
         await self.session.delete(row)
         await self.session.flush()
 
@@ -240,10 +249,10 @@ class CatalogRepo:
         return row
 
     async def delete_topic(self, topic_id: uuid.UUID) -> None:
-        # Перед удалением проверяем, есть ли уроки, связанные с этой темой.
-        # В БД стоит ограничение FOREIGN KEY (lessons.topic_id -> topics.id, ondelete=RESTRICT),
-        # поэтому «глухое» удаление приведёт к IntegrityError. Отдаём управляемую
-        # ошибку конфликта, чтобы клиент мог показать понятное сообщение.
+                                                                           
+                                                                                                
+                                                                                 
+                                                                         
         lesson_count_stmt = (
             select(func.count())
             .select_from(LessonModel)
