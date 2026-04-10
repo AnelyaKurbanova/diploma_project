@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from typing import Sequence
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import Select, delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -103,15 +103,9 @@ class CatalogRepo:
 
     async def delete_subject(self, subject_id: uuid.UUID) -> None:
         row = await self.get_subject(subject_id)
-        lesson_count_stmt = (
-            select(func.count())
-            .select_from(LessonModel)
-            .join(TopicModel, LessonModel.topic_id == TopicModel.id)
-            .where(TopicModel.subject_id == subject_id)
-        )
-        lesson_count = (await self.session.execute(lesson_count_stmt)).scalar_one()
-        if lesson_count:
-            raise Conflict(tr("subject_has_lessons_cannot_delete"))
+        topic_ids = select(TopicModel.id).where(TopicModel.subject_id == subject_id)
+        await self.session.execute(delete(LessonModel).where(LessonModel.topic_id.in_(topic_ids)))
+        await self.session.flush()
         await self.session.delete(row)
         await self.session.flush()
 
