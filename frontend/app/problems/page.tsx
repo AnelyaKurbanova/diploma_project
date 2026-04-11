@@ -74,6 +74,8 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 const FONT_JOST = "var(--font-jost)";
 
+const PAGE_SIZE = 12;
+
 const TYPE_LABELS: Record<string, string> = {
   single_choice: "Один ответ",
   multiple_choice: "Несколько ответов",
@@ -123,6 +125,7 @@ export default function ProblemsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [progressByProblem, setProgressByProblem] = useState<Record<string, SubmissionProgress>>({});
+  const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
     if (isLoading) return;
@@ -283,6 +286,15 @@ export default function ProblemsPage() {
     topicById,
   ]);
 
+  const totalPages = Math.max(1, Math.ceil(filteredProblems.length / PAGE_SIZE));
+  const effectivePage = Math.min(Math.max(1, currentPage), totalPages);
+
+  const paginatedProblems = useMemo(
+    () =>
+      filteredProblems.slice((effectivePage - 1) * PAGE_SIZE, effectivePage * PAGE_SIZE),
+    [filteredProblems, effectivePage],
+  );
+
   const resetFilters = () => {
     setSelectedSubject("all");
     setSelectedTopic("all");
@@ -291,6 +303,7 @@ export default function ProblemsPage() {
     setSelectedType("all");
     setSelectedTag("all");
     setSearchQuery("");
+    setCurrentPage(1);
   };
 
   const hasActiveFilters =
@@ -397,7 +410,10 @@ export default function ProblemsPage() {
               id="problems-search"
               type="search"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
               placeholder="Название или условие…"
               className={selectClass}
               autoComplete="off"
@@ -416,6 +432,7 @@ export default function ProblemsPage() {
                 onChange={(e) => {
                   setSelectedSubject(e.target.value);
                   setSelectedTopic("all");
+                  setCurrentPage(1);
                 }}
               >
                 <option value="all">Все предметы</option>
@@ -434,7 +451,10 @@ export default function ProblemsPage() {
                 id="filter-topic"
                 className={selectClass}
                 value={resolvedTopicId}
-                onChange={(e) => setSelectedTopic(e.target.value)}
+                onChange={(e) => {
+                  setSelectedTopic(e.target.value);
+                  setCurrentPage(1);
+                }}
                 disabled={topicsForSubject.length === 0}
               >
                 <option value="all">Все темы</option>
@@ -452,14 +472,23 @@ export default function ProblemsPage() {
             <div className="mt-4">
               <p className="mb-2 text-xs font-medium text-brand-navy">Класс</p>
               <div className="flex flex-wrap gap-2">
-                <FilterPill active={selectedGrade === "all"} onClick={() => setSelectedGrade("all")}>
+                <FilterPill
+                  active={selectedGrade === "all"}
+                  onClick={() => {
+                    setSelectedGrade("all");
+                    setCurrentPage(1);
+                  }}
+                >
                   Все
                 </FilterPill>
                 {gradeOptions.map((g) => (
                   <FilterPill
                     key={g}
                     active={selectedGrade === String(g)}
-                    onClick={() => setSelectedGrade(String(g))}
+                    onClick={() => {
+                      setSelectedGrade(String(g));
+                      setCurrentPage(1);
+                    }}
                   >
                     {g} класс
                   </FilterPill>
@@ -475,7 +504,10 @@ export default function ProblemsPage() {
                 <FilterPill
                   key={difficulty}
                   active={selectedDifficulty === difficulty}
-                  onClick={() => setSelectedDifficulty(difficulty)}
+                  onClick={() => {
+                    setSelectedDifficulty(difficulty);
+                    setCurrentPage(1);
+                  }}
                 >
                   {difficulty === "all" ? "Все" : (DIFFICULTY_LABELS[difficulty] ?? difficulty)}
                 </FilterPill>
@@ -487,11 +519,24 @@ export default function ProblemsPage() {
             <div className="mt-4">
               <p className="mb-2 text-xs font-medium text-brand-navy">Тип задачи</p>
               <div className="flex flex-wrap gap-2">
-                <FilterPill active={selectedType === "all"} onClick={() => setSelectedType("all")}>
+                <FilterPill
+                  active={selectedType === "all"}
+                  onClick={() => {
+                    setSelectedType("all");
+                    setCurrentPage(1);
+                  }}
+                >
                   Все типы
                 </FilterPill>
                 {typeOptions.map((t) => (
-                  <FilterPill key={t} active={selectedType === t} onClick={() => setSelectedType(t)}>
+                  <FilterPill
+                    key={t}
+                    active={selectedType === t}
+                    onClick={() => {
+                      setSelectedType(t);
+                      setCurrentPage(1);
+                    }}
+                  >
                     {TYPE_LABELS[t] ?? t}
                   </FilterPill>
                 ))}
@@ -508,7 +553,10 @@ export default function ProblemsPage() {
                 id="filter-tag"
                 className={selectClass}
                 value={selectedTag}
-                onChange={(e) => setSelectedTag(e.target.value)}
+                onChange={(e) => {
+                  setSelectedTag(e.target.value);
+                  setCurrentPage(1);
+                }}
               >
                 <option value="all">Все теги</option>
                 {tagOptions.map((name) => (
@@ -551,7 +599,7 @@ export default function ProblemsPage() {
 
         {!loadError && filteredProblems.length > 0 && (
           <div className="grid gap-4">
-            {filteredProblems.map((problem, idx) => {
+            {paginatedProblems.map((problem, idx) => {
               const topic = problem.topic_id ? topicById.get(problem.topic_id) : undefined;
               const subjectName = subjectById.get(problem.subject_id);
               const metaParts = [subjectName, topic?.title_ru].filter(Boolean);
@@ -611,10 +659,12 @@ export default function ProblemsPage() {
           <div className="mt-6 flex items-center justify-center gap-2">
             <button
               type="button"
-              disabled={currentPage <= 1}
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              disabled={effectivePage <= 1}
+              onClick={() =>
+                setCurrentPage((p) => Math.max(1, Math.min(p, totalPages) - 1))
+              }
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ fontFamily: FONT_JAKARTA }}
+              style={{ fontFamily: FONT_JOST }}
             >
               Назад
             </button>
@@ -626,7 +676,7 @@ export default function ProblemsPage() {
                   type="button"
                   onClick={() => setCurrentPage(pageNum)}
                   className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
-                    currentPage === pageNum
+                    effectivePage === pageNum
                       ? "bg-[#0f2d51] text-white"
                       : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
@@ -641,7 +691,7 @@ export default function ProblemsPage() {
                 type="button"
                 onClick={() => setCurrentPage(totalPages)}
                 className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
-                    currentPage === totalPages
+                    effectivePage === totalPages
                     ? "bg-[#0f2d51] text-white"
                     : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
@@ -651,10 +701,12 @@ export default function ProblemsPage() {
             )}
             <button
               type="button"
-              disabled={currentPage >= totalPages}
-              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              disabled={effectivePage >= totalPages}
+              onClick={() =>
+                setCurrentPage((p) => Math.min(totalPages, Math.min(p, totalPages) + 1))
+              }
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              style={{ fontFamily: FONT_JAKARTA }}
+              style={{ fontFamily: FONT_JOST }}
             >
               Вперед
             </button>
