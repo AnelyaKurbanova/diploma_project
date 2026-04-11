@@ -283,7 +283,7 @@ export function ProblemEditorModal({
                   ? "Редактирование задачи"
                   : "Просмотр задачи"}
             </p>
-            <h2 className="mt-1 text-lg font-bold text-slate-900">
+            <h2 className="mt-1 text-lg font-bold text-brand-navy">
               {title || (problem?.title ?? "Новая задача")}
             </h2>
           </div>
@@ -325,7 +325,7 @@ export function ProblemEditorModal({
                       }
                     }}
                     disabled={!canEdit || mode === "edit"}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                   >
                     {TYPE_OPTIONS.map((t) => (
                       <option key={t.value} value={t.value}>
@@ -344,7 +344,7 @@ export function ProblemEditorModal({
                       setDifficulty(e.target.value as "easy" | "medium" | "hard")
                     }
                     disabled={!canEdit}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                   >
                     {DIFFICULTY_OPTIONS.map((d) => (
                       <option key={d.value} value={d.value}>
@@ -363,7 +363,7 @@ export function ProblemEditorModal({
                     value={points}
                     onChange={(e) => setPoints(e.target.value)}
                     disabled={!canEdit}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                   />
                 </div>
               </div>
@@ -377,7 +377,7 @@ export function ProblemEditorModal({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   disabled={!canEdit}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                 />
               </div>
 
@@ -390,7 +390,7 @@ export function ProblemEditorModal({
                   value={statement}
                   onChange={(e) => setStatement(e.target.value)}
                   disabled={!canEdit}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                 />
               </div>
 
@@ -423,7 +423,7 @@ export function ProblemEditorModal({
                             );
                           }
                         }}
-                        className="h-4 w-4 text-blue-600"
+                        className="h-4 w-4 text-brand-navy"
                       />
                       <input
                         type="text"
@@ -436,7 +436,7 @@ export function ProblemEditorModal({
                           )
                         }
                         disabled={!canEdit}
-                        className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                        className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                       />
                       {choices.length > 2 && canEdit && (
                         <button
@@ -453,7 +453,7 @@ export function ProblemEditorModal({
                     <button
                       type="button"
                       onClick={addChoice}
-                      className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                      className="text-xs font-medium text-brand-navy hover:text-brand-navy"
                     >
                       + Добавить вариант
                     </button>
@@ -471,7 +471,7 @@ export function ProblemEditorModal({
                     value={textAnswer}
                     onChange={(e) => setTextAnswer(e.target.value)}
                     disabled={!canEdit}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                   />
                   {difficulty === "hard" && (
                     <p className="text-[11px] text-slate-400">
@@ -491,7 +491,7 @@ export function ProblemEditorModal({
                   value={explanation}
                   onChange={(e) => setExplanation(e.target.value)}
                   disabled={!canEdit}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                 />
               </div>
 
@@ -517,7 +517,7 @@ export function ProblemEditorModal({
               <button
                 type="submit"
                 disabled={saving || loading}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
               >
                 {saving
                   ? "Сохранение..."

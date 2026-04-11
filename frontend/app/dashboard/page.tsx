@@ -49,7 +49,6 @@ type DashboardStats = {
   accuracy: number;
   subjects_progress: SubjectProgress[];
   task_distribution: { correct: number; incorrect: number; unsolved: number };
-  recommendations: { subject_code: string; subject_name: string; mastery: number; message: string }[];
 };
 type ProfileResponse = {
   full_name: string | null;
@@ -181,66 +180,18 @@ function StatCard({
   );
 }
 
-
-function TaskCard({
-  title, difficulty, difficultyColor, difficultyBg, duration, type,
-}: {
-  title: string;
-  difficulty: string;
-  difficultyColor: string;
-  difficultyBg: string;
-  duration: string;
-  type: string;
-}) {
-  return (
-    <div style={{
-      flex: 1,
-      background: "#f8fafc",
-      border: "1px solid #f1f5f9",
-      borderRadius: 24,
-      position: "relative",
-      minHeight: 201,
-    }}>
-      {}
-      <div style={{ position: "absolute", top: 24, left: 24 }}>
-        <span style={{
-          background: difficultyBg,
-          color: difficultyColor,
-          fontFamily: K,
-          fontWeight: 700,
-          fontSize: 10,
-          lineHeight: "15px",
-          letterSpacing: "0.5px",
-          textTransform: "uppercase",
-          padding: "4px 12px",
-          borderRadius: 9999,
-        }}>
-          {difficulty}
-        </span>
-      </div>
-      {}
-      <div style={{ position: "absolute", top: 26, right: 24 }}>
-        <span style={{ fontFamily: K, fontWeight: 700, fontSize: 11, lineHeight: "16.5px", color: "#94a3b8" }}>
-          {duration}
-        </span>
-      </div>
-      {}
-      <p style={{ position: "absolute", top: 63, left: 24, right: 24, fontFamily: K, fontWeight: 700, fontSize: 16, lineHeight: "24px", color: "#0f2d51", margin: 0 }}>
-        {title}
-      </p>
-      {}
-      <div style={{ position: "absolute", bottom: 24, left: 24, right: 24, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", color: "#94a3b8" }}>
-          {type}
-        </span>
-        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ opacity: 0.4 }}>
-          <circle cx="10" cy="10" r="10" fill="#0f2d51" />
-          <path d="M8 6l4 4-4 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </div>
-    </div>
-  );
-}
+/** Inner panel for AI Insight (matches former recommendation task cards) */
+const insightInnerCard: React.CSSProperties = {
+  flex: 1,
+  background: "#f8fafc",
+  border: "1px solid #f1f5f9",
+  borderRadius: 24,
+  minHeight: 201,
+  padding: 24,
+  display: "flex",
+  flexDirection: "column",
+  gap: 12,
+};
 
 
 function LeaderboardRow({
@@ -414,21 +365,7 @@ export default function DashboardPage() {
   const sortedSubjects = [...(stats?.subjects_progress ?? [])].sort((a, b) => a.mastery - b.mastery);
   const resumeSubject = sortedSubjects[0];
 
-  
-  const recs = stats?.recommendations ?? [];
-  const taskCards = recs.slice(0, 2).map((r) => {
-    const isHard = r.mastery < 50;
-    return {
-      title: r.subject_name,
-      difficulty: isHard ? "Низкое освоение" : "Нужно укрепить",
-      difficultyColor: isHard ? "#ef4444" : "#16a34a",
-      difficultyBg: isHard ? "#fef2f2" : "#f0fdf4",
-      duration: `Освоение ${r.mastery}%`,
-      type: "Персональная рекомендация",
-    };
-  });
-
-  
+  /* achievements grid (first 2 unlocked + 2 locked placeholders) */
   const unlockedAch = achievements.items.filter((a) => a.unlocked_at).slice(0, 2);
   const lockedAch = achievements.items.filter((a) => !a.unlocked_at).slice(0, 2);
   while (unlockedAch.length < 2) unlockedAch.push(null as unknown as typeof unlockedAch[0]);
@@ -663,41 +600,100 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {}
+          {/* ══ ROW 2: AI Insight + Leaderboard | Achievements ══ */}
           <div style={{ display: "flex", gap: 32 }}>
             {}
             <div style={{ width: 701, flexShrink: 0, display: "flex", flexDirection: "column", gap: 32 }}>
 
-              {}
+              {/* AI Insight (same shell as former AI Recommendations) */}
               <div style={{
                 borderRadius: 32, border: "1px solid #f1f5f9",
                 padding: 33, position: "relative", overflow: "hidden",
                 boxShadow: "0px 10px 40px -10px rgba(15,45,81,0.08)",
                 background: "#184070",
               }}>
-                {}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
                   <h2 style={{ fontFamily: R, fontSize: 36, lineHeight: "40px", letterSpacing: "-0.5309px", color: "white", margin: 0 }}>
-                    AI Рекомендации
+                    AI Инсайт
                   </h2>
-                  <Link href="/problems" style={{ fontFamily: K, fontWeight: 700, fontSize: 12, lineHeight: "16px", color: "#5081ba", textDecoration: "none" }}>
+                  <Link href="/problems" style={{ fontFamily: K, fontWeight: 700, fontSize: 12, lineHeight: "16px", color: "#7eb3e8", textDecoration: "none" }}>
                     Смотреть все
                   </Link>
                 </div>
-                {}
-                {taskCards.length > 0 ? (
-                  <div style={{ display: "flex", gap: 12, height: 201 }}>
-                    {taskCards.map((t, i) => (
-                      <TaskCard key={i} {...t} />
-                    ))}
-                  </div>
-                ) : (
-                  <div style={{ borderRadius: 16, background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)", padding: 16 }}>
-                    <p style={{ margin: 0, fontFamily: J, fontSize: 14, lineHeight: "20px", color: "#bfdbfe" }}>
-                      Пока нет персональных рекомендаций. Решите больше задач, чтобы AI сформировал план.
+                <div style={{ display: "flex", gap: 12, alignItems: "stretch" }}>
+                  <div style={insightInnerCard}>
+                    <span style={{
+                      alignSelf: "flex-start",
+                      background: "#e0f2fe",
+                      color: "#0369a1",
+                      fontFamily: K,
+                      fontWeight: 700,
+                      fontSize: 10,
+                      lineHeight: "15px",
+                      letterSpacing: "0.5px",
+                      textTransform: "uppercase",
+                      padding: "4px 12px",
+                      borderRadius: 9999,
+                    }}>
+                      Фокус
+                    </span>
+                    <p style={{ fontFamily: J, fontSize: 14, lineHeight: "22px", color: "#64748b", margin: 0, flex: 1 }}>
+                      Твои слабые места —{" "}
+                      <span style={{ color: "#0f2d51", fontWeight: 600 }}>
+                        {sortedSubjects[0]?.name ?? "Тригонометрия"}
+                      </span>
+                      {" "}и{" "}
+                      <span style={{ color: "#0f2d51", fontWeight: 600 }}>
+                        {sortedSubjects[1]?.name ?? "Логарифмы"}
+                      </span>
+                      . Уделяй им по 20 минут в день.
                     </p>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: "auto" }}>
+                      <span style={{ fontFamily: K, fontWeight: 700, fontSize: 10, lineHeight: "15px", color: "#94a3b8" }}>
+                        По прогрессу
+                      </span>
+                      <svg width="20" height="20" viewBox="0 0 20 20" fill="none" style={{ opacity: 0.4 }}>
+                        <circle cx="10" cy="10" r="10" fill="#0f2d51" />
+                        <path d="M8 6l4 4-4 4" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    </div>
                   </div>
-                )}
+                  <div style={insightInnerCard}>
+                    <span style={{
+                      alignSelf: "flex-start",
+                      background: "#fef3c7",
+                      color: "#b45309",
+                      fontFamily: K,
+                      fontWeight: 700,
+                      fontSize: 10,
+                      lineHeight: "15px",
+                      letterSpacing: "0.5px",
+                      textTransform: "uppercase",
+                      padding: "4px 12px",
+                      borderRadius: 9999,
+                    }}>
+                      Предложение
+                    </span>
+                    <p style={{ fontFamily: J, fontSize: 14, lineHeight: "22px", color: "#64748b", margin: 0, flex: 1 }}>
+                      Пройди блиц-тест по теме «
+                      <span style={{ color: "#0f2d51", fontWeight: 600 }}>
+                        {sortedSubjects[0]?.name ?? "Тригонометрические уравнения"}
+                      </span>
+                      » прямо сейчас.
+                    </p>
+                    <Link
+                      href="/problems"
+                      style={{
+                        display: "block", width: "100%", padding: "10px 0",
+                        borderRadius: 12, background: "#0f2d51", textAlign: "center",
+                        fontFamily: K, fontWeight: 700, fontSize: 12, lineHeight: "18px",
+                        color: "white", textDecoration: "none", marginTop: "auto",
+                      }}
+                    >
+                      НАЧАТЬ БЛИЦ
+                    </Link>
+                  </div>
+                </div>
               </div>
 
               {}
@@ -741,7 +737,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {}
+            {/* Right: Achievements */}
             <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 32 }}>
 
               {}
@@ -807,59 +803,6 @@ export default function DashboardPage() {
                 >
                   Все достижения
                 </button>
-              </div>
-
-              {}
-              <div style={{
-                background: "#5081ba", borderRadius: 32, padding: 33,
-                boxShadow: "0px 10px 40px -10px rgba(15,45,81,0.08)",
-                display: "flex", flexDirection: "column", gap: 20,
-                overflow: "hidden",
-              }}>
-                <p style={{ fontFamily: J, fontWeight: 500, fontSize: 24, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#fef3c7", margin: 0 }}>
-                  AI Инсайт
-                </p>
-                <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "rgba(219,234,254,0.8)", margin: 0 }}>
-                  {sortedSubjects.length >= 2 ? (
-                    <>
-                      Твои слабые места —{" "}
-                      <span style={{ color: "white", fontWeight: 600 }}>{sortedSubjects[0].name}</span> и{" "}
-                      <span style={{ color: "white", fontWeight: 600 }}>{sortedSubjects[1].name}</span>. Уделяй им по 20 минут в день.
-                    </>
-                  ) : sortedSubjects.length === 1 ? (
-                    <>
-                      Сейчас нужно укрепить предмет{" "}
-                      <span style={{ color: "white", fontWeight: 600 }}>{sortedSubjects[0].name}</span>. Добавь 20 минут практики ежедневно.
-                    </>
-                  ) : (
-                    "Недостаточно данных для персонального инсайта. Начни с уроков и задач, чтобы AI собрал аналитику."
-                  )}
-                </p>
-                {}
-                <div style={{
-                  background: "rgba(255,255,255,0.1)", borderRadius: 16, padding: 16,
-                  display: "flex", flexDirection: "column", gap: 8,
-                }}>
-                  <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "#bfdbfe", margin: 0 }}>
-                    Предложение:
-                  </p>
-                  <p style={{ fontFamily: J, fontSize: 16, lineHeight: "24px", letterSpacing: "-0.3125px", color: "white", margin: 0 }}>
-                    {sortedSubjects[0]
-                      ? `Пройди блиц-тест по теме «${sortedSubjects[0].name}» прямо сейчас`
-                      : "Пройди короткий блиц-тест по доступной теме прямо сейчас"}
-                  </p>
-                  <Link
-                    href="/problems"
-                    style={{
-                      display: "block", width: "100%", padding: "8px 0",
-                      borderRadius: 12, background: "#fef3c7", textAlign: "center",
-                      fontFamily: K, fontWeight: 700, fontSize: 14, lineHeight: "20px",
-                      color: "#0f2d51", textDecoration: "none",
-                    }}
-                  >
-                    НАЧАТЬ БЛИЦ
-                  </Link>
-                </div>
               </div>
             </div>
           </div>

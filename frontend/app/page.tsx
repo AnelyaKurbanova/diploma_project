@@ -93,9 +93,34 @@ const FEATURES = [
     link: "Исследовать",
     href: "/problems",
     icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2M9 5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2m-6 9 2 2 4-4" />
-      </svg>
+    <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <rect x="12" y="2" width="56" height="56" rx="16" fill="#06B6D4"/>
+    <g filter="url(#filter0_dd_243_3867)">
+    <rect x="12" y="2" width="56" height="56" rx="16" fill="white" fillOpacity="0.01" shapeRendering="crispEdges"/>
+    </g>
+    <path d="M46 34L50 30L46 26M34 26L30 30L34 34M42.5 22L37.5 38" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+    <defs>
+    <filter id="filter0_dd_243_3867" x="0" y="0" width="80" height="80" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+    <feFlood floodOpacity="0" result="BackgroundImageFix"/>
+    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+    <feMorphology radius="4" operator="erode" in="SourceAlpha" result="effect1_dropShadow_243_3867"/>
+    <feOffset dy="4"/>
+    <feGaussianBlur stdDeviation="3"/>
+    <feComposite in2="hardAlpha" operator="out"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0.647059 0 0 0 0 0.952941 0 0 0 0 0.988235 0 0 0 1 0"/>
+    <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_243_3867"/>
+    <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+    <feMorphology radius="3" operator="erode" in="SourceAlpha" result="effect2_dropShadow_243_3867"/>
+    <feOffset dy="10"/>
+    <feGaussianBlur stdDeviation="7.5"/>
+    <feComposite in2="hardAlpha" operator="out"/>
+    <feColorMatrix type="matrix" values="0 0 0 0 0.647059 0 0 0 0 0.952941 0 0 0 0 0.988235 0 0 0 1 0"/>
+    <feBlend mode="normal" in2="effect1_dropShadow_243_3867" result="effect2_dropShadow_243_3867"/>
+    <feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow_243_3867" result="shape"/>
+    </filter>
+    </defs>
+    </svg>
+
     ),
   },
   {
@@ -104,9 +129,35 @@ const FEATURES = [
     link: "Watch Demo",
     href: "/subjects",
     icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
-      </svg>
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="12" y="2" width="56" height="56" rx="16" fill="#EDB98A"/>
+<g filter="url(#filter0_dd_243_3886)">
+<rect x="12" y="2" width="56" height="56" rx="16" fill="white" fillOpacity="0.01" shapeRendering="crispEdges"/>
+</g>
+<path d="M37 27.003C36.9995 26.8256 37.0462 26.6511 37.1353 26.4977C37.2245 26.3442 37.3528 26.2173 37.5073 26.1298C37.6617 26.0424 37.8366 25.9976 38.0141 26.0001C38.1915 26.0026 38.3651 26.0523 38.517 26.144L43.514 29.141C43.6628 29.2297 43.786 29.3555 43.8715 29.506C43.9571 29.6566 44.002 29.8268 44.002 30C44.002 30.1732 43.9571 30.3434 43.8715 30.494C43.786 30.6446 43.6628 30.7704 43.514 30.859L38.517 33.856C38.365 33.9478 38.1913 33.9975 38.0138 33.9999C37.8363 34.0024 37.6613 33.9575 37.5068 33.87C37.3524 33.7824 37.224 33.6553 37.1349 33.5017C37.0459 33.3481 36.9993 33.1736 37 32.996V27.003Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+<path d="M40 40C45.5228 40 50 35.5228 50 30C50 24.4772 45.5228 20 40 20C34.4772 20 30 24.4772 30 30C30 35.5228 34.4772 40 40 40Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+<defs>
+<filter id="filter0_dd_243_3886" x="0" y="0" width="80" height="80" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+<feFlood floodOpacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feMorphology radius="4" operator="erode" in="SourceAlpha" result="effect1_dropShadow_243_3886"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="3"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_243_3886"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feMorphology radius="3" operator="erode" in="SourceAlpha" result="effect2_dropShadow_243_3886"/>
+<feOffset dy="10"/>
+<feGaussianBlur stdDeviation="7.5"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.1 0"/>
+<feBlend mode="normal" in2="effect1_dropShadow_243_3886" result="effect2_dropShadow_243_3886"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow_243_3886" result="shape"/>
+</filter>
+</defs>
+</svg>
+
     ),
   },
   {
@@ -115,9 +166,35 @@ const FEATURES = [
     link: "View Dashboard",
     href: "/dashboard",
     icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2.25 18 9 11.25l4.306 4.306a11.95 11.95 0 0 1 5.814-5.518l2.74-1.22m0 0-5.94-2.281m5.94 2.28-2.28 5.941" />
-      </svg>
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="12" y="2" width="56" height="56" rx="16" fill="#F59E0B"/>
+<g filter="url(#filter0_dd_243_3905)">
+<rect x="12" y="2" width="56" height="56" rx="16" fill="white" fillOpacity="0.01" shapeRendering="crispEdges"/>
+</g>
+<path d="M49.2099 33.8901C48.5737 35.3946 47.5787 36.7203 46.3118 37.7514C45.0449 38.7825 43.5447 39.4875 41.9424 39.8049C40.34 40.1222 38.6843 40.0422 37.1201 39.5719C35.5558 39.1015 34.1305 38.2551 32.9689 37.1067C31.8073 35.9583 30.9447 34.5428 30.4565 32.984C29.9684 31.4252 29.8695 29.7706 30.1685 28.1647C30.4675 26.5589 31.1554 25.0507 32.172 23.7721C33.1885 22.4935 34.5028 21.4834 35.9999 20.8301" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+<path d="M50 30C50 28.6868 49.7413 27.3864 49.2388 26.1732C48.7362 24.9599 47.9997 23.8575 47.0711 22.9289C46.1425 22.0003 45.0401 21.2638 43.8268 20.7612C42.6136 20.2587 41.3132 20 40 20V30H50Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+<defs>
+<filter id="filter0_dd_243_3905" x="0" y="0" width="80" height="80" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+<feFlood floodOpacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feMorphology radius="4" operator="erode" in="SourceAlpha" result="effect1_dropShadow_243_3905"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="3"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.992157 0 0 0 0 0.901961 0 0 0 0 0.541176 0 0 0 1 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_243_3905"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feMorphology radius="3" operator="erode" in="SourceAlpha" result="effect2_dropShadow_243_3905"/>
+<feOffset dy="10"/>
+<feGaussianBlur stdDeviation="7.5"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.992157 0 0 0 0 0.901961 0 0 0 0 0.541176 0 0 0 1 0"/>
+<feBlend mode="normal" in2="effect1_dropShadow_243_3905" result="effect2_dropShadow_243_3905"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow_243_3905" result="shape"/>
+</filter>
+</defs>
+</svg>
+
     ),
   },
   {
@@ -126,9 +203,35 @@ const FEATURES = [
     link: "Присоединиться",
     href: "/auth/register",
     icon: (
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16.5 18.75h-9m9 0v1.125A2.625 2.625 0 0 1 13.875 22.5h-3.75A2.625 2.625 0 0 1 7.5 19.875V18.75m9 0A2.25 2.25 0 0 0 18.75 16.5V6.75A2.25 2.25 0 0 0 16.5 4.5h-9A2.25 2.25 0 0 0 5.25 6.75V16.5a2.25 2.25 0 0 0 2.25 2.25m0-10.5h9m-9 3h9" />
-      </svg>
+<svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="12" y="2" width="56" height="56" rx="16" fill="#A855F7"/>
+<g filter="url(#filter0_dd_243_3927)">
+<rect x="12" y="2" width="56" height="56" rx="16" fill="white" fillOpacity="0.01" shapeRendering="crispEdges"/>
+</g>
+<path d="M43.4772 30.8901L44.9922 39.4161C45.0092 39.5165 44.9951 39.6197 44.9519 39.7119C44.9086 39.8041 44.8382 39.8808 44.7502 39.9319C44.6621 39.983 44.5605 40.006 44.459 39.9978C44.3576 39.9897 44.261 39.9507 44.1822 39.8861L40.6022 37.1991C40.4294 37.07 40.2195 37.0003 40.0037 37.0003C39.788 37.0003 39.5781 37.07 39.4052 37.1991L35.8192 39.8851C35.7406 39.9496 35.6441 39.9885 35.5427 39.9967C35.4414 40.0049 35.3399 39.982 35.2519 39.931C35.1639 39.88 35.0935 39.8035 35.0502 39.7115C35.0068 39.6195 34.9925 39.5165 35.0092 39.4161L36.5232 30.8901" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+<path d="M40 32C43.3137 32 46 29.3137 46 26C46 22.6863 43.3137 20 40 20C36.6863 20 34 22.6863 34 26C34 29.3137 36.6863 32 40 32Z" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+<defs>
+<filter id="filter0_dd_243_3927" x="0" y="0" width="80" height="80" filterUnits="userSpaceOnUse" colorInterpolationFilters="sRGB">
+<feFlood floodOpacity="0" result="BackgroundImageFix"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feMorphology radius="4" operator="erode" in="SourceAlpha" result="effect1_dropShadow_243_3927"/>
+<feOffset dy="4"/>
+<feGaussianBlur stdDeviation="3"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.913725 0 0 0 0 0.835294 0 0 0 0 1 0 0 0 1 0"/>
+<feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_243_3927"/>
+<feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+<feMorphology radius="3" operator="erode" in="SourceAlpha" result="effect2_dropShadow_243_3927"/>
+<feOffset dy="10"/>
+<feGaussianBlur stdDeviation="7.5"/>
+<feComposite in2="hardAlpha" operator="out"/>
+<feColorMatrix type="matrix" values="0 0 0 0 0.913725 0 0 0 0 0.835294 0 0 0 0 1 0 0 0 1 0"/>
+<feBlend mode="normal" in2="effect1_dropShadow_243_3927" result="effect2_dropShadow_243_3927"/>
+<feBlend mode="normal" in="SourceGraphic" in2="effect2_dropShadow_243_3927" result="shape"/>
+</filter>
+</defs>
+</svg>
+
     ),
   },
 ];
@@ -328,8 +431,8 @@ export default function Home() {
                         className="flex items-center justify-center"
                         style={{ width: 48, height: 48, borderRadius: 16, background: "#F8FAFC", flexShrink: 0 }}
                       >
-                        {}
-                        <img src={CHART_ICON} alt="" style={{ width: 24, height: 24 }} />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src="icons/dashboard-icon.svg" alt="dashboard" style={{ width: 24, height: 24 }} />
                       </div>
                       <div>
                         <p style={{ fontFamily: JAKARTA, fontWeight: 700, fontSize: 14, lineHeight: "20px", color: "#0F2D51", margin: 0 }}>Прогноз баллов</p>
@@ -344,9 +447,9 @@ export default function Home() {
                   {}
                   <div className="absolute" style={{ top: 104, left: 24, right: 24, height: 192 }}>
                     <div className="relative w-full h-full">
-                      {}
-                      <img src={CHART_LINE} alt="" className="w-full h-full object-cover" />
-                      {}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src="/images/dashboard.svg" alt="dashboard" className="w-full h-full object-cover" />
+                      {/* Tooltip */}
                       <div
                         className="absolute"
                         style={{
@@ -436,13 +539,14 @@ export default function Home() {
             {FEATURES.map((f) => (
               <div
                 key={f.title}
-                className="bg-white"
+                className="bg-white transition-all duration-300 " 
                 style={{
-                  borderRadius: 16,
+                  borderRadius: 40,
                   padding: 32,
                   boxShadow: "0px 4px 24px 0px rgba(0,0,0,0.08)",
                   height: 294,
                   position: "relative",
+                  border: "4px solid #5081BA",
                 }}
               >
                 {}
@@ -451,7 +555,6 @@ export default function Home() {
                   style={{
                     width: 56, height: 56,
                     borderRadius: 16,
-                    background: "#F8FAFC",
                     color: "#0F2D51",
                     marginBottom: 24,
                   }}

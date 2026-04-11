@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { apiGet } from "@/lib/api";
@@ -29,6 +29,19 @@ type Problem = {
     id: string;
     name: string;
   }>;
+};
+
+type SubjectRow = {
+  id: string;
+  code: string;
+  name_ru: string;
+};
+
+type TopicRow = {
+  id: string;
+  subject_id: string;
+  grade_level: number | null;
+  title_ru: string;
 };
 
 type ProfileResponse = {
@@ -60,24 +73,35 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 };
 
 const TYPE_LABELS: Record<string, string> = {
-  one_choice: "Один ответ",
-  multi_choice: "Несколько ответов",
-  text_input: "Текстовый ответ",
+  single_choice: "Один ответ",
+  multiple_choice: "Несколько ответов",
+  short_text: "Краткий ответ",
+  match: "Сопоставление",
+  numeric: "Числовой ответ",
 };
 
-type SolveStatusFilter = "all" | "solved" | "incorrect" | "unattempted";
-type SortOption = "newest" | "difficulty_asc" | "difficulty_desc" | "points_asc" | "points_desc";
-
-const PAGE_SIZE = 12;
-const FONT_ROSTOV = "var(--font-rostov)";
-const FONT_JOST = "var(--font-jost)";
-const FONT_JAKARTA = "var(--font-jakarta), 'Plus Jakarta Sans', sans-serif";
-
-function difficultyRank(value: string): number {
-  if (value === "easy") return 1;
-  if (value === "medium") return 2;
-  if (value === "hard") return 3;
-  return 99;
+function FilterPill({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
+        active
+          ? "bg-brand-navy text-white shadow-sm"
+          : "border border-slate-200 bg-white text-slate-600 hover:border-brand-navy/35 hover:text-brand-navy"
+      }`}
+    >
+      {children}
+    </button>
+  );
 }
 
 export default function ProblemsPage() {
@@ -86,12 +110,15 @@ export default function ProblemsPage() {
 
   const [profile, setProfile] = useState<ProfileResponse | null>(null);
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [subjects, setSubjects] = useState<SubjectRow[]>([]);
+  const [topics, setTopics] = useState<TopicRow[]>([]);
+  const [selectedSubject, setSelectedSubject] = useState<string>("all");
+  const [selectedTopic, setSelectedTopic] = useState<string>("all");
+  const [selectedGrade, setSelectedGrade] = useState<string>("all");
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>("all");
   const [selectedType, setSelectedType] = useState<string>("all");
-  const [selectedStatus, setSelectedStatus] = useState<SolveStatusFilter>("all");
+  const [selectedTag, setSelectedTag] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [sortBy, setSortBy] = useState<SortOption>("newest");
-  const [currentPage, setCurrentPage] = useState(1);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [progressByProblem, setProgressByProblem] = useState<Record<string, SubmissionProgress>>({});
 
@@ -135,6 +162,23 @@ export default function ProblemsPage() {
 
   useEffect(() => {
     if (!accessToken || !profile) return;
+
+    (async () => {
+      try {
+        const [subj, top] = await Promise.all([
+          apiGet<SubjectRow[]>("/subjects", accessToken),
+          apiGet<TopicRow[]>("/topics", accessToken),
+        ]);
+        setSubjects(subj);
+        setTopics(top);
+      } catch {
+        // каталог не критичен — фильтры по предмету/теме останутся пустыми
+      }
+    })();
+  }, [accessToken, profile]);
+
+  useEffect(() => {
+    if (!accessToken || !profile) return;
     if (problems.length === 0) return;
 
     const ids = problems.map((p) => p.id).join(",");
@@ -157,65 +201,104 @@ export default function ProblemsPage() {
     })();
   }, [accessToken, profile, problems]);
 
+  const topicById = useMemo(() => {
+    const m = new Map<string, TopicRow>();
+    for (const t of topics) m.set(t.id, t);
+    return m;
+  }, [topics]);
+
+  const subjectById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of subjects) m.set(s.id, s.name_ru);
+    return m;
+  }, [subjects]);
+
+  const topicsForSubject = useMemo(() => {
+    if (selectedSubject === "all") return topics;
+    return topics.filter((t) => t.subject_id === selectedSubject);
+  }, [topics, selectedSubject]);
+
+  /** Если тема не относится к выбранному предмету, не фильтруем по ней */
+  const resolvedTopicId = useMemo(() => {
+    if (selectedTopic === "all") return "all";
+    return topicsForSubject.some((t) => t.id === selectedTopic) ? selectedTopic : "all";
+  }, [selectedTopic, topicsForSubject]);
+
+  const gradeOptions = useMemo(() => {
+    const set = new Set<number>();
+    for (const p of problems) {
+      if (!p.topic_id) continue;
+      const t = topicById.get(p.topic_id);
+      if (t?.grade_level != null) set.add(t.grade_level);
+    }
+    return [...set].sort((a, b) => a - b);
+  }, [problems, topicById]);
+
+  const tagOptions = useMemo(() => {
+    const names = new Set<string>();
+    for (const p of problems) {
+      for (const tag of p.tags) names.add(tag.name);
+    }
+    return [...names].sort((a, b) => a.localeCompare(b, "ru"));
+  }, [problems]);
+
+  const typeOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const p of problems) set.add(p.type);
+    return [...set].sort();
+  }, [problems]);
+
+  const searchTrim = searchQuery.trim().toLowerCase();
+
   const filteredProblems = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
-    const base = problems.filter((p) => {
+    return problems.filter((p) => {
+      if (selectedSubject !== "all" && p.subject_id !== selectedSubject) return false;
+      if (resolvedTopicId !== "all" && p.topic_id !== resolvedTopicId) return false;
       if (selectedDifficulty !== "all" && p.difficulty !== selectedDifficulty) return false;
       if (selectedType !== "all" && p.type !== selectedType) return false;
-
-      const progress = progressByProblem[p.id];
-      if (selectedStatus === "solved") {
-        if (!(progress?.last_status === "graded" && progress.last_is_correct === true)) return false;
-      } else if (selectedStatus === "incorrect") {
-        if (!(progress?.last_status === "graded" && progress.last_is_correct === false)) return false;
-      } else if (selectedStatus === "unattempted") {
-        if (progress?.has_attempt) return false;
+      if (selectedTag !== "all" && !p.tags.some((t) => t.name === selectedTag)) return false;
+      if (selectedGrade !== "all") {
+        const g = Number.parseInt(selectedGrade, 10);
+        if (!p.topic_id) return false;
+        const t = topicById.get(p.topic_id);
+        if (t?.grade_level !== g) return false;
       }
-
-      if (query) {
-        const inTitle = p.title.toLowerCase().includes(query);
-        const inStatement = p.statement.toLowerCase().includes(query);
-        if (!inTitle && !inStatement) return false;
+      if (searchTrim) {
+        const hay = `${p.title} ${p.statement}`.toLowerCase();
+        if (!hay.includes(searchTrim)) return false;
       }
       return true;
     });
-
-    const sorted = [...base];
-    if (sortBy === "difficulty_asc") {
-      sorted.sort((a, b) => difficultyRank(a.difficulty) - difficultyRank(b.difficulty));
-    } else if (sortBy === "difficulty_desc") {
-      sorted.sort((a, b) => difficultyRank(b.difficulty) - difficultyRank(a.difficulty));
-    } else if (sortBy === "points_asc") {
-      sorted.sort((a, b) => a.points - b.points);
-    } else if (sortBy === "points_desc") {
-      sorted.sort((a, b) => b.points - a.points);
-    }
-    return sorted;
   }, [
     problems,
-    progressByProblem,
+    selectedSubject,
+    resolvedTopicId,
     selectedDifficulty,
     selectedType,
-    selectedStatus,
-    searchQuery,
-    sortBy,
+    selectedTag,
+    selectedGrade,
+    searchTrim,
+    topicById,
   ]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredProblems.length / PAGE_SIZE));
-  const paginatedProblems = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
-    return filteredProblems.slice(start, start + PAGE_SIZE);
-  }, [filteredProblems, currentPage]);
+  const resetFilters = () => {
+    setSelectedSubject("all");
+    setSelectedTopic("all");
+    setSelectedGrade("all");
+    setSelectedDifficulty("all");
+    setSelectedType("all");
+    setSelectedTag("all");
+    setSearchQuery("");
+  };
 
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedDifficulty, selectedType, selectedStatus, searchQuery, sortBy]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  const hasActiveFilters =
+    selectedSubject !== "all" ||
+    resolvedTopicId !== "all" ||
+    selectedGrade !== "all" ||
+    selectedDifficulty !== "all" ||
+    selectedType !== "all" ||
+    selectedTag !== "all" ||
+    searchTrim.length > 0;
 
   useEffect(() => {
     if (typeof window === "undefined" || filteredProblems.length === 0) return;
@@ -233,10 +316,12 @@ export default function ProblemsPage() {
           ids: filteredProblems.map((p) => p.id),
           filter: {
             difficulty: selectedDifficulty,
+            subject: selectedSubject,
+            topic: resolvedTopicId,
+            grade: selectedGrade,
             type: selectedType,
-            status: selectedStatus,
-            search: searchQuery,
-            sortBy,
+            tag: selectedTag,
+            q: searchQuery.trim(),
           },
           solvedIds,
         }),
@@ -246,10 +331,12 @@ export default function ProblemsPage() {
   }, [
     filteredProblems,
     selectedDifficulty,
+    selectedSubject,
+    resolvedTopicId,
+    selectedGrade,
     selectedType,
-    selectedStatus,
+    selectedTag,
     searchQuery,
-    sortBy,
     progressByProblem,
   ]);
 
@@ -268,117 +355,168 @@ export default function ProblemsPage() {
   const userName = profile.full_name ?? user.email.split("@")[0];
   const userRole = user.role ?? "student";
 
+  const selectClass =
+    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none transition-colors focus:border-brand-navy focus:ring-2 focus:ring-brand-navy/20";
+
   return (
-    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
+    <div className="min-h-screen bg-slate-100 text-slate-900">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-        <div className="mb-6 flex items-start justify-between gap-4 animate-page-in">
-          <div>
-            <h1 className="text-2xl sm:text-3xl" style={{ fontFamily: FONT_ROSTOV, letterSpacing: "-0.4px" }}>Все задачи</h1>
-            <p className="mt-1 text-sm text-slate-500" style={{ fontFamily: FONT_JOST }}>
-              Практикуйтесь на задачах разной сложности
-            </p>
-          </div>
-          <div className="rounded-2xl border border-[#e2e8f0] bg-white px-4 py-2 text-xs font-semibold text-[#5081ba] shadow-sm animate-page-in" style={{ animationDelay: "0.06s", fontFamily: FONT_JAKARTA }}>
-            Найдено: {filteredProblems.length}
+        <div className="mb-6 animate-page-in">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h1 className="text-2xl font-extrabold text-brand-navy sm:text-3xl">Все задачи</h1>
+              <p className="mt-1 text-sm text-slate-600">
+                Фильтры по предмету, классу, теме, типу и сложности
+              </p>
+            </div>
+            {hasActiveFilters && (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="shrink-0 rounded-xl border border-brand-navy/25 bg-white px-4 py-2 text-sm font-medium text-brand-navy transition-colors hover:bg-brand-navy/5"
+              >
+                Сбросить фильтры
+              </button>
+            )}
           </div>
         </div>
 
-        <section className="mb-6 animate-page-in rounded-[24px] border border-[#f1f5f9] bg-white p-5 shadow-[0px_10px_40px_-10px_rgba(15,45,81,0.08)]" style={{ animationDelay: "0.08s" }}>
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <div className="xl:col-span-2">
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Поиск</label>
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="По названию или условию задачи"
-                className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
-                style={{ fontFamily: FONT_JOST }}
-              />
-            </div>
+        <section
+          className="mb-8 animate-page-in rounded-2xl border border-slate-200/90 bg-white p-4 shadow-sm sm:p-5"
+          style={{ boxShadow: `0 4px 24px -8px rgba(15, 45, 81, 0.08)` }}
+        >
+          <div className="mb-4">
+            <label htmlFor="problems-search" className="mb-1.5 block text-xs font-medium text-brand-navy">
+              Поиск по тексту
+            </label>
+            <input
+              id="problems-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Название или условие…"
+              className={selectClass}
+              autoComplete="off"
+            />
+          </div>
 
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Сложность</label>
+              <label htmlFor="filter-subject" className="mb-1.5 block text-xs font-medium text-brand-navy">
+                Предмет
+              </label>
               <select
-                value={selectedDifficulty}
-                onChange={(e) => setSelectedDifficulty(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
-                style={{ fontFamily: FONT_JOST }}
+                id="filter-subject"
+                className={selectClass}
+                value={selectedSubject}
+                onChange={(e) => {
+                  setSelectedSubject(e.target.value);
+                  setSelectedTopic("all");
+                }}
               >
-                <option value="all">Все</option>
-                <option value="easy">Легкая</option>
-                <option value="medium">Средняя</option>
-                <option value="hard">Сложная</option>
+                <option value="all">Все предметы</option>
+                {subjects.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name_ru}
+                  </option>
+                ))}
               </select>
             </div>
-
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Тип</label>
+              <label htmlFor="filter-topic" className="mb-1.5 block text-xs font-medium text-brand-navy">
+                Тема
+              </label>
               <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
-                style={{ fontFamily: FONT_JOST }}
+                id="filter-topic"
+                className={selectClass}
+                value={resolvedTopicId}
+                onChange={(e) => setSelectedTopic(e.target.value)}
+                disabled={topicsForSubject.length === 0}
               >
-                <option value="all">Все</option>
-                <option value="one_choice">Один ответ</option>
-                <option value="multi_choice">Несколько ответов</option>
-                <option value="text_input">Текстовый ответ</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Статус</label>
-              <select
-                value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as SolveStatusFilter)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
-                style={{ fontFamily: FONT_JOST }}
-              >
-                <option value="all">Все</option>
-                <option value="solved">Решенные</option>
-                <option value="incorrect">С ошибками</option>
-                <option value="unattempted">Без попыток</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Сортировка</label>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
-                style={{ fontFamily: FONT_JOST }}
-              >
-                <option value="newest">По умолчанию</option>
-                <option value="difficulty_asc">Сложность: легкие сначала</option>
-                <option value="difficulty_desc">Сложность: сложные сначала</option>
-                <option value="points_asc">Баллы: по возрастанию</option>
-                <option value="points_desc">Баллы: по убыванию</option>
+                <option value="all">Все темы</option>
+                {topicsForSubject.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title_ru}
+                    {t.grade_level != null ? ` (${t.grade_level} кл.)` : ""}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-            <p className="text-xs text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>
-              Страница {currentPage} из {totalPages}
-            </p>
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedDifficulty("all");
-                setSelectedType("all");
-                setSelectedStatus("all");
-                setSearchQuery("");
-                setSortBy("newest");
-              }}
-              className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
-              style={{ fontFamily: FONT_JAKARTA }}
-            >
-              Сбросить фильтры
-            </button>
+          {gradeOptions.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-medium text-brand-navy">Класс</p>
+              <div className="flex flex-wrap gap-2">
+                <FilterPill active={selectedGrade === "all"} onClick={() => setSelectedGrade("all")}>
+                  Все
+                </FilterPill>
+                {gradeOptions.map((g) => (
+                  <FilterPill
+                    key={g}
+                    active={selectedGrade === String(g)}
+                    onClick={() => setSelectedGrade(String(g))}
+                  >
+                    {g} класс
+                  </FilterPill>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="mt-4">
+            <p className="mb-2 text-xs font-medium text-brand-navy">Сложность</p>
+            <div className="flex flex-wrap gap-2">
+              {["all", "easy", "medium", "hard"].map((difficulty) => (
+                <FilterPill
+                  key={difficulty}
+                  active={selectedDifficulty === difficulty}
+                  onClick={() => setSelectedDifficulty(difficulty)}
+                >
+                  {difficulty === "all" ? "Все" : (DIFFICULTY_LABELS[difficulty] ?? difficulty)}
+                </FilterPill>
+              ))}
+            </div>
           </div>
+
+          {typeOptions.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-medium text-brand-navy">Тип задачи</p>
+              <div className="flex flex-wrap gap-2">
+                <FilterPill active={selectedType === "all"} onClick={() => setSelectedType("all")}>
+                  Все типы
+                </FilterPill>
+                {typeOptions.map((t) => (
+                  <FilterPill key={t} active={selectedType === t} onClick={() => setSelectedType(t)}>
+                    {TYPE_LABELS[t] ?? t}
+                  </FilterPill>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tagOptions.length > 0 && (
+            <div className="mt-4">
+              <label htmlFor="filter-tag" className="mb-1.5 block text-xs font-medium text-brand-navy">
+                Тег
+              </label>
+              <select
+                id="filter-tag"
+                className={selectClass}
+                value={selectedTag}
+                onChange={(e) => setSelectedTag(e.target.value)}
+              >
+                <option value="all">Все теги</option>
+                {tagOptions.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </section>
 
         {loadError && (
@@ -387,60 +525,80 @@ export default function ProblemsPage() {
           </div>
         )}
 
-        {filteredProblems.length === 0 && !loadError ? (
-          <div className="rounded-2xl border border-gray-100 bg-white py-16 text-center text-sm text-slate-400" style={{ fontFamily: FONT_JOST }}>
-            По выбранным фильтрам задач не найдено
+        {!loadError && problems.length === 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center text-sm text-slate-500">
+            Задачи пока не добавлены
           </div>
-        ) : (
+        )}
+
+        {!loadError && problems.length > 0 && filteredProblems.length === 0 && (
+          <div className="rounded-2xl border border-slate-200 bg-white py-16 text-center">
+            <p className="text-sm text-slate-600">Нет задач по выбранным фильтрам.</p>
+            <button
+              type="button"
+              onClick={resetFilters}
+              className="mt-4 rounded-xl bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover"
+            >
+              Сбросить фильтры
+            </button>
+          </div>
+        )}
+
+        {!loadError && filteredProblems.length > 0 && (
           <div className="grid gap-4">
-            {paginatedProblems.map((problem, idx) => (
-              <Link
-                key={problem.id}
-                href={`/problems/${problem.id}`}
-                className="block animate-page-in rounded-[24px] border border-[#f1f5f9] bg-white p-5 transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl hover:border-[#dbeafe] active:scale-[0.99]"
-                style={{ animationDelay: `${Math.min(idx * 0.04, 0.3)}s` }}
-              >
-                <div className="mb-2 flex items-center gap-2">
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                      DIFFICULTY_COLORS[problem.difficulty] ??
-                      "bg-slate-100 text-slate-700"
-                    }`}
-                  >
-                    {DIFFICULTY_LABELS[problem.difficulty] ?? problem.difficulty}
-                  </span>
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600" style={{ fontFamily: FONT_JAKARTA }}>
-                    {problem.points} балл.
-                  </span>
-                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-700">
-                    {TYPE_LABELS[problem.type] ?? problem.type}
-                  </span>
-                  {progressByProblem[problem.id]?.has_attempt &&
-                    progressByProblem[problem.id]?.last_status === "graded" && (
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                          progressByProblem[problem.id]?.last_is_correct
-                            ? "bg-emerald-50 text-emerald-700"
-                            : "bg-rose-50 text-rose-700"
-                        }`}
-                      >
-                        {progressByProblem[problem.id]?.last_is_correct
-                          ? "Решена"
-                          : "Пока неверно"}
-                      </span>
-                    )}
-                </div>
-                <h2 className="text-base font-semibold text-slate-900" style={{ fontFamily: FONT_JAKARTA }}>
-                  <ProblemContent body={problem.title} variant="inline" />
-                </h2>
-                <div style={{ fontFamily: FONT_JOST }}>
+            {filteredProblems.map((problem, idx) => {
+              const topic = problem.topic_id ? topicById.get(problem.topic_id) : undefined;
+              const subjectName = subjectById.get(problem.subject_id);
+              const metaParts = [subjectName, topic?.title_ru].filter(Boolean);
+              return (
+                <Link
+                  key={problem.id}
+                  href={`/problems/${problem.id}`}
+                  className="block animate-page-in rounded-2xl border border-slate-200 bg-white p-5 transition-all duration-300 ease-out hover:-translate-y-0.5 hover:border-brand-navy/25 hover:shadow-[0px_10px_40px_-10px_rgba(15,45,81,0.08)] active:scale-[0.99]"
+                  style={{
+                    animationDelay: `${Math.min(idx * 0.04, 0.3)}s`,
+                  }}
+                >
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                        DIFFICULTY_COLORS[problem.difficulty] ?? "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {DIFFICULTY_LABELS[problem.difficulty] ?? problem.difficulty}
+                    </span>
+                    <span className="rounded-full border border-slate-200/80 bg-slate-50 px-2 py-0.5 text-xs text-brand-navy/90">
+                      {TYPE_LABELS[problem.type] ?? problem.type}
+                    </span>
+                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                      {problem.points} балл.
+                    </span>
+                    {progressByProblem[problem.id]?.has_attempt &&
+                      progressByProblem[problem.id]?.last_status === "graded" && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                            progressByProblem[problem.id]?.last_is_correct
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-rose-50 text-rose-700"
+                          }`}
+                        >
+                          {progressByProblem[problem.id]?.last_is_correct ? "Решена" : "Пока неверно"}
+                        </span>
+                      )}
+                  </div>
+                  {metaParts.length > 0 && (
+                    <p className="mb-1 text-xs text-slate-500">{metaParts.join(" · ")}</p>
+                  )}
+                  <h2 className="text-base font-semibold text-brand-navy">
+                    <ProblemContent body={problem.title} variant="inline" />
+                  </h2>
                   <ProblemContent
                     body={problem.statement}
                     className="mt-2 line-clamp-2 text-sm text-slate-600"
                   />
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         )}
 

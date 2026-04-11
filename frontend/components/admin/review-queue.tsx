@@ -118,7 +118,7 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
         <select
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
-          className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
         >
           <option value="">Все статусы</option>
           <option value="draft">Черновик</option>
@@ -208,7 +208,7 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
                           className="h-4 w-4 accent-amber-600"
                         />
                       )}
-                      <h4 className="truncate font-bold text-slate-900">{p.title}</h4>
+                      <h4 className="truncate font-bold text-brand-navy">{p.title}</h4>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.cls}`}>
                         {statusInfo.label}
                       </span>
@@ -232,7 +232,7 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
                         setSelectedProblem(p);
                         setModalMode("view");
                       }}
-                      className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-gray-50"
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-navy/90 transition-colors hover:bg-gray-50"
                     >
                       Просмотр
                     </button>
@@ -242,7 +242,7 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
                         setSelectedProblem(p);
                         setModalMode("edit");
                       }}
-                      className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100"
+                      className="rounded-lg bg-brand-navy/10 px-3 py-1.5 text-xs font-medium text-brand-navy transition-colors hover:bg-brand-navy/[0.14]"
                     >
                       Редактировать
                     </button>
