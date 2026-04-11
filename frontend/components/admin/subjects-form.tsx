@@ -109,14 +109,14 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-brand-navy">
             {editingId ? "Редактировать предмет" : "Создать предмет"}
           </h3>
           {editingId && (
             <button
               type="button"
               onClick={cancelEdit}
-              className="text-xs text-slate-500 hover:text-slate-700"
+              className="text-xs text-slate-500 hover:text-brand-navy/90"
             >
               Отменить редактирование
             </button>
@@ -133,7 +133,7 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
               value={form.code}
               onChange={(e) => setForm((f) => ({ ...f, code: e.target.value }))}
               placeholder="math"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/25"
             />
           </div>
           <div>
@@ -146,7 +146,7 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
               value={form.name_ru}
               onChange={(e) => setForm((f) => ({ ...f, name_ru: e.target.value }))}
               placeholder="Математика"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/25"
             />
           </div>
         </div>
@@ -158,7 +158,7 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
           >
             {submitting
               ? "Сохранение..."
@@ -180,7 +180,7 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
 
       <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-6 py-4">
-          <h3 className="text-base font-bold text-slate-900">Существующие предметы</h3>
+          <h3 className="text-base font-bold text-brand-navy">Существующие предметы</h3>
         </div>
         {loading ? (
           <div className="space-y-2 p-6">
@@ -196,11 +196,11 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
               <div
                 key={s.id}
                 className={`flex items-center justify-between px-6 py-3 transition-colors ${
-                  editingId === s.id ? "bg-blue-50/50" : "hover:bg-gray-50/50"
+                  editingId === s.id ? "bg-brand-navy/[0.06]" : "hover:bg-gray-50/50"
                 }`}
               >
                 <div className="min-w-0 flex-1">
-                  <span className="font-medium text-slate-900">{s.name_ru}</span>
+                  <span className="font-medium text-brand-navy">{s.name_ru}</span>
                   <span className="ml-2 text-xs text-slate-400">({s.code})</span>
                   <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-slate-500">
                     {s.topic_count} тем
@@ -210,7 +210,7 @@ export function SubjectsForm({ accessToken }: SubjectsFormProps) {
                 <div className="ml-4 flex shrink-0 items-center gap-2">
                   <button
                     onClick={() => startEdit(s)}
-                    className="rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                    className="rounded-md px-2 py-1 text-xs font-medium text-brand-navy transition-colors hover:bg-brand-navy/10 hover:text-brand-navy"
                   >
                     Редактировать
                   </button>

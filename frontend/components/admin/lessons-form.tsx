@@ -823,7 +823,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
               setSelectedTopic("");
               setSelectedLessonId(null);
             }}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
           >
             <option value="">Выберите предмет</option>
             {subjects.map((s) => (
@@ -844,7 +844,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
               resetBlockForm();
             }}
             disabled={!selectedSubject || loadingTopics}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
           >
             <option value="">{loadingTopics ? "Загрузка тем..." : "Выберите тему"}</option>
             {topicOptions.map((topic) => (
@@ -857,14 +857,14 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       {selectedTopic && (
       <form onSubmit={handleLessonSubmit} className="space-y-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-brand-navy">
             {editingLessonId ? "Редактировать урок" : "Добавить урок в тему"}
           </h3>
           {editingLessonId && (
             <button
               type="button"
               onClick={resetLessonForm}
-              className="text-xs text-slate-500 hover:text-slate-700"
+              className="text-xs text-slate-500 hover:text-brand-navy/90"
             >
               Отменить редактирование
             </button>
@@ -882,7 +882,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
               value={lessonForm.title}
               onChange={(e) => setLessonForm((f) => ({ ...f, title: e.target.value }))}
               placeholder="Урок по теме"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
             />
           </div>
         </div>
@@ -890,7 +890,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
         <button
           type="submit"
           disabled={submittingLesson || !selectedTopic}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
         >
           {submittingLesson
             ? "Сохранение..."
@@ -903,7 +903,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
       <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-6 py-4">
-          <h3 className="text-base font-bold text-slate-900">Лекция темы</h3>
+          <h3 className="text-base font-bold text-brand-navy">Лекция темы</h3>
         </div>
 
         {!selectedTopic ? (
@@ -925,7 +925,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                 <div
                   key={lesson.id}
                   className={`flex items-center justify-between px-6 py-3 transition-colors ${
-                    selectedLessonId === lesson.id ? "bg-blue-50/60" : "hover:bg-gray-50"
+                    selectedLessonId === lesson.id ? "bg-brand-navy/[0.07]" : "hover:bg-gray-50"
                   }`}
                 >
                   <button
@@ -933,10 +933,10 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     onClick={() => setSelectedLessonId(lesson.id)}
                     className="min-w-0 flex-1 text-left"
                   >
-                    <p className="truncate font-medium text-slate-900">{lesson.title}</p>
+                    <p className="truncate font-medium text-brand-navy">{lesson.title}</p>
                     <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
                       {lesson.grade_level != null && (
-                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">
+                        <span className="inline-flex items-center rounded-full bg-brand-navy/10 px-2 py-0.5 font-medium text-brand-navy">
                           {lesson.grade_level} класс
                         </span>
                       )}
@@ -992,7 +992,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     <button
                       type="button"
                       onClick={() => startEditLesson(lesson)}
-                      className="rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50"
+                      className="rounded-md px-2 py-1 text-xs font-medium text-brand-navy transition-colors hover:bg-brand-navy/10"
                     >
                       Редактировать
                     </button>
@@ -1020,7 +1020,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
               type="button"
               onClick={() => handleGenerateDraft(selectedLessonId)}
               disabled={generatingDraft === selectedLessonId}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
             >
               {generatingDraft === selectedLessonId ? "Генерация..." : "Сгенерировать лекцию"}
             </button>
@@ -1035,7 +1035,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                 Генерация идёт в фоне; после завершения задачи появятся в блоке как задачи в статусе «на проверке».
               </p>
               {problemsGenerationLessonId === selectedLessonId && (
-                <p className="mt-1 text-xs text-blue-600">
+                <p className="mt-1 text-xs text-brand-navy">
                   Идёт генерация задач для этого урока... Мы периодически обновляем блок задач, пока процесс не завершится.
                 </p>
               )}
@@ -1053,7 +1053,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     const clamped = Math.max(1, Math.min(100, value));
                     setProblemsCount(clamped);
                   }}
-                  className="w-20 rounded border border-gray-200 px-2 py-1 text-xs outline-none focus:border-blue-400"
+                  className="w-20 rounded border border-gray-200 px-2 py-1 text-xs outline-none focus:border-brand-navy/50"
                 />
               </label>
               <button
@@ -1070,14 +1070,14 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
           {(canAddAnyBlock || editingBlockId) ? (
           <form onSubmit={handleBlockSubmit} className="space-y-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">
+              <h3 className="text-base font-bold text-brand-navy">
                 {editingBlockId ? "Редактировать блок" : "Добавить блок в урок"}
               </h3>
               {editingBlockId && (
                 <button
                   type="button"
                   onClick={resetBlockForm}
-                  className="text-xs text-slate-500 hover:text-slate-700"
+                  className="text-xs text-slate-500 hover:text-brand-navy/90"
                 >
                   Отменить редактирование
                 </button>
@@ -1100,7 +1100,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     setSelectedProblemIds([]);
                   }}
                   disabled={Boolean(editingBlockId)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:bg-slate-50"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
                 >
                   <option value="lecture" disabled={!editingBlockId && !canCreateLectureBlock}>Лекция</option>
                   <option value="video" disabled={!editingBlockId && !canCreateVideoBlock}>Видео</option>
@@ -1119,7 +1119,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                   value={blockForm.title}
                   onChange={(e) => setBlockForm((f) => ({ ...f, title: e.target.value }))}
                   placeholder="Необязательно"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                 />
               </div>
             </div>
@@ -1132,7 +1132,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                   value={blockForm.body}
                   onChange={(e) => setBlockForm((f) => ({ ...f, body: e.target.value }))}
                   placeholder="Поддерживается markdown, включая изображения: ![alt](https://s3-url/image.png)"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                 />
               </div>
             )}
@@ -1147,7 +1147,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                       value={blockForm.video_url}
                       onChange={(e) => setBlockForm((f) => ({ ...f, video_url: e.target.value }))}
                       placeholder="https://..."
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                     />
                   </div>
                   <div>
@@ -1156,7 +1156,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                       type="text"
                       value={blockForm.video_description}
                       onChange={(e) => setBlockForm((f) => ({ ...f, video_description: e.target.value }))}
-                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                     />
                   </div>
                 </div>
@@ -1238,7 +1238,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                                 }}
                                 className="mt-0.5"
                               />
-                              <span className="min-w-0 text-sm text-slate-700">
+                              <span className="min-w-0 text-sm text-brand-navy/90">
                                 <span className="block truncate font-medium">{problem.title}</span>
                                 <span className="text-xs text-slate-400">
                                   {problem.type} • {problem.difficulty}
@@ -1265,7 +1265,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                                     setProblemModalProblemId(problem.id);
                                     setProblemModalOpen(true);
                                   }}
-                                  className="rounded-md border border-blue-200 px-2 py-0.5 text-[11px] text-blue-600 hover:bg-blue-50"
+                                  className="rounded-md border border-brand-navy/20 px-2 py-0.5 text-[11px] text-brand-navy hover:bg-brand-navy/10"
                                 >
                                   Редактировать
                                 </button>
@@ -1313,7 +1313,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
             <button
               type="submit"
               disabled={submittingBlock || isDuplicatePrimaryBlockType}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
             >
               {submittingBlock
                 ? "Сохранение..."
@@ -1335,7 +1335,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
           <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
             <div className="border-b border-gray-100 px-6 py-4">
-              <h3 className="text-base font-bold text-slate-900">Контент урока</h3>
+              <h3 className="text-base font-bold text-brand-navy">Контент урока</h3>
             </div>
 
             {loadingLessonDetail ? (
@@ -1355,7 +1355,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     <div key={block.id} className="px-6 py-4">
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900">
+                          <p className="text-sm font-semibold text-brand-navy">
                             {BLOCK_LABELS[block.block_type]} - {block.title ?? "Без названия"}
                           </p>
                           {block.block_type === "lecture" && block.body && (
@@ -1391,7 +1391,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                           <button
                             type="button"
                             onClick={() => startEditBlock(block)}
-                            className="rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50"
+                            className="rounded-md px-2 py-1 text-xs font-medium text-brand-navy transition-colors hover:bg-brand-navy/10"
                           >
                             Редактировать
                           </button>
