@@ -72,6 +72,8 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   hard: "bg-rose-50 text-rose-700",
 };
 
+const FONT_JOST = "var(--font-jost)";
+
 const TYPE_LABELS: Record<string, string> = {
   single_choice: "Один ответ",
   multiple_choice: "Несколько ответов",
@@ -520,7 +522,10 @@ export default function ProblemsPage() {
         </section>
 
         {loadError && (
-          <div className="mb-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600" style={{ fontFamily: FONT_JOST }}>
+          <div
+            className="mb-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600"
+            style={{ fontFamily: FONT_JOST }}
+          >
             {loadError}
           </div>
         )}
