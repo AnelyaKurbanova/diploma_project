@@ -1,19 +1,19 @@
 @import "tailwindcss";
 
-/* Design tokens based on Figma */
-:root {
-  /* App background and base text */
-  --background: #f1f5f9; /* slate-100 like */
-  --foreground: #0a0f1a;
 
-  /* Brand colors from the block */
-  --color-primary: #155dfc;
+:root {
+  
+  --background: #f8fafc;
+  --foreground: #0f2d51;
+
+  
+  --color-primary: #5081ba;
   --color-muted: #64748b;
   --color-card: #ffffff;
-  --font-geist-sans: system-ui;
+  --font-geist-sans: var(--font-jakarta), "Plus Jakarta Sans", system-ui;
   --font-geist-mono: ui-monospace;
 
-  /* ÖrkenAI brand fonts */
+  
   --font-rostov: "Rostov", "Cormorant Garamond", Georgia, serif;
 
   /* Dashboard / auth navy (rgb(15, 45, 81)) */
@@ -45,7 +45,7 @@ body {
     "Segoe UI", sans-serif;
 }
 
-/* Submission result animations */
+
 @keyframes shake {
   0%, 100% { transform: translateX(0); }
   10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
@@ -105,7 +105,7 @@ body {
   animation: spinner-card-in 0.3s ease-out both;
 }
 
-/* Page transitions and content animations */
+
 @keyframes page-fade-in {
   from {
     opacity: 0;
@@ -161,7 +161,7 @@ body {
 .animate-stagger-5 { animation-delay: 0.25s; }
 .animate-stagger-6 { animation-delay: 0.3s; }
 
-/* Chat markdown styling */
+
 .chat-markdown {
   font-size: 0.875rem;
   line-height: 1.65;

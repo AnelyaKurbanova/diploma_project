@@ -308,7 +308,7 @@ async def join_class(
     )
 
     stats = await ClassService(session).get_class_stats_for_teacher(
-        current_user=teacher,  # type: ignore[arg-type]
+        current_user=teacher,                          
         class_id=cls.id,
     )
     per_student = stats.get("per_student_progress", {})

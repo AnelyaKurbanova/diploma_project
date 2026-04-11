@@ -11,10 +11,10 @@ from app.modules.gamification.application.service import GamificationService
 class FakeSession:
     def begin_nested(self):
         class _Tx:
-            async def __aenter__(self_inner):  # noqa: ANN001
+            async def __aenter__(self_inner):                
                 return None
 
-            async def __aexit__(self_inner, exc_type, exc, tb):  # noqa: ANN001
+            async def __aexit__(self_inner, exc_type, exc, tb):                
                 return False
 
         return _Tx()

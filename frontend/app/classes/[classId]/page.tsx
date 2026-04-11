@@ -311,7 +311,7 @@ export default function ClassDetailsPage() {
 
   if (isLoading || !user || !accessToken || !profile || pageLoading) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -329,7 +329,7 @@ export default function ClassDetailsPage() {
   const userRole = profile.role ?? user.role ?? "teacher";
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe_0%,_#f8fafc_38%,_#f1f5f9_100%)] text-slate-900">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top_left,_#dbeafe_0%,_#f8fafc_38%,_#f1f5f9_100%)] text-[#0f2d51]">
       <DashboardHeader
         userName={userName}
         userRole={userRole}

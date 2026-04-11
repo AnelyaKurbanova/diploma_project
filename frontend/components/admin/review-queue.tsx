@@ -84,7 +84,6 @@ export function ReviewQueue({ accessToken, userRole }: ReviewQueueProps) {
       );
       setProblems(data.items);
       setTotal(data.total);
-      // Сбрасываем выбор при смене списка
       setSelectedIds([]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Не удалось загрузить задачи");

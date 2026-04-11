@@ -273,9 +273,9 @@ async def archive_lesson(
     return await svc.archive(lesson_id)
 
 
-# ------------------------------------------------------------------
-# Content blocks
-# ------------------------------------------------------------------
+                                                                    
+                
+                                                                    
 
 
 @router.post(

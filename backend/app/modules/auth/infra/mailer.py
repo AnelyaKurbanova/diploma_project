@@ -65,7 +65,7 @@ def _send_via_brevo(*, to_email: str, code: str, purpose: str) -> None:
     try:
         with urllib.request.urlopen(req, timeout=20) as resp:
             body = resp.read().decode("utf-8", errors="ignore")
-            print(f"[BREVO] status={resp.status} body={body}")  # <-- важно для диагностики
+            print(f"[BREVO] status={resp.status} body={body}")                             
             if resp.status not in (200, 201, 202):
                 raise RuntimeError(f"Brevo send failed: {resp.status} {body}")
     except urllib.error.HTTPError as e:

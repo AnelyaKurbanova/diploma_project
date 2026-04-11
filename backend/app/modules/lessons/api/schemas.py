@@ -6,9 +6,9 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
-# ---------------------------------------------------------------------------
-# Output schemas
-# ---------------------------------------------------------------------------
+                                                                             
+                
+                                                                             
 
 class LessonOut(BaseModel):
     id: uuid.UUID
@@ -40,15 +40,15 @@ class ContentBlockOut(BaseModel):
 class LessonDetailOut(LessonOut):
     """Lesson with all content blocks (lecture, video, problem_set)."""
     content_blocks: list[ContentBlockOut] = []
-    # Legacy field kept for backward compatibility
+                                                  
     theory_body: str | None = None
-    # Legacy flat problem_ids kept for backward compatibility
+                                                             
     problem_ids: list[uuid.UUID] = []
 
 
-# ---------------------------------------------------------------------------
-# Input schemas
-# ---------------------------------------------------------------------------
+                                                                             
+               
+                                                                             
 
 class LessonCreate(BaseModel):
     topic_id: uuid.UUID
@@ -96,7 +96,7 @@ class LessonProgressOut(BaseModel):
 class LessonGenerateProblemsIn(BaseModel):
     """Параметры ИИ‑генерации задач для урока (RAG)."""
 
-    # Можно просить больше 30 задач; на бэкенде генерация пойдёт батчами.
+                                                                         
     count: int = Field(default=10, ge=1, le=100)
 
 

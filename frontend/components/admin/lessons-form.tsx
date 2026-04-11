@@ -413,7 +413,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
             return;
           }
         } catch {
-          // продолжаем опрос при временных ошибках
         }
 
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -474,8 +473,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
             return;
           }
         } catch (err) {
-          // При ошибке продолжаем попытки, чтобы не терять прогресс из-за временных сбоев сети.
-          // Если ошибка постоянная, цикл завершится по таймауту.
         }
 
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -511,7 +508,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
           "Генерация задач запущена. Мы автоматически обновим блок задач после завершения.",
       );
 
-      // Не блокируем UI ожиданием — отслеживаем прогресс в фоне.
       void pollGeneratedProblems(lessonId, initialCount);
     } catch (err) {
       setError(
@@ -591,14 +587,12 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     setError(null);
     setSuccess(null);
     try {
-      // 1) Создаем задачу генерации видео по теме урока
       const createRes = await apiPost<{ job_id: string; status: string }>(
         `/topics/${selectedTopic}/video`,
         { lesson_id: selectedLessonId },
         accessToken,
       );
 
-      // 2) Клиентский опрос статуса раз в 5 секунд
       const jobId = createRes.job_id;
       const maxAttempts = 60; // 60 * 5с = 5 минут
       let lastStatus: string | null = null;
@@ -633,11 +627,9 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
           return;
         }
 
-        // Если ещё в процессе — ждём 5 секунд и опрашиваем снова.
         await new Promise(resolve => setTimeout(resolve, 5000));
       }
 
-      // Если вышли по таймауту цикла, показываем последнее известное состояние
       if (lastStatus === "done" && lastS3Url) {
         await persistGeneratedVideoUrl(lastS3Url);
         setSuccess("Видео сгенерировано: ссылка автоматически сохранена в блоке и обновлена.");

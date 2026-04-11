@@ -36,9 +36,9 @@ async def test_subjects_progress_uses_lesson_progress_instead_of_submissions():
     seen_sql: list[str] = []
 
     responses = [
-        _SubjectsResult([subject]),  # list subjects
-        _ScalarResult(5),  # total topics
-        _ScalarResult(2),  # completed topics
+        _SubjectsResult([subject]),                 
+        _ScalarResult(5),                
+        _ScalarResult(2),                    
     ]
 
     async def execute_side_effect(stmt):

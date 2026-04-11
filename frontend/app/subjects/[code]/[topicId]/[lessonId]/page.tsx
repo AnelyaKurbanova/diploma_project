@@ -240,10 +240,9 @@ function ProblemSetBlock({
                       JSON.stringify({ ids, return_to: lessonPath }),
                     );
                   } catch {
-                    // ignore
                   }
                 }}
-                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-blue-700 hover:scale-[1.02] active:scale-[0.98]"
+                className="rounded-lg bg-[#0f2d51] px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-[#184070] hover:scale-[1.02] active:scale-[0.98]"
               >
                 Решить
               </Link>
@@ -295,7 +294,6 @@ export default function LessonDetailPage() {
       setCompleted(true);
       await mutate(["/me/notifications", accessToken]);
     } catch {
-      // ignore
     } finally {
       setCompleting(false);
     }
@@ -322,7 +320,7 @@ export default function LessonDetailPage() {
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -348,16 +346,16 @@ export default function LessonDetailPage() {
   const lessonPath = `/subjects/${code}/${topicId}/${lessonId}`;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400 animate-page-in">
-          <Link href="/subjects" className="transition-colors hover:text-blue-600">Предметы</Link>
+          <Link href="/subjects" className="transition-colors hover:text-[#5081ba]">Предметы</Link>
           <span>/</span>
-          <Link href={`/subjects/${code}`} className="transition-colors hover:text-blue-600">{subject?.name_ru ?? code}</Link>
+          <Link href={`/subjects/${code}`} className="transition-colors hover:text-[#5081ba]">{subject?.name_ru ?? code}</Link>
           <span>/</span>
-          <Link href={`/subjects/${code}/${topicId}`} className="transition-colors hover:text-blue-600">{topic?.title_ru ?? "..."}</Link>
+          <Link href={`/subjects/${code}/${topicId}`} className="transition-colors hover:text-[#5081ba]">{topic?.title_ru ?? "..."}</Link>
           <span>/</span>
           <span className="font-medium text-slate-700">{lesson?.title ?? "..."}</span>
         </nav>

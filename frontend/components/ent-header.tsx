@@ -1,7 +1,7 @@
 import Link from "next/link";
 
 type EntHeaderProps = {
-  /** Replaces the default "Войти / Регистрация" nav when provided */
+  
   rightSlot?: React.ReactNode;
 };
 
@@ -9,7 +9,7 @@ export function EntHeader({ rightSlot }: EntHeaderProps) {
   return (
     <header className="sticky top-0 z-50 bg-white shadow-[0px_10px_15px_0px_rgba(0,0,0,0.1)]">
       <div className="mx-auto flex h-16 max-w-[1143px] items-center justify-between px-8">
-        {/* Logo */}
+        {}
         <Link
           href="/"
           className="text-[24px] leading-10 tracking-[-0.5309px] text-[#0f2d51] font-normal"
@@ -18,7 +18,7 @@ export function EntHeader({ rightSlot }: EntHeaderProps) {
           ÖrkenAI
         </Link>
 
-        {/* Right: custom slot or default auth nav */}
+        {}
         {rightSlot ?? (
           <nav className="flex items-center gap-6">
             <Link

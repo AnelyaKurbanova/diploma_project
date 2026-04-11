@@ -9,9 +9,9 @@ from __future__ import annotations
 from prometheus_client import Counter, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 
-# ---------------------------------------------------------------------------
-# Business-level counters
-# ---------------------------------------------------------------------------
+                                                                             
+                         
+                                                                             
 
 llm_requests_total = Counter(
     "llm_requests_total",
@@ -28,25 +28,25 @@ llm_errors_total = Counter(
 llm_tokens_total = Counter(
     "llm_tokens_total",
     "Total LLM tokens consumed",
-    ["model", "type"],  # type: prompt | completion
+    ["model", "type"],                             
 )
 
 auth_events_total = Counter(
     "auth_events_total",
     "Authentication events (login, register, logout, token-refresh, otp, ...)",
-    ["event", "status"],  # status: success | failure
+    ["event", "status"],                             
 )
 
 cache_operations_total = Counter(
     "cache_operations_total",
     "Redis cache hit/miss counts",
-    ["operation", "result"],  # operation: get|set|delete; result: hit|miss|ok|error
+    ["operation", "result"],                                                        
 )
 
 video_jobs_total = Counter(
     "video_jobs_total",
     "Video-render job events",
-    ["status"],  # submitted | completed | failed
+    ["status"],                                  
 )
 
 http_request_duration_seconds = Histogram(
@@ -57,9 +57,9 @@ http_request_duration_seconds = Histogram(
 )
 
 
-# ---------------------------------------------------------------------------
-# Instrumentator (HTTP metrics auto-collected from FastAPI)
-# ---------------------------------------------------------------------------
+                                                                             
+                                                           
+                                                                             
 
 instrumentator = Instrumentator(
     should_group_status_codes=False,

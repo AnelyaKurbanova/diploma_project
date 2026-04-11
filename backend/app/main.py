@@ -37,8 +37,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or generate_request_id()
 
-        # Extract authenticated user id if available (set by auth layer later in stack).
-        # We pre-set None here; downstream code can call set_request_context again to add user_id.
+                                                                                        
+                                                                                                  
         set_request_context(request_id=request_id)
 
         start = time.perf_counter()
@@ -96,32 +96,32 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title=settings.APP_NAME, debug=settings.DEBUG, lifespan=lifespan)
 
-# --- OpenTelemetry (no-op when OTEL_EXPORTER_OTLP_ENDPOINT is not set) ---
+                                                                           
 setup_tracing(app)
 
-# --- Prometheus HTTP metrics ---
+                                 
 instrumentator.instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
 
-# --- Static ---
+                
 static_dir = Path(__file__).resolve().parent / "static"
 static_dir.mkdir(parents=True, exist_ok=True)
 
-# Middleware stack (applied outermost-first in Starlette):
-# 1. RequestLogging  – generate request_id, log access
-# 2. Session         – OAuth state
-# 3. CORS            – Cross-Origin policy
+                                                          
+                                                      
+                                  
+                                          
 app.add_middleware(RequestLoggingMiddleware)
 
-# --- OAuth session (required for Authlib / request.session) ---
+                                                                
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.SESSION_SECRET,
     same_site="lax",
-    https_only=settings.COOKIE_SECURE,  # True in prod (https)
+    https_only=settings.COOKIE_SECURE,                        
     max_age=600,
 )
 
-# --- CORS (single middleware) ---
+                                  
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -131,6 +131,8 @@ app.add_middleware(
         "https://www.orenaitest.app",
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
         "http://192.168.0.105:3000",
         "http://192.168.33.90:3000",
     ],
@@ -143,7 +145,7 @@ app.add_middleware(
 async def health():
     return {"status": "ok"}
 
-# --- Exception handlers ---
+                            
 @app.exception_handler(AppError)
 async def app_error_handler(_: Request, exc: AppError):
     payload = exc.payload()
@@ -167,8 +169,8 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
         content={"error": "internal_server_error", "message": "Internal server error"},
     )
 
-# --- Routes ---
+                
 app.include_router(api_router)
 
-# --- Static mount ---
+                      
 app.mount("/static", StaticFiles(directory=static_dir), name="static")

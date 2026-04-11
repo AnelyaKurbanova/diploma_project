@@ -143,7 +143,7 @@ export default function AdminPage() {
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />

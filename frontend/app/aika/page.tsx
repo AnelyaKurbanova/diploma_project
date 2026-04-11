@@ -40,7 +40,6 @@ export default function AikaPage() {
     if (!isLoading && !user) router.replace("/auth");
   }, [isLoading, user, router]);
 
-  // Load user documents
   useEffect(() => {
     if (!accessToken) return;
     apiGet<Document[]>("/chat/aika/documents", accessToken)
@@ -110,7 +109,6 @@ export default function AikaPage() {
               setError(event.message);
             }
           } catch {
-            // skip
           }
         }
       }
@@ -163,7 +161,6 @@ export default function AikaPage() {
         });
         setDocuments((prev) => prev.filter((d) => d.id !== docId));
       } catch {
-        // ignore
       }
     },
     [accessToken],
@@ -175,11 +172,11 @@ export default function AikaPage() {
   const userRole = user.role;
 
   return (
-    <div className="flex min-h-screen flex-col bg-slate-50">
+    <div className="flex min-h-screen flex-col bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile?.avatar_url ?? null} />
 
       <div className="mx-auto flex w-full max-w-5xl flex-1 gap-6 px-4 py-6 sm:px-6">
-        {/* Sidebar — uploaded files */}
+        {}
         <aside className="hidden w-72 shrink-0 flex-col gap-4 lg:flex">
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <h2 className="mb-3 text-sm font-semibold text-slate-800">Материалы</h2>
@@ -191,7 +188,7 @@ export default function AikaPage() {
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 px-4 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-blue-300 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 px-4 py-3 text-sm font-medium text-slate-500 transition-colors hover:border-[#93c5fd] hover:bg-[#eff6ff] hover:text-[#0f2d51] disabled:opacity-50"
             >
               {uploading ? (
                 <>
@@ -249,11 +246,11 @@ export default function AikaPage() {
           </div>
         </aside>
 
-        {/* Main chat area */}
+        {}
         <div className="relative flex-1 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          {/* Chat header — pinned top */}
+          {}
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, height: 60 }}
-               className="flex items-center gap-3 border-b border-slate-100 bg-blue-600 px-5">
+               className="flex items-center gap-3 border-b border-slate-100 bg-[#0f2d51] px-5">
             <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white/20">
               <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09Z" />
@@ -264,7 +261,7 @@ export default function AikaPage() {
               <p className="text-[11px] text-white/70">Загрузите материалы и задавайте вопросы</p>
             </div>
 
-            {/* Mobile upload button */}
+            {}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
@@ -276,12 +273,12 @@ export default function AikaPage() {
             </button>
           </div>
 
-          {/* Messages — scrollable between header and input */}
+          {}
           <div style={{ position: "absolute", top: 60, bottom: 64, left: 0, right: 0, overflowY: "auto" }}
                className="px-5 py-4 space-y-3 bg-slate-50/50">
             {messages.length === 0 && !isStreaming && (
               <div className="flex flex-col items-center justify-center py-16 text-center">
-                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-600 text-white shadow-lg">
+                <div className="mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-[#0f2d51] text-white shadow-lg">
                   <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 0 0-2.455 2.456Z" />
                   </svg>
@@ -304,7 +301,7 @@ export default function AikaPage() {
 
             {isStreaming && !streamingContent && (
               <div className="flex items-start gap-2">
-                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">Ai</div>
+                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#0f2d51] text-[10px] font-bold text-white">Ai</div>
                 <div className="rounded-2xl rounded-bl-md border border-slate-100 bg-white px-4 py-3 shadow-sm">
                   <div className="flex gap-1">
                     <span className="h-2 w-2 animate-bounce rounded-full bg-blue-300 [animation-delay:0ms]" />
@@ -322,7 +319,7 @@ export default function AikaPage() {
             <div ref={bottomRef} />
           </div>
 
-          {/* Input — pinned bottom */}
+          {}
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, height: 64 }}
                className="flex items-center gap-2 border-t border-slate-100 bg-white px-4">
               <textarea
@@ -337,13 +334,13 @@ export default function AikaPage() {
                 disabled={isStreaming}
                 placeholder="Спросите Aika..."
                 rows={1}
-                className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-colors focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-400/20 disabled:opacity-50"
+                className="flex-1 resize-none rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 transition-colors focus:border-[#5081ba] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] disabled:opacity-50"
               />
               <button
                 type="button"
                 onClick={handleSend}
                 disabled={isStreaming || !input.trim()}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-sm transition-all hover:bg-blue-700 active:scale-95 disabled:opacity-40"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0f2d51] text-white shadow-sm transition-all hover:bg-[#184070] active:scale-95 disabled:opacity-40"
               >
                 {isStreaming ? (
                   <svg className="h-4 w-4 animate-spin" fill="none" viewBox="0 0 24 24">

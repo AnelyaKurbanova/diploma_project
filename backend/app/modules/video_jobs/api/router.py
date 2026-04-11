@@ -77,7 +77,7 @@ async def get_video_job_status(
         assert deadline is not None
         remaining = deadline - time.monotonic()
         if remaining <= 0:
-            # Вернуть текущий статус, даже если еще не готово
+                                                             
             return VideoJobStatus(**payload)
 
         await asyncio.sleep(min(poll_interval, remaining))

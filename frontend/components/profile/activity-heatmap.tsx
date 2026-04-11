@@ -96,7 +96,6 @@ export function ActivityHeatmap({ activity, className = "" }: ActivityHeatmapPro
       weeks.push(col);
     }
 
-    // Month labels are fixed to Jan..Dec of the selected calendar year (no repeats).
     for (let month = 0; month < 12; month += 1) {
       const firstOfMonth = new Date(yearStart.getFullYear(), month, 1);
       const diffDays = Math.floor(
