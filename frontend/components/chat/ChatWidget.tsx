@@ -47,7 +47,7 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
           problem_id: contextType === "problem" ? problemId : null,
         }, accessToken);
         setConversationId(conv.id);
-      } catch { /* ignore */ }
+      } catch {  }
     })();
   }, [isOpen, accessToken, contextType, lessonId, problemId, conversationId]);
 
@@ -58,11 +58,10 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
         const msgs = await apiGet<ChatMessage[]>(
           `/chat/conversations/${conversationId}/messages`, accessToken);
         setMessages(msgs);
-      } catch { /* ignore */ }
+      } catch {  }
     })();
   }, [conversationId, accessToken]);
 
-  // Auto-scroll
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, streamingContent]);
@@ -112,7 +111,7 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
       {isOpen && (
         <div className="fixed bottom-24 right-6 z-50 overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-2xl"
              style={{ width: 400, height: 520 }}>
-          {/* Header — pinned top */}
+          {}
           <div style={{ position: "absolute", top: 0, left: 0, right: 0, zIndex: 2, height: 56 }}
                className="flex items-center justify-between bg-blue-600 px-4">
             <div className="flex items-center gap-2.5">
@@ -133,7 +132,7 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
             </button>
           </div>
 
-          {/* Messages — scrollable area between header and input */}
+          {}
           <div ref={scrollRef}
                style={{ position: "absolute", top: 56, bottom: 60, left: 0, right: 0, overflowY: "auto" }}
                className="space-y-3 bg-slate-50/50 px-4 py-3">
@@ -173,7 +172,7 @@ export function ChatWidget({ contextType, lessonId, problemId }: ChatWidgetProps
             {error && <div className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600">{error}</div>}
           </div>
 
-          {/* Input — pinned bottom */}
+          {}
           <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, zIndex: 2, height: 60 }}
                className="flex items-center gap-2 border-t border-slate-100 bg-white px-3">
             <textarea

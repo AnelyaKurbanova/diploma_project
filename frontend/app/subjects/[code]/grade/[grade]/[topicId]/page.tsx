@@ -26,7 +26,6 @@ export default function TopicLessonsByGradePage() {
   const { subjects } = useSubjects();
   const { topic } = useTopic(topicId ?? null) as { topic: Topic | null | undefined };
 
-  // Для валидации того, что такой grade вообще есть у предмета
   const { grades } = useSubjectGrades(code ?? null);
 
   const { lessons, error: lessonsError } = useLessonsForTopic(topicId ?? null, false);
@@ -36,7 +35,6 @@ export default function TopicLessonsByGradePage() {
     if (!user) router.replace("/auth");
   }, [isLoading, user, router]);
 
-  // После загрузки уроков перенаправляем на первый опубликованный урок темы.
   useEffect(() => {
     if (!accessToken || !user || !topicId || !code || !grade) return;
     if (!lessons || lessons.length === 0) return;
@@ -57,10 +55,9 @@ export default function TopicLessonsByGradePage() {
   const subject: Subject | null = subjects.find((s: Subject) => s.code === code) ?? null;
   const loadError = !!profileError || !!lessonsError;
 
-  // Пока идёт редирект или загрузка, показываем skeleton-экран.
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -85,7 +82,7 @@ export default function TopicLessonsByGradePage() {
   const userRole = user.role ?? "student";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader
         userName={userName}
         userRole={userRole}
@@ -94,20 +91,20 @@ export default function TopicLessonsByGradePage() {
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400 animate-page-in">
-          <Link href="/subjects" className="transition-colors hover:text-blue-600">
+          <Link href="/subjects" className="transition-colors hover:text-[#5081ba]">
             Предметы
           </Link>
           <span>/</span>
           <Link
             href={`/subjects/${code}`}
-            className="transition-colors hover:text-blue-600"
+            className="transition-colors hover:text-[#5081ba]"
           >
             {subject?.name_ru ?? code}
           </Link>
           <span>/</span>
           <Link
             href={`/subjects/${code}/grade/${grade}`}
-            className="transition-colors hover:text-blue-600"
+            className="transition-colors hover:text-[#5081ba]"
           >
             {Number.isFinite(numericGrade) ? `${numericGrade} класс` : "Класс"}
           </Link>
@@ -131,7 +128,7 @@ export default function TopicLessonsByGradePage() {
             Не удалось загрузить уроки. Попробуйте обновить страницу.
           </div>
         )}
-        {/* Список уроков больше не показываем, эта страница только перенаправляет. */}
+        {}
       </main>
     </div>
   );

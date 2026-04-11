@@ -157,7 +157,7 @@ class TestAuthCookies:
         set_cookie_headers = response.headers.getlist("set-cookie")
 
         assert len(set_cookie_headers) == 2
-        # Both cookies are set on Path=/ (client can use them across the app).
+                                                                              
         assert any("refresh_token=rtok" in h and "Path=/" in h for h in set_cookie_headers)
         assert any("csrf_token=ctok" in h and "Path=/" in h for h in set_cookie_headers)
 
@@ -166,8 +166,8 @@ class TestAuthCookies:
         clear_auth_cookies(response)
         set_cookie_headers = response.headers.getlist("set-cookie")
 
-        # Refresh cookie is deleted for both /auth and / paths (backward compatibility),
-        # plus CSRF cookie is deleted for /.
+                                                                                        
+                                            
         assert len(set_cookie_headers) == 3
         assert any("refresh_token=" in h and "Max-Age=0" in h and "Path=/auth" in h for h in set_cookie_headers)
         assert any("refresh_token=" in h and "Max-Age=0" in h and "Path=/" in h for h in set_cookie_headers)

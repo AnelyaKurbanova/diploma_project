@@ -9,7 +9,7 @@ from app.modules.knowledge.application.embedding import embed_batch_async
 from app.modules.knowledge.data.models import RagDocumentModel
 from app.modules.knowledge.data.repo import KnowledgeRepo
 
-# Approximate tokens: ~4 chars per token for Russian/mixed content
+                                                                  
 CHARS_PER_TOKEN = 4
 MAX_CHUNK_TOKENS = 600
 OVERLAP_TOKENS = 100
@@ -87,13 +87,13 @@ def _split_large_section(content: str, section: str | None) -> list[tuple[str | 
     current_len = 0
 
     for p in paragraphs:
-        p_len = len(p) + 2  # +2 for \n\n
+        p_len = len(p) + 2               
         if current_len + p_len > MAX_CHUNK_CHARS and current:
             chunk_text = "\n\n".join(current)
             result.append((section, chunk_text))
-            # Overlap: keep last N chars
+                                        
             overlap_text = chunk_text[-OVERLAP_CHARS:] if len(chunk_text) > OVERLAP_CHARS else chunk_text
-            # Start next chunk with overlap (try to start at paragraph boundary)
+                                                                                
             overlap_paragraphs = overlap_text.split("\n\n")
             current = [overlap_paragraphs[-1]] if overlap_paragraphs else []
             current_len = sum(len(x) + 2 for x in current)

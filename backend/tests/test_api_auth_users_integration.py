@@ -39,12 +39,12 @@ class FakeSession:
         return False
 
     def begin(self):
-        # minimal async context manager shape
+                                             
         class _Tx:
-            async def __aenter__(self_inner):  # noqa: ANN001
+            async def __aenter__(self_inner):                
                 return None
 
-            async def __aexit__(self_inner, exc_type, exc, tb):  # noqa: ANN001
+            async def __aexit__(self_inner, exc_type, exc, tb):                
                 return False
 
         return _Tx()
@@ -118,7 +118,7 @@ class TestApiAuthFlows:
         async def override_get_session():
             yield self.fake_session
 
-        async def override_current_user(_creds=object(), _session=object()):  # match Depends signature loosely
+        async def override_current_user(_creds=object(), _session=object()):                                   
             return self.current_user
 
         monkeypatch.setattr(auth_router_module, "AuthService", FakeAuthService)
@@ -186,11 +186,11 @@ class TestApiAuthFlows:
 
     def test_logout_logout_all_me_and_sessions(self):
         with TestClient(app) as client:
-            # Logout without refresh token should succeed (clears cookies anyway).
+                                                                                  
             resp_logout_no_cookie = client.post("/auth/logout")
             assert resp_logout_no_cookie.status_code == 200
 
-            # Logout with refresh token requires CSRF.
+                                                      
             client.cookies.set("refresh_token", "refresh-old", path="/auth")
             client.cookies.set("csrf_token", "csrf-old", path="/")
             resp_logout = client.post("/auth/logout", headers={"X-CSRF-Token": "csrf-old"})
@@ -473,8 +473,8 @@ class TestApiUsersFlows:
             yield self.fake_session
 
         async def override_current_user(request: Request):
-            # Allow switching users inside one test via header.
-            # Default is user A.
+                                                               
+                                
             marker = (request.headers.get("X-Test-User") or "").strip().lower()
             return self.user_b if marker == "b" else self.user_a
 
@@ -518,7 +518,7 @@ class TestApiUsersFlows:
 
     def test_friend_requests_lifecycle(self):
         with TestClient(app) as client:
-            # A -> B send request
+                                 
             send_resp = client.post(
                 "/me/friends",
                 headers={"Authorization": "Bearer fake"},
@@ -535,7 +535,7 @@ class TestApiUsersFlows:
             assert send_again.status_code == 200
             assert send_again.json()["status"] == "already_requested"
 
-            # B accepts A's request
+                                   
             accept_resp = client.post(
                 f"/me/friends/requests/{self.user_a.id}/accept",
                 headers={"Authorization": "Bearer fake", "X-Test-User": "b"},
@@ -543,7 +543,7 @@ class TestApiUsersFlows:
             assert accept_resp.status_code == 200
             assert accept_resp.json()["ok"] is True
 
-            # Already friends now (A can't create request again)
+                                                                
             already_friends = client.post(
                 "/me/friends",
                 headers={"Authorization": "Bearer fake"},
@@ -552,7 +552,7 @@ class TestApiUsersFlows:
             assert already_friends.status_code == 200
             assert already_friends.json()["status"] == "already_friends"
 
-            # Public profile should show friends status (from A perspective)
+                                                                            
             pub = client.get(
                 f"/me/users/{self.user_b.id}/profile",
                 headers={"Authorization": "Bearer fake"},
@@ -560,7 +560,7 @@ class TestApiUsersFlows:
             assert pub.status_code == 200
             assert pub.json()["friendship_status"] == "friends"
 
-            # Remove friend (A removes B)
+                                         
             remove_resp = client.delete(
                 f"/me/friends/{self.user_b.id}",
                 headers={"Authorization": "Bearer fake"},
@@ -568,7 +568,7 @@ class TestApiUsersFlows:
             assert remove_resp.status_code == 200
             assert remove_resp.json()["ok"] is True
 
-            # A -> B send again, then B rejects
+                                               
             client.post(
                 "/me/friends",
                 headers={"Authorization": "Bearer fake"},
@@ -581,7 +581,7 @@ class TestApiUsersFlows:
             assert reject_resp.status_code == 200
             assert reject_resp.json()["ok"] is True
 
-            # A -> B send again, then A cancels outgoing request
+                                                                
             client.post(
                 "/me/friends",
                 headers={"Authorization": "Bearer fake"},
@@ -705,7 +705,7 @@ class TestApiUsersFlows:
                 headers={"Authorization": "Bearer fake"},
                 json={
                     "is_teacher": True,
-                    # missing school_id and teacher_code -> schema validator should fail
+                                                                                        
                 },
             )
             assert resp.status_code == 422

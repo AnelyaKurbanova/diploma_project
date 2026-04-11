@@ -136,14 +136,14 @@ export default function SettingsPage() {
   };
 
   if (isLoading || !user || !accessToken) {
-    return <div className="min-h-screen bg-slate-50" />;
+    return <div className="min-h-screen bg-[#f8fafc]" />;
   }
 
   const userName = user.email.split("@")[0];
   const userRole = user.role ?? "student";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={form.avatar_url || null} />
       <main className="mx-auto max-w-4xl px-4 py-8 sm:px-6">
         <h1 className="mb-6 text-2xl font-extrabold">Настройки</h1>
@@ -156,14 +156,14 @@ export default function SettingsPage() {
               <div className="rounded-xl border border-gray-200 bg-slate-50 p-3">
                 <p className="mb-2 text-sm font-medium text-slate-700">Аватар</p>
                 <div className="flex items-center gap-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img
                     src={form.avatar_url || "/images/default-avatar.png"}
                     alt="avatar"
                     className="h-16 w-16 rounded-2xl border border-gray-200 object-cover"
                   />
                   <div className="flex gap-2">
-                    <label className="cursor-pointer rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    <label className="cursor-pointer rounded-lg bg-[#0f2d51] px-3 py-2 text-sm font-medium text-white hover:bg-[#184070]">
                       {uploadingAvatar ? "Загрузка..." : "Загрузить"}
                       <input
                         type="file"
@@ -216,7 +216,7 @@ export default function SettingsPage() {
                     onChange={(e) =>
                       setForm((s) => ({ ...s, preferred_language: e.target.value }))
                     }
-                    className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-slate-900 focus:border-[#5081ba] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#bfdbfe]"
                   >
                     <option value="ru">Русский</option>
                     <option value="kk">Қазақша</option>
@@ -250,7 +250,7 @@ export default function SettingsPage() {
               type="button"
               onClick={handleSave}
               disabled={loading || saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-lg bg-[#0f2d51] px-4 py-2 text-sm font-medium text-white hover:bg-[#184070] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {saving ? "Сохраняем..." : "Сохранить"}
             </button>
@@ -279,7 +279,7 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+        className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-slate-900 focus:border-[#5081ba] focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#bfdbfe]"
       />
     </label>
   );

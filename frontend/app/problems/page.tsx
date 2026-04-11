@@ -329,7 +329,6 @@ export default function ProblemsPage() {
         }),
       );
     } catch {
-      // ignore
     }
   }, [
     filteredProblems,
@@ -345,7 +344,7 @@ export default function ProblemsPage() {
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -605,6 +604,60 @@ export default function ProblemsPage() {
                 </Link>
               );
             })}
+          </div>
+        )}
+
+        {filteredProblems.length > 0 && (
+          <div className="mt-6 flex items-center justify-center gap-2">
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ fontFamily: FONT_JAKARTA }}
+            >
+              Назад
+            </button>
+            {Array.from({ length: totalPages }).slice(0, 7).map((_, i) => {
+              const pageNum = i + 1;
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
+                    currentPage === pageNum
+                      ? "bg-[#0f2d51] text-white"
+                      : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            {totalPages > 7 && <span className="px-1 text-slate-400">...</span>}
+            {totalPages > 7 && (
+              <button
+                type="button"
+                onClick={() => setCurrentPage(totalPages)}
+                className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
+                    currentPage === totalPages
+                    ? "bg-[#0f2d51] text-white"
+                    : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
+                }`}
+              >
+                {totalPages}
+              </button>
+            )}
+            <button
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+              className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ fontFamily: FONT_JAKARTA }}
+            >
+              Вперед
+            </button>
           </div>
         )}
       </main>

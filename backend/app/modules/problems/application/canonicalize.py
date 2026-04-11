@@ -4,7 +4,7 @@ import re
 import unicodedata
 
 _UNIT_MAP: dict[str, str] = {
-    # Speed
+           
     "км/ч": "km/h",
     "km/hour": "km/h",
     "km/hr": "km/h",
@@ -13,7 +13,7 @@ _UNIT_MAP: dict[str, str] = {
     "m/s": "m/s",
     "м/с": "m/s",
     "м/c": "m/s",
-    # Length
+            
     "км": "km",
     "м": "m",
     "см": "cm",
@@ -23,35 +23,35 @@ _UNIT_MAP: dict[str, str] = {
     "in": "in",
     "mi": "mi",
     "yd": "yd",
-    # Mass
+          
     "кг": "kg",
     "г": "g",
     "мг": "mg",
     "т": "t",
     "lb": "lb",
     "oz": "oz",
-    # Time
+          
     "с": "s",
     "сек": "s",
     "мин": "min",
     "ч": "h",
     "час": "h",
     "мс": "ms",
-    # Area
+          
     "м²": "m^2",
     "м2": "m^2",
     "см²": "cm^2",
     "см2": "cm^2",
     "км²": "km^2",
     "км2": "km^2",
-    # Volume
+            
     "м³": "m^3",
     "м3": "m^3",
     "см³": "cm^3",
     "см3": "cm^3",
     "л": "L",
     "мл": "mL",
-    # Force / Energy / Power
+                            
     "н": "N",
     "кн": "kN",
     "дж": "J",
@@ -62,7 +62,7 @@ _UNIT_MAP: dict[str, str] = {
     "кпа": "kPa",
     "мпа": "MPa",
     "атм": "atm",
-    # Electric
+              
     "в": "V",
     "а": "A",
     "ом": "Ohm",
@@ -73,22 +73,22 @@ _UNIT_MAP: dict[str, str] = {
     "ф": "F",
     "мкф": "uF",
     "кл": "C",
-    # Temperature
+                 
     "°c": "°C",
     "°с": "°C",
     "°f": "°F",
     "к": "K",
-    # Angle
+           
     "°": "°",
     "град": "°",
     "рад": "rad",
-    # Frequency
+               
     "гц": "Hz",
     "кгц": "kHz",
     "мгц": "MHz",
-    # Percentage
+                
     "%": "%",
-    # Common math
+                 
     "π": "pi",
 }
 

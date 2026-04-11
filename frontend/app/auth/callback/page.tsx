@@ -12,7 +12,7 @@ export default function AuthCallbackPage() {
     <Suspense
       fallback={
         <div className="flex min-h-screen items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-[#5081ba]" />
         </div>
       }
     >
@@ -57,7 +57,7 @@ function AuthCallbackInner() {
   const message = runtimeError ?? queryErrorMessage;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <EntHeader />
 
       <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4 py-8">
@@ -74,7 +74,7 @@ function AuthCallbackInner() {
 
             {!isError && (
               <div className="mt-6 flex justify-center">
-                <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+                <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-[#5081ba]" />
               </div>
             )}
 
@@ -82,7 +82,7 @@ function AuthCallbackInner() {
               <button
                 type="button"
                 onClick={() => router.replace("/auth")}
-                className="mt-6 inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-[0px_4px_6px_-4px_rgba(21,93,252,0.20),0px_10px_15px_-3px_rgba(21,93,252,0.20)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:shadow-lg active:translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="mt-6 inline-flex items-center justify-center rounded-xl bg-[#0f2d51] px-4 py-2 text-sm font-medium text-white shadow-[0px_4px_6px_-4px_rgba(15,45,81,0.20),0px_10px_15px_-3px_rgba(15,45,81,0.20)] transition-all duration-200 ease-out hover:-translate-y-[1px] hover:bg-[#184070] hover:shadow-lg active:translate-y-[1px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5081ba]"
               >
                 Вернуться к входу
               </button>

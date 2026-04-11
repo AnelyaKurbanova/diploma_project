@@ -143,8 +143,8 @@ class SubmissionService:
             user_canonical = normalize_for_storage(ua_norm)
             if user_canonical:
                 stored = answer_key.canonical_answer
-                # Сравниваем канонические ответы без учёта пробелов,
-                # чтобы не наказывать за разные форматирования формул.
+                                                                    
+                                                                      
                 if (
                     user_canonical == stored
                     or user_canonical.replace(" ", "")
@@ -234,7 +234,7 @@ class SubmissionService:
                 user_text = str(answer.answer_numeric)
 
             if ak is not None and user_text:
-                # Stage 1: deterministic check on raw input
+                                                           
                 is_correct, score, debug1 = self._deterministic_text_check(
                     user_text,
                     ak,
