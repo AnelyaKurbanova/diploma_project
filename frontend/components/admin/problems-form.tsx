@@ -2,10 +2,10 @@
 
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
+import { apiGet, apiPost, apiPatch, apiDelete, getErrorMessage } from "@/lib/api";
 import { ProblemContent } from "@/components/ui/problem-content";
 
-/* ── Types ─────────────────────────────────────────────────────── */
+
 
 type Subject = { id: string; code: string; name_ru: string };
 type Topic = { id: string; title_ru: string; subject_id: string };
@@ -75,7 +75,7 @@ type ProblemsFormProps = {
   onCreated?: () => void;
 };
 
-/* ── Constants ─────────────────────────────────────────────────── */
+
 
 const PROBLEM_TYPES = [
   { value: "single_choice", label: "Один ответ" },
@@ -149,7 +149,7 @@ type LastPreferences = {
   points: string;
 };
 
-/* ── Component ─────────────────────────────────────────────────── */
+
 
 export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
@@ -214,17 +214,17 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
   const perPage = 20;
   const isModerator = userRole === "moderator" || userRole === "admin";
 
-  /* ── Load subjects ──────────────────────────────────────────── */
+  
   useEffect(() => {
     (async () => {
       try {
         const data = await apiGet<Subject[]>("/subjects", accessToken);
         setSubjects(data);
-      } catch { /* ignore */ }
+      } catch {  }
     })();
   }, [accessToken]);
 
-  /* ── Load local preferences and draft on mount ──────────────── */
+  
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
@@ -255,15 +255,13 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
           setRestoredFromDraft(true);
           setShowForm(true);
         } catch {
-          // ignore malformed draft
         }
       }
     } catch {
-      // ignore errors with localStorage
     }
   }, []);
 
-  /* ── Load topics when subject changes ───────────────────────── */
+  
   useEffect(() => {
     if (!form.subject_id) { setTopics([]); return; }
     (async () => {
@@ -274,7 +272,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     })();
   }, [accessToken, form.subject_id]);
 
-  /* ── Default topic: last in subject ─────────────────────────── */
+  
   useEffect(() => {
     if (!form.subject_id || editingId) return;
     if (!topics.length) return;
@@ -284,7 +282,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     setForm(prev => ({ ...prev, topic_id: last.id }));
   }, [topics, form.subject_id, form.topic_id, editingId]);
 
-  /* ── Debounced canonical preview ────────────────────────────── */
+  
   useEffect(() => {
     if (canonicalTimeout.current) clearTimeout(canonicalTimeout.current);
     if (!textAnswer.trim()) {
@@ -311,7 +309,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     };
   }, [textAnswer, accessToken]);
 
-  /* ── Autosave draft periodically ─────────────────────────────── */
+  
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!showForm) return;
@@ -325,7 +323,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       try {
         window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       } catch {
-        // ignore
       }
     }, 7000);
     return () => {
@@ -347,7 +344,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       try {
         window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       } catch {
-        // ignore
       }
     };
 
@@ -357,7 +353,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     };
   }, [showForm, form, choices, textAnswer, images]);
 
-  /* ── Load problems list ─────────────────────────────────────── */
+  
   const loadProblems = useCallback(
     async (opts?: { silent?: boolean }) => {
       if (!opts?.silent) {
@@ -387,7 +383,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
 
   const isChoiceType = form.type === "single_choice" || form.type === "multiple_choice";
 
-  /* ── Helpers ────────────────────────────────────────────────── */
+  
   const applyDifficultyDefaults = (difficultyValue: string) => {
     const defaults = DIFFICULTY_DEFAULTS[difficultyValue];
     if (!defaults) {
@@ -445,7 +441,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     try {
       window.localStorage.setItem(LAST_PREFS_KEY, JSON.stringify(prefs));
     } catch {
-      // ignore
     }
   };
 
@@ -487,7 +482,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
 
     setForm(prev => {
       if (opts?.keepMeta) {
-        // Сохранить текущие метаданные, очистив только текстовые поля
         return {
           ...prev,
           title: "",
@@ -594,7 +588,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     setSuccess(null);
   };
 
-  /* ── Image upload ───────────────────────────────────────────── */
+  
   const handleImageSelect = async (file: File) => {
     if (images.length >= MAX_IMAGES) return;
     const orderNo = images.length;
@@ -618,11 +612,16 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         file_name: file.name,
       }, accessToken);
 
-      await fetch(presign.upload_url, {
+      const uploadResponse = await fetch(presign.upload_url, {
         method: "PUT",
         headers: { "Content-Type": file.type },
         body: file,
       });
+      if (!uploadResponse.ok) {
+        throw new Error(
+          `Не удалось загрузить изображение в хранилище (статус ${uploadResponse.status}).`,
+        );
+      }
 
       setImages(prev =>
         prev.map((img, i) =>
@@ -633,7 +632,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       );
     } catch (err) {
       setImages(prev => prev.filter((_, i) => i !== orderNo));
-      setError(err instanceof Error ? err.message : "Ошибка загрузки изображения");
+      setError(getErrorMessage(err, "Ошибка загрузки изображения"));
     }
   };
 
@@ -643,7 +642,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     );
   };
 
-  /* ── Submit form ────────────────────────────────────────────── */
+  
   const handleSubmit = async (e: React.FormEvent, options?: { createNext?: boolean }) => {
     e.preventDefault();
     setSubmitting(true);
@@ -692,17 +691,14 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         setSuccess("Задача создана (черновик)");
       }
       persistLastPrefs();
-      // сбрасываем сохранённый черновик
       if (typeof window !== "undefined") {
         try {
           window.localStorage.removeItem(DRAFT_KEY);
         } catch {
-          // ignore
         }
       }
 
       if (options?.createNext) {
-        // подготовить следующую задачу на основе текущих метаданных
         resetForm({ keepMeta: true });
         setShowForm(true);
       } else {
@@ -748,8 +744,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       );
       const rawOptions = (res.options || []).map(opt => opt.trim()).filter(Boolean);
 
-      // Дополнительная защита на фронте: если модель вернула несколько чисел
-      // в одной строке (например "16 24 64"), разбиваем их на отдельные варианты.
       const expandedOptions: string[] = [];
       for (const opt of rawOptions) {
         const hasLetters = /[A-Za-zА-Яа-я]/.test(opt);
@@ -764,8 +758,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       const existingTexts = new Set(choices.map(c => c.choice_text.trim()));
       let newOptions = expandedOptions.filter(opt => opt && !existingTexts.has(opt));
 
-      // Если модель вернула только дубликаты существующих вариантов,
-      // всё равно добавим их, чтобы автор видел результат.
       if (!newOptions.length && rawOptions.length > 0) {
         newOptions = rawOptions;
       }
@@ -861,7 +853,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     }
   };
 
-  /* ── Global hotkeys ─────────────────────────────────────────── */
+  
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (!showForm || mode !== "single") return;
@@ -885,8 +877,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     return () => {
       window.removeEventListener("keydown", handler);
     };
-    // Hotkeys intentionally depend only on visibility/mode here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showForm, mode]);
 
   const handleAction = async (problemId: string, action: "submit-review" | "publish" | "reject" | "archive") => {
@@ -982,21 +972,21 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
     }
   };
 
-  /* ── Render ─────────────────────────────────────────────────── */
+  
   return (
     <div className="space-y-6">
-      {/* Toolbar */}
+      {}
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={() => { resetForm(); setShowForm(!showForm); }}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+          className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover"
         >
           {showForm && !editingId ? "Скрыть форму" : "Создать задачу"}
         </button>
         <select
           value={statusFilter}
           onChange={e => { setStatusFilter(e.target.value); setPage(1); }}
-          className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
         >
           <option value="">Все статусы</option>
           <option value="draft">Черновик</option>
@@ -1007,7 +997,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         <select
           value={subjectFilter}
           onChange={e => { setSubjectFilter(e.target.value); setPage(1); }}
-          className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+          className="rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
         >
           <option value="">Все предметы</option>
           {subjects.map(s => (
@@ -1020,25 +1010,25 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
           <button
             type="button"
             onClick={() => setMode("single")}
-            className={`rounded px-2 py-1 ${mode === "single" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`rounded px-2 py-1 ${mode === "single" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-brand-navy/90"}`}
           >
             Обычный
           </button>
           <button
             type="button"
             onClick={() => setMode("bulk")}
-            className={`rounded px-2 py-1 ${mode === "bulk" ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-700"}`}
+            className={`rounded px-2 py-1 ${mode === "bulk" ? "bg-white text-brand-navy shadow-sm" : "text-slate-500 hover:text-brand-navy/90"}`}
           >
             Bulk
           </button>
         </div>
       </div>
 
-      {/* ── Create / Edit form (single mode) ───────────────────── */}
+      {}
       {mode === "single" && showForm && (
         <form onSubmit={e => handleSubmit(e)} className="space-y-6 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-base font-bold text-slate-900">
+            <h3 className="text-base font-bold text-brand-navy">
               {editingId ? "Редактировать задачу" : "Создать задачу"}
             </h3>
             <div className="flex items-center gap-2">
@@ -1052,7 +1042,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
               <button
                 type="button"
                 onClick={() => { resetForm(); setShowForm(false); }}
-                className="text-xs text-slate-500 hover:text-slate-700"
+                className="text-xs text-slate-500 hover:text-brand-navy/90"
               >
                 Закрыть
               </button>
@@ -1066,8 +1056,8 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
           )}
 
           {form.subject_id && form.topic_id ? (
-            <div className="flex flex-col gap-3 rounded-lg border border-blue-50 bg-blue-50/70 px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex-1 text-sm text-slate-700">
+            <div className="flex flex-col gap-3 rounded-lg border border-brand-navy/10 bg-brand-navy/[0.08] px-4 py-3 sm:flex-row sm:items-start sm:justify-between">
+              <div className="flex-1 text-sm text-brand-navy/90">
                 <p>
                   Сгенерировать набор задач по выбранной теме на основе загруженных учебных материалов (RAG).
                   Будут созданы новые черновики задач с автоматическими ответами, которые можно отредактировать.
@@ -1088,7 +1078,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                           const clamped = Math.max(0, Math.min(30, num));
                           setRagEasyCount(clamped);
                         }}
-                        className="w-16 rounded border border-blue-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                        className="w-16 rounded border border-brand-navy/20 bg-white px-2 py-1 text-xs outline-none focus:border-brand-navy/50"
                       />
                     </label>
                     <label className="flex items-center gap-1">
@@ -1104,7 +1094,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                           const clamped = Math.max(0, Math.min(30, num));
                           setRagMediumCount(clamped);
                         }}
-                        className="w-16 rounded border border-blue-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                        className="w-16 rounded border border-brand-navy/20 bg-white px-2 py-1 text-xs outline-none focus:border-brand-navy/50"
                       />
                     </label>
                     <label className="flex items-center gap-1">
@@ -1120,7 +1110,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                           const clamped = Math.max(0, Math.min(30, num));
                           setRagHardCount(clamped);
                         }}
-                        className="w-16 rounded border border-blue-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                        className="w-16 rounded border border-brand-navy/20 bg-white px-2 py-1 text-xs outline-none focus:border-brand-navy/50"
                       />
                     </label>
                   </div>
@@ -1136,7 +1126,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                         const clamped = Math.max(1, Math.min(30, value));
                         setRagCount(clamped);
                       }}
-                      className="w-20 rounded border border-blue-200 bg-white px-2 py-1 text-xs outline-none focus:border-blue-400"
+                      className="w-20 rounded border border-brand-navy/20 bg-white px-2 py-1 text-xs outline-none focus:border-brand-navy/50"
                     />
                     <span className="text-[11px] text-slate-400">(от 1 до 30 задач за один запуск)</span>
                   </div>
@@ -1146,18 +1136,18 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                 type="button"
                 onClick={handleGenerateFromRag}
                 disabled={generatingFromRag}
-                className="shrink-0 rounded-lg bg-blue-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                className="shrink-0 rounded-lg bg-brand-navy px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
               >
                 {generatingFromRag ? "Генерация задач..." : "Сгенерировать задачи по теме"}
               </button>
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-blue-100 bg-blue-50/40 px-4 py-3 text-xs text-slate-600">
+            <div className="rounded-lg border border-dashed border-brand-navy/15 bg-brand-navy/[0.05] px-4 py-3 text-xs text-slate-600">
               Чтобы использовать ИИ‑генерацию задач по теме, выберите выше и предмет, и конкретную тему.
             </div>
           )}
 
-          {/* ── Section 1: Metadata ─────────────────────────────── */}
+          {}
           <fieldset className="space-y-4 rounded-lg border border-gray-100 p-4">
             <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Метаданные
@@ -1169,7 +1159,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                   required
                   value={form.subject_id}
                   onChange={e => setForm(f => ({ ...f, subject_id: e.target.value, topic_id: "" }))}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                 >
                   <option value="">Выберите предмет</option>
                   {subjects.map(s => (
@@ -1182,7 +1172,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                 <select
                   value={form.topic_id}
                   onChange={e => setForm(f => ({ ...f, topic_id: e.target.value }))}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                 >
                   <option value="">Без привязки к теме</option>
                   {topics.map(t => (
@@ -1208,7 +1198,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                     }
                   }}
                   disabled={!!editingId}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 disabled:opacity-60"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:opacity-60"
                 >
                   {availableProblemTypes.map(t => (
                     <option key={t.value} value={t.value}>{t.label}</option>
@@ -1220,7 +1210,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                 <select
                   value={form.difficulty}
                   onChange={e => applyDifficultyDefaults(e.target.value)}
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                 >
                   {DIFFICULTY_LEVELS.map(d => (
                     <option key={d.value} value={d.value}>{d.label}</option>
@@ -1230,7 +1220,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             </div>
           </fieldset>
 
-          {/* ── Section 2: Problem Statement ────────────────────── */}
+          {}
           <fieldset className="space-y-4 rounded-lg border border-gray-100 p-4">
             <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Условие задачи
@@ -1245,7 +1235,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                 value={form.title}
                 onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
                 placeholder="Название задачи"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/25"
               />
             </div>
 
@@ -1269,7 +1259,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                       key={ch}
                       type="button"
                       onClick={() => insertSpecialChar(ch)}
-                      className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-sm transition-colors hover:border-blue-300 hover:bg-blue-50"
+                      className="flex h-8 w-8 items-center justify-center rounded border border-gray-200 bg-white text-sm transition-colors hover:border-brand-navy/40 hover:bg-brand-navy/10"
                       title={ch}
                     >
                       {ch}
@@ -1285,13 +1275,13 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                 value={form.statement}
                 onChange={e => setForm(f => ({ ...f, statement: e.target.value }))}
                 placeholder="Текст условия задачи... Можно использовать спецсимволы: √, π, ², ≤ и др."
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 font-mono text-sm outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/25"
               />
             </div>
 
           </fieldset>
 
-          {/* ── Section 4: Answer ──────────────────────────────── */}
+          {}
           <fieldset className="space-y-4 rounded-lg border border-gray-100 p-4">
             <legend className="px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               Ответ
@@ -1323,7 +1313,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                           setChoices(prev => prev.map((ch, i) => i === idx ? { ...ch, is_correct: !ch.is_correct } : ch));
                         }
                       }}
-                      className="accent-blue-600"
+                      className="accent-brand-navy"
                     />
                     <input
                       type="text"
@@ -1350,7 +1340,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                         }
                       }}
                       placeholder={`Вариант ${idx + 1}`}
-                      className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                     />
                     {choices.length > 2 && (
                       <button type="button" onClick={() => removeChoice(idx)} className="text-xs text-rose-500 hover:text-rose-700">
@@ -1363,7 +1353,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                   <button
                     type="button"
                     onClick={addChoice}
-                    className="text-sm text-blue-600 hover:text-blue-700"
+                    className="text-sm text-brand-navy hover:text-brand-navy"
                   >
                     + Добавить вариант
                   </button>
@@ -1371,7 +1361,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                     <button
                       type="button"
                       onClick={shuffleChoices}
-                      className="text-xs text-slate-500 hover:text-slate-700"
+                      className="text-xs text-slate-500 hover:text-brand-navy/90"
                     >
                       Перемешать варианты
                     </button>
@@ -1399,20 +1389,20 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                     value={textAnswer}
                     onChange={e => setTextAnswer(e.target.value)}
                     placeholder="Например: 36км/ч, Пифагор, 3/5"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                   />
                 </div>
 
                 {textAnswer.trim() && (
-                  <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3">
-                    <p className="mb-1 text-xs font-medium text-blue-700">Каноническая форма:</p>
+                  <div className="rounded-lg border border-brand-navy/15 bg-brand-navy/[0.06] p-3">
+                    <p className="mb-1 text-xs font-medium text-brand-navy">Каноническая форма:</p>
                     {canonicalLoading ? (
                       <div className="flex items-center gap-2">
-                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
-                        <span className="text-xs text-blue-400">Вычисляется...</span>
+                        <div className="h-3 w-3 animate-spin rounded-full border-2 border-brand-navy/20 border-t-brand-navy" />
+                        <span className="text-xs text-brand-navy/50">Вычисляется...</span>
                       </div>
                     ) : canonicalPreview ? (
-                      <p className="font-mono text-sm font-semibold text-blue-900">{canonicalPreview}</p>
+                      <p className="font-mono text-sm font-semibold text-brand-navy">{canonicalPreview}</p>
                     ) : (
                       <p className="text-xs text-amber-600">
                         Не удалось вычислить каноническую форму. Ответ будет сравниваться как текст.
@@ -1436,7 +1426,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             )}
           </fieldset>
 
-          {/* ── Section 5: Advanced settings ────────────────────── */}
+          {}
           <fieldset className="space-y-3 rounded-lg border border-dashed border-gray-200 bg-slate-50/60 p-4">
             <legend className="flex items-center justify-between px-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
               <span>Дополнительные настройки</span>
@@ -1449,13 +1439,12 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                       try {
                         window.localStorage.setItem("admin_problems_show_advanced", next ? "1" : "0");
                       } catch {
-                        // ignore
                       }
                     }
                     return next;
                   });
                 }}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700"
+                className="text-xs font-medium text-brand-navy hover:text-brand-navy"
               >
                 {showAdvanced ? "Скрыть" : "Показать"}
               </button>
@@ -1474,7 +1463,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                         setPointsTouched(true);
                         setForm(f => ({ ...f, points: e.target.value }));
                       }}
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
                     />
                   </div>
                 </div>
@@ -1487,7 +1476,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                       value={form.explanation}
                       onChange={e => setForm(f => ({ ...f, explanation: e.target.value }))}
                       placeholder="Объяснение решения, которое увидит ученик после отправки ответа"
-                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+                      className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/25"
                     />
                     <button
                       type="button"
@@ -1511,10 +1500,9 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                       <div key={idx} className="relative rounded-lg border border-gray-200 bg-gray-50 p-2">
                         {img.uploading ? (
                           <div className="flex h-32 items-center justify-center">
-                            <div className="h-6 w-6 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+                            <div className="h-6 w-6 animate-spin rounded-full border-2 border-brand-navy/20 border-t-brand-navy" />
                           </div>
                         ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={img.url}
                             alt={img.alt_text || `Изображение ${idx + 1}`}
@@ -1530,7 +1518,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                               prev.map((im, i) => (i === idx ? { ...im, alt_text: e.target.value } : im)),
                             )
                           }
-                          className="mt-2 w-full rounded border border-gray-200 px-2 py-1 text-xs outline-none focus:border-blue-400"
+                          className="mt-2 w-full rounded border border-gray-200 px-2 py-1 text-xs outline-none focus:border-brand-navy/50"
                         />
                         <button
                           type="button"
@@ -1546,7 +1534,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                     ))}
 
                     {images.length < MAX_IMAGES && (
-                      <label className="flex h-44 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 transition-colors hover:border-blue-300 hover:bg-blue-50/30">
+                      <label className="flex h-44 cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-200 bg-gray-50 transition-colors hover:border-brand-navy/40 hover:bg-brand-navy/[0.06]">
                         <svg className="mb-1 h-8 w-8 text-gray-300" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0 0 22.5 18.75V5.25A2.25 2.25 0 0 0 20.25 3H3.75A2.25 2.25 0 0 0 1.5 5.25v13.5A2.25 2.25 0 0 0 3.75 21Z" />
                         </svg>
@@ -1570,7 +1558,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             )}
           </fieldset>
 
-          {/* ── Preview as student ──────────────────────────────── */}
+          {}
           {previewOpen && (
             <div className="mt-2 rounded-xl border border-gray-100 bg-white p-4">
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
@@ -1585,8 +1573,8 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                     {Number(form.points) || 0} балл(ов)
                   </span>
                 </div>
-                <h4 className="text-lg font-bold text-slate-900">{form.title || "Без заголовка"}</h4>
-                <div className="text-sm text-slate-700">
+                <h4 className="text-lg font-bold text-brand-navy">{form.title || "Без заголовка"}</h4>
+                <div className="text-sm text-brand-navy/90">
                   <ProblemContent body={form.statement || "Условие задачи..."} />
                 </div>
 
@@ -1596,7 +1584,6 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                       .filter(img => img.url)
                       .sort((a, b) => a.order_no - b.order_no)
                       .map((img, idx) => (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           key={`${img.url}-${idx}`}
                           src={img.url}
@@ -1617,12 +1604,12 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                     {choices.map(choice => (
                       <label
                         key={choice.order_no}
-                        className="flex cursor-default items-center gap-2 rounded-lg border border-gray-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                        className="flex cursor-default items-center gap-2 rounded-lg border border-gray-200 bg-slate-50 px-3 py-2 text-sm text-brand-navy/90"
                       >
                         <input
                           type={form.type === "single_choice" ? "radio" : "checkbox"}
                           disabled
-                          className="h-4 w-4 text-blue-600"
+                          className="h-4 w-4 text-brand-navy"
                         />
                         <span>
                           <ProblemContent
@@ -1649,7 +1636,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             </div>
           )}
 
-          {/* ── Errors / Success ───────────────────────────────── */}
+          {}
           {error && <p className="text-sm text-rose-600">{error}</p>}
           {success && <p className="text-sm text-emerald-600">{success}</p>}
 
@@ -1657,7 +1644,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
             >
               {submitting
                 ? "Сохранение..."
@@ -1669,7 +1656,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
               type="button"
               disabled={submitting}
               onClick={handleSaveAndCreateNext}
-              className="rounded-lg border border-blue-200 px-4 py-2 text-sm font-medium text-blue-700 transition-colors hover:bg-blue-50 disabled:opacity-50"
+              className="rounded-lg border border-brand-navy/20 px-4 py-2 text-sm font-medium text-brand-navy transition-colors hover:bg-brand-navy/10 disabled:opacity-50"
             >
               Сохранить и создать следующую
             </button>
@@ -1696,12 +1683,12 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         </form>
       )}
 
-      {/* ── Bulk creation mode ─────────────────────────────────── */}
+      {}
       {mode === "bulk" && (
         <div className="space-y-3 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-base font-bold text-slate-900">Массовое создание задач (Bulk)</h3>
+              <h3 className="text-base font-bold text-brand-navy">Массовое создание задач (Bulk)</h3>
               <p className="mt-1 text-xs text-slate-500">
                 Одна задача — один блок с полями TITLE / TYPE / Q / A* / A / EXPL, разделённый строкой &quot;---&quot;.
               </p>
@@ -1717,7 +1704,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
                 required
                 value={form.subject_id}
                 onChange={e => setForm(f => ({ ...f, subject_id: e.target.value, topic_id: "" }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
               >
                 <option value="">Выберите предмет</option>
                 {subjects.map(s => (
@@ -1732,7 +1719,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
               <select
                 value={form.topic_id}
                 onChange={e => setForm(f => ({ ...f, topic_id: e.target.value }))}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
               >
                 <option value="">Без привязки к теме</option>
                 {topics.map(t => (
@@ -1760,7 +1747,7 @@ A: 8
 EXPL: Короткое объяснение...
 ---
 TITLE: ...`}
-            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+            className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm font-mono outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/25"
           />
 
           {bulkErrors && (
@@ -1778,7 +1765,6 @@ TITLE: ...`}
               type="button"
               disabled={!bulkText.trim() || bulkSubmitting}
               onClick={() => {
-                // простой парсинг без сложной валидации
                 const blocks = bulkText.split(/^---$/m).map(b => b.trim()).filter(Boolean);
                 const parsed: BulkParsedProblem[] = [];
                 const errors: string[] = [];
@@ -1809,7 +1795,6 @@ TITLE: ...`}
                     } else if (line.startsWith("A*:")) {
                       const text = line.slice("A*:".length).trim();
                       if (type === "short_text") {
-                        // трактуем как текстовый ответ
                         textAnswer = text;
                       } else {
                         choices.push({
@@ -1910,7 +1895,7 @@ TITLE: ...`}
                   setBulkSubmitting(false);
                 }
               }}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+              className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
             >
               {bulkSubmitting ? "Создание..." : "Создать все"}
             </button>
@@ -1918,7 +1903,7 @@ TITLE: ...`}
         </div>
       )}
 
-      {/* ── Problems list ──────────────────────────────────────── */}
+      {}
       <div className="space-y-3">
         {listLoading ? (
           Array.from({ length: 4 }).map((_, i) => (
@@ -2046,7 +2031,7 @@ TITLE: ...`}
               <div
                 key={p.id}
                 className={`rounded-xl border bg-white p-5 shadow-sm transition-colors ${
-                  editingId === p.id ? "border-blue-200 bg-blue-50/30" : "border-gray-100"
+                  editingId === p.id ? "border-brand-navy/20 bg-brand-navy/[0.04]" : "border-gray-100"
                 }`}
               >
                 <div className="flex items-start justify-between gap-4">
@@ -2063,7 +2048,7 @@ TITLE: ...`}
                         }}
                         className="h-4 w-4 accent-amber-600"
                       />
-                      <h4 className="truncate font-bold text-slate-900">{p.title}</h4>
+                      <h4 className="truncate font-bold text-brand-navy">{p.title}</h4>
                       <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${statusInfo.cls}`}>
                         {statusInfo.label}
                       </span>
@@ -2089,7 +2074,7 @@ TITLE: ...`}
                     <button
                       type="button"
                       onClick={() => setPreviewProblem(p)}
-                      className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-gray-50"
+                      className="rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-navy/90 transition-colors hover:bg-gray-50"
                     >
                       Просмотр
                     </button>
@@ -2097,7 +2082,7 @@ TITLE: ...`}
                       <button
                         onClick={() => startEdit(p)}
                         disabled={actionInProgress === p.id}
-                        className="rounded-lg bg-blue-50 px-3 py-1.5 text-xs font-medium text-blue-700 transition-colors hover:bg-blue-100 disabled:opacity-50"
+                        className="rounded-lg bg-brand-navy/10 px-3 py-1.5 text-xs font-medium text-brand-navy transition-colors hover:bg-brand-navy/[0.14] disabled:opacity-50"
                       >
                         Редактировать
                       </button>
@@ -2105,7 +2090,7 @@ TITLE: ...`}
                     <button
                       onClick={() => duplicateFromProblem(p)}
                       disabled={actionInProgress === p.id}
-                      className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-50"
+                      className="rounded-lg bg-slate-50 px-3 py-1.5 text-xs font-medium text-brand-navy/90 transition-colors hover:bg-slate-100 disabled:opacity-50"
                     >
                       Копировать
                     </button>
@@ -2205,7 +2190,7 @@ TITLE: ...`}
                 <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
                   Просмотр задачи
                 </p>
-                <h3 className="text-lg font-bold text-slate-900">
+                <h3 className="text-lg font-bold text-brand-navy">
                   {previewProblem.title || "Без заголовка"}
                 </h3>
                 <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
@@ -2248,7 +2233,6 @@ TITLE: ...`}
                       .slice()
                       .sort((a, b) => a.order_no - b.order_no)
                       .map(img => (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           key={img.id}
                           src={img.url}
@@ -2309,7 +2293,7 @@ TITLE: ...`}
               {previewProblem.explanation && (
                 <div>
                   <p className="mb-1 text-xs font-medium text-slate-500">Объяснение</p>
-                  <div className="text-sm text-slate-700">
+                  <div className="text-sm text-brand-navy/90">
                     <ProblemContent body={previewProblem.explanation} />
                   </div>
                 </div>

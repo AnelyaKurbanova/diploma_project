@@ -141,14 +141,14 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
     <div className="space-y-6">
       <form onSubmit={handleSubmit} className="space-y-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-brand-navy">
             {editingId ? "Редактировать тему" : "Создать тему"}
           </h3>
           {editingId && (
             <button
               type="button"
               onClick={cancelEdit}
-              className="text-xs text-slate-500 hover:text-slate-700"
+              className="text-xs text-slate-500 hover:text-brand-navy/90"
             >
               Отменить редактирование
             </button>
@@ -161,7 +161,7 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
               required
               value={form.subject_id}
               onChange={(e) => setForm((f) => ({ ...f, subject_id: e.target.value }))}
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
             >
               <option value="">Выберите предмет</option>
               {subjects.map((s) => (
@@ -179,7 +179,7 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
               value={form.title_ru}
               onChange={(e) => setForm((f) => ({ ...f, title_ru: e.target.value }))}
               placeholder="Алгебра"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/25"
             />
           </div>
           <div>
@@ -191,7 +191,7 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
               value={form.grade_level}
               onChange={(e) => setForm((f) => ({ ...f, grade_level: e.target.value }))}
               placeholder="Например, 7"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
             />
           </div>
         </div>
@@ -203,7 +203,7 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
           >
             {submitting
               ? "Сохранение..."
@@ -225,11 +225,11 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
 
       <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="flex items-center justify-between border-b border-gray-100 px-6 py-4">
-          <h3 className="text-base font-bold text-slate-900">Существующие темы</h3>
+          <h3 className="text-base font-bold text-brand-navy">Существующие темы</h3>
           <select
             value={selectedSubject}
             onChange={(e) => setSelectedSubject(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-400"
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-brand-navy/50"
           >
             <option value="">Выберите предмет</option>
             {subjects.map((s) => (
@@ -253,16 +253,16 @@ export function TopicsForm({ accessToken }: TopicsFormProps) {
               <div
                 key={t.id}
                 className={`flex items-center justify-between px-6 py-3 transition-colors ${
-                  editingId === t.id ? "bg-blue-50/50" : "hover:bg-gray-50/50"
+                  editingId === t.id ? "bg-brand-navy/[0.06]" : "hover:bg-gray-50/50"
                 }`}
               >
                 <div className="min-w-0 flex-1">
-                  <span className="font-medium text-slate-900">{t.title_ru}</span>
+                  <span className="font-medium text-brand-navy">{t.title_ru}</span>
                 </div>
                 <div className="ml-4 flex shrink-0 items-center gap-2">
                   <button
                     onClick={() => startEdit(t)}
-                    className="rounded-md px-2 py-1 text-xs font-medium text-blue-600 transition-colors hover:bg-blue-50 hover:text-blue-700"
+                    className="rounded-md px-2 py-1 text-xs font-medium text-brand-navy transition-colors hover:bg-brand-navy/10 hover:text-brand-navy"
                   >
                     Редактировать
                   </button>

@@ -6,6 +6,8 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_VIDEO_WORKER_ROOT = Path(__file__).resolve().parent.parent
+
 
 class Settings(BaseSettings):
     """Top-level application settings loaded from environment variables."""
@@ -28,6 +30,11 @@ class Settings(BaseSettings):
         86_400, alias="S3_PRESIGN_EXPIRES_SECONDS"
     )
 
+    # ElevenLabs TTS
+    elevenlabs_api_key: str = Field("", alias="ELEVENLABS_API_KEY")
+    elevenlabs_voice_id: str = Field("pNInz6obpgDQGcFmaJgB", alias="ELEVENLABS_VOICE_ID")
+    elevenlabs_model_id: str = Field("eleven_multilingual_v2", alias="ELEVENLABS_MODEL_ID")
+
     # Worker behavior
     work_dir: Path = Field(Path("/tmp/video_jobs"), alias="WORK_DIR")
     content_max_retries: int = 2
@@ -37,7 +44,10 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(
+            _VIDEO_WORKER_ROOT / ".env",
+            Path(".env"),
+        ),
         env_prefix="",
         case_sensitive=False,
         extra="ignore",

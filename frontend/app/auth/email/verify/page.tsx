@@ -4,14 +4,13 @@ import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
-import { Button, buttonClasses } from "@/components/ui/button";
 
 export default function EmailVerifyPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+        <div className="flex min-h-screen items-center justify-center" style={{ backgroundColor: "#f8fafc" }}>
+          <div className="h-10 w-10 animate-spin rounded-full border-2 border-slate-300 border-t-[#0f2d51]" />
         </div>
       }
     >
@@ -61,7 +60,6 @@ function EmailVerifyInner() {
   const [canResend, setCanResend] = useState(false);
   const [resendCounter, setResendCounter] = useState(0);
 
-  // Таймер на 3 минуты
   useEffect(() => {
     if (!email || !purpose) return;
 
@@ -116,7 +114,6 @@ function EmailVerifyInner() {
       }
       router.replace("/dashboard");
     } catch {
-      // сообщение уже попадёт в emailFlowError
     } finally {
       setIsVerifying(false);
     }
@@ -134,29 +131,35 @@ function EmailVerifyInner() {
       }
       setResendCounter((c) => c + 1);
     } catch {
-      // Ошибка отразится в emailFlowError
     }
   };
 
   if (!email || !purpose) {
     return (
-      <div className="min-h-screen bg-white text-slate-900">
+      <div className="min-h-screen" style={{ backgroundColor: "#f8fafc" }}>
         <EntHeader />
-        <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4 py-8">
-          <div className="w-full max-w-[1143px] flex justify-center">
-            <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-[0px_8px_10px_-6px_rgба(0,0,0,0.10),0px_20px_25px_-5px_rgба(0,0,0,0.10)] outline outline-1 outline-offset-[-1px] outline-gray-200">
-              <p className="mb-4 text-sm text-slate-500">
-                Не удалось определить email или тип операции для подтверждения
-                кода.
-              </p>
-              <Button
-                type="button"
-                onClick={() => router.replace("/auth")}
-                size="md"
-              >
-                Вернуться к входу
-              </Button>
-            </div>
+        <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-8">
+          <div
+            className="w-full max-w-[526px] overflow-hidden rounded-2xl bg-white p-8 text-center"
+            style={{ boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)" }}
+          >
+            <p
+              className="mb-4 text-[16px] leading-6 text-[#64748b]"
+              style={{ fontFamily: "var(--font-jost)" }}
+            >
+              Не удалось определить email или тип операции для подтверждения кода.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.replace("/auth")}
+              className="flex h-10 w-full items-center justify-center rounded-xl bg-[#5081ba] px-4 text-[16px] leading-6 tracking-[-0.3125px] text-white transition-colors hover:bg-[#4070a9]"
+              style={{
+                fontFamily: "var(--font-jost)",
+                boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)",
+              }}
+            >
+              Вернуться к входу
+            </button>
           </div>
         </main>
       </div>
@@ -166,68 +169,115 @@ function EmailVerifyInner() {
   const effectiveError = localError ?? emailFlowError;
 
   return (
-    <div className="min-h-screen bg-white text-slate-900">
+    <div className="min-h-screen" style={{ backgroundColor: "#f8fafc" }}>
       <EntHeader />
 
-      <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center bg-gradient-to-b from-blue-50 to-white px-4 py-8">
-        <div className="w-full max-w-[1143px] flex justify-center">
-          <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-[0px_8px_10px_-6px_rgба(0,0,0,0.10),0px_20px_25px_-5px_rgба(0,0,0,0.10)] outline outline-1 outline-offset-[-1px] outline-gray-200">
-            <h1 className="mb-3 text-lg font-semibold text-slate-900">
-              Подтвердите код
-            </h1>
-            <p className="mb-4 text-sm text-slate-500">
-              Мы отправили 6‑значный код на{" "}
-              <span className="font-semibold text-slate-900">{email}</span>.{" "}
-              Введите его ниже, чтобы{" "}
-              {purpose === "login" ? "войти" : "завершить регистрацию"}.
-            </p>
+      <main className="flex min-h-[calc(100vh-4rem)] items-center justify-center px-4 py-8">
+        {}
+        <div
+          className="w-full max-w-[526px] overflow-hidden rounded-2xl bg-white"
+          style={{ boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)" }}
+        >
+          {}
+          <div className="relative h-[157px] w-full overflow-hidden rounded-t-2xl">
+            {}
+            <img
+              src="/images/auth-banner.png"
+              alt=""
+              className="absolute left-0 top-[-189px] h-[478px] max-w-none object-cover"
+              style={{ width: "592px" }}
+            />
+          </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                value={code}
-                onChange={(e) => {
-                  const v = e.target.value.replace(/\D/g, "").slice(0, 6);
-                  setCode(v);
-                }}
-                autoFocus
-                className="mx-auto block w-40 rounded-xl border border-gray-300 bg-gray-50 px-4 py-2 text-center text-lg tracking-[0.5em] text-slate-900 shadow-sm transition-all duration-200 ease-out hover:border-gray-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
-              />
-
-              <Button
-                type="submit"
-                disabled={isVerifying || isLoading}
-                size="lg"
-                className="w-full"
+          {}
+          <div className="flex flex-col gap-4 pb-8 pt-4">
+            {}
+            <div className="flex flex-col gap-1 px-[39px]">
+              <h1
+                className="text-[36px] leading-10 tracking-[-0.5309px] text-[#0f2d51]"
+                style={{ fontFamily: "var(--font-rostov)" }}
               >
-                {isVerifying || isLoading ? "Проверяем код..." : "Подтвердить код"}
-              </Button>
-
-              {effectiveError && (
-                <p className="text-xs text-rose-600">{effectiveError}</p>
-              )}
-            </form>
-
-            <div className="mt-4 space-y-2 text-xs text-slate-500">
-              <p>
-                Можно запросить новый код через{" "}
-                <span className="font-semibold">{formattedTime}</span>.
+                Подтвердите код
+              </h1>
+              <p
+                className="text-[16px] leading-6 tracking-[-0.3125px] text-[#64748b]"
+                style={{ fontFamily: "var(--font-jost)" }}
+              >
+                Мы отправили 6‑значный код на{" "}
+                <span className="font-semibold text-[#0f2d51]">{email}</span>.{" "}
+                Введите его ниже, чтобы{" "}
+                {purpose === "login" ? "войти" : "завершить регистрацию"}.
               </p>
-              <button
-                type="button"
-                onClick={handleResend}
-                disabled={!canResend}
-                className={buttonClasses({
-                  variant: "subtle",
-                  size: "sm",
-                  className:
-                    "inline-flex px-3 py-1.5 text-xs text-blue-600 disabled:cursor-not-allowed disabled:opacity-50",
-                })}
-              >
-                Отправить код снова
-              </button>
+            </div>
+
+            {}
+            <div className="flex flex-col gap-3 px-[39px]">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+                <label className="flex flex-col gap-2">
+                  <span
+                    className="text-[14px] font-semibold leading-5 text-[#364153]"
+                    style={{ fontFamily: "var(--font-inter)" }}
+                  >
+                    Код из письма
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    value={code}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, "").slice(0, 6);
+                      setCode(v);
+                    }}
+                    autoFocus
+                    placeholder="000000"
+                    className="h-11 w-full rounded-xl border border-[#d1d5dc] bg-[#fafbfc] px-3 text-center text-[20px] tracking-[0.4em] text-black outline-none transition-colors hover:border-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                    style={{ fontFamily: "var(--font-inter)" }}
+                  />
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={isVerifying || isLoading}
+                  className="flex h-10 w-full items-center justify-center rounded-xl bg-[#5081ba] px-4 text-[16px] leading-6 tracking-[-0.3125px] text-white transition-colors hover:bg-[#4070a9] disabled:opacity-70"
+                  style={{
+                    fontFamily: "var(--font-jost)",
+                    boxShadow: "0px 10px 15px 0px rgba(0,0,0,0.1)",
+                  }}
+                >
+                  {isVerifying || isLoading ? "Проверяем код..." : "Подтвердить код"}
+                </button>
+
+                {effectiveError && (
+                  <p className="text-xs text-rose-600">{effectiveError}</p>
+                )}
+              </form>
+
+              {}
+              <div className="flex flex-col items-center gap-2">
+                <p
+                  className="text-[14px] leading-5 text-[#4a5565]"
+                  style={{ fontFamily: "var(--font-inter)" }}
+                >
+                  {canResend ? (
+                    "Можно запросить новый код"
+                  ) : (
+                    <>
+                      Повторный код через{" "}
+                      <span className="font-semibold">{formattedTime}</span>
+                    </>
+                  )}
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResend}
+                  disabled={!canResend}
+                  className="text-[16px] leading-6 tracking-[-0.3125px] text-[#155dfc] transition-opacity hover:underline disabled:cursor-not-allowed disabled:opacity-40"
+                  style={{ fontFamily: "var(--font-jost)" }}
+                >
+                  Отправить код снова
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -235,4 +285,3 @@ function EmailVerifyInner() {
     </div>
   );
 }
-

@@ -53,7 +53,7 @@ def _try_setup_otel(app: "FastAPI") -> bool:
         logger.info("OpenTelemetry tracing enabled → %s (service=%s)", endpoint, service_name)
         return True
 
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:                
         logger.warning("Failed to initialise OpenTelemetry tracing: %s", exc)
         return False
 
@@ -69,15 +69,15 @@ def _attach_trace_id_filter() -> None:
                 span = otel_trace.get_current_span()
                 ctx = span.get_span_context()
                 if ctx and ctx.is_valid:
-                    record.trace_id = format(ctx.trace_id, "032x")  # type: ignore[attr-defined]
-                    record.span_id = format(ctx.span_id, "016x")  # type: ignore[attr-defined]
+                    record.trace_id = format(ctx.trace_id, "032x")                              
+                    record.span_id = format(ctx.span_id, "016x")                              
                 else:
-                    record.trace_id = None  # type: ignore[attr-defined]
-                    record.span_id = None  # type: ignore[attr-defined]
+                    record.trace_id = None                              
+                    record.span_id = None                              
                 return True
 
         logging.getLogger().addFilter(_OtelLoggingFilter())
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:                
         logger.debug("Could not attach OTEL logging filter: %s", exc)
 
 

@@ -16,6 +16,7 @@ from app.modules.classes.data.repo import ClassRepo
 from app.modules.problems.application.canonicalize import normalize_for_storage
 from app.modules.problems.data.models import (
     ProblemAnswerKeyModel,
+    ProblemDifficulty,
     ProblemModel,
     ProblemStatus,
     ProblemType,
@@ -28,6 +29,7 @@ from app.modules.submissions.api.schemas import (
     SubmissionProgressOut,
     SubmissionProgressItemOut,
 )
+from app.modules.gamification.application.service import GamificationService
 from app.modules.submissions.data.models import SubmissionModel, SubmissionStatus
 from app.modules.submissions.data.repo import SubmissionsRepo
 
@@ -141,8 +143,8 @@ class SubmissionService:
             user_canonical = normalize_for_storage(ua_norm)
             if user_canonical:
                 stored = answer_key.canonical_answer
-                # Сравниваем канонические ответы без учёта пробелов,
-                # чтобы не наказывать за разные форматирования формул.
+                                                                    
+                                                                      
                 if (
                     user_canonical == stored
                     or user_canonical.replace(" ", "")
@@ -232,7 +234,7 @@ class SubmissionService:
                 user_text = str(answer.answer_numeric)
 
             if ak is not None and user_text:
-                # Stage 1: deterministic check on raw input
+                                                           
                 is_correct, score, debug1 = self._deterministic_text_check(
                     user_text,
                     ak,
@@ -329,6 +331,16 @@ class SubmissionService:
                     answer.choice_ids,
                 )
 
+            gamification = GamificationService(self.session)
+            await gamification.on_problem_submission(
+                user_id,
+                problem_id=problem.id,
+                difficulty=ProblemDifficulty(problem.difficulty),
+                submission_id=submission.id,
+                is_correct=is_correct,
+                occurred_at=submission.submitted_at,
+            )
+
         created_at = submission.submitted_at or datetime.now(timezone.utc)
         message = tr("graded") if status is SubmissionStatus.GRADED else tr("sent_to_review")
 
@@ -365,6 +377,7 @@ class SubmissionService:
             last_answer_choice_ids=choice_ids or None,
             last_answer_text=sub.answer_text,
             last_created_at=sub.submitted_at,
+            attempt_no=sub.attempt_no,
         )
 
     async def get_progress_batch(

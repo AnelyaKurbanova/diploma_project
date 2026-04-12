@@ -32,7 +32,8 @@ ALLOWED_TEMPLATES = {
     "transition",
 }
 
-MAX_STRING_LEN = 160
+MAX_STRING_LEN = 200
+MAX_NARRATION_LEN = 400
 MAX_DERIVATION_STEPS = 10
 
 REPEATABLE_TEMPLATES = {"derivation", "example", "quiz", "step_by_step", "transition", "key_point", "warning", "recap"}
@@ -53,15 +54,17 @@ _plan_validator = Draft202012Validator(PLAN_SCHEMA)
 _content_validator = Draft202012Validator(CONTENT_SCHEMA)
 
 
-def _iter_strings(obj: Any) -> Iterable[str]:
+def _iter_strings(obj: Any, path: str = "$") -> Iterable[tuple[str, str]]:
+    """Yield (path, value) for all strings in a nested structure."""
     if isinstance(obj, str):
-        yield obj
+        yield path, obj
     elif isinstance(obj, Mapping):
-        for value in obj.values():
-            yield from _iter_strings(value)
+        for key, value in obj.items():
+            key_str = str(key)
+            yield from _iter_strings(value, f"{path}.{key_str}")
     elif isinstance(obj, (list, tuple)):
-        for item in obj:
-            yield from _iter_strings(item)
+        for idx, item in enumerate(obj):
+            yield from _iter_strings(item, f"{path}[{idx}]")
 
 
 def _validate_scene_order(templates: List[str]) -> None:
@@ -308,12 +311,32 @@ def validate_content(
                     f"plan='{p.get('template')}', content='{c.get('template')}'"
                 )
 
-    for s in _iter_strings(content_dict):
+    for scene in scenes:
+        narration = scene.get("narration")
+        if narration is not None:
+            if not isinstance(narration, str) or not narration.strip():
+                raise ContentValidationError(
+                    "Scene 'narration' must be a non-empty string if present"
+                )
+            if len(narration) > MAX_NARRATION_LEN:
+                raise ContentValidationError(
+                    f"Scene 'narration' exceeds maximum length of {MAX_NARRATION_LEN} characters"
+                )
+            _assert_no_latex_in_plain_text(narration, "narration")
+
+    stripped_scenes = [
+        {k: v for k, v in scene.items() if k != "narration"}
+        for scene in scenes
+    ]
+    stripped_content: dict[str, Any] = {**content_dict, "scenes": stripped_scenes}
+    for p, s in _iter_strings(stripped_content):
         if not s.strip():
-            raise ContentValidationError("Empty strings are not allowed")
+            raise ContentValidationError(f"Empty strings are not allowed (at {p})")
         if len(s) > MAX_STRING_LEN:
+            snippet = s[:120].replace("\n", " ")
             raise ContentValidationError(
-                f"String exceeds maximum length of {MAX_STRING_LEN} characters"
+                f"String exceeds maximum length of {MAX_STRING_LEN} characters "
+                f"(len={len(s)}) at {p}: {snippet!r}"
             )
 
     return content_dict

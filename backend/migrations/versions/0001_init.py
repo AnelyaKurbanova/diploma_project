@@ -18,7 +18,7 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # ── enums ──────────────────────────────────────────────────────────
+                                                                         
     problem_type = sa.Enum(
         "SINGLE_CHOICE", "MULTIPLE_CHOICE", "NUMERIC", "SHORT_TEXT", "MATCH",
         name="problem_type",
@@ -35,7 +35,7 @@ def upgrade() -> None:
     block_type = pg.ENUM("lecture", "video", "problem_set", name="block_type", create_type=False)
     op.execute("CREATE TYPE block_type AS ENUM ('lecture','video','problem_set')")
 
-    # ── standalone / root tables ───────────────────────────────────────
+                                                                         
     op.create_table(
         "projects",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -69,7 +69,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("name"),
     )
 
-    # ── users ──────────────────────────────────────────────────────────
+                                                                         
     op.create_table(
         "users",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -83,7 +83,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
 
-    # ── auth ───────────────────────────────────────────────────────────
+                                                                         
     op.create_table(
         "auth_accounts",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -133,7 +133,7 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_refresh_sessions_user_id"), "refresh_sessions", ["user_id"])
 
-    # ── schools ────────────────────────────────────────────────────────
+                                                                         
     op.create_table(
         "schools",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -144,7 +144,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id"),
     )
 
-    # ── catalog ────────────────────────────────────────────────────────
+                                                                         
     op.create_table(
         "subjects",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -179,7 +179,7 @@ def upgrade() -> None:
     op.create_index(op.f("ix_topics_parent_topic_id"), "topics", ["parent_topic_id"])
     op.create_index(op.f("ix_topics_subject_id"), "topics", ["subject_id"])
 
-    # ── user_profiles (depends on users, schools) ──────────────────────
+                                                                         
     op.create_table(
         "user_profiles",
         sa.Column("user_id", sa.UUID(), nullable=False),
@@ -202,7 +202,7 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("user_id"),
     )
 
-    # ── problems ───────────────────────────────────────────────────────
+                                                                         
     op.create_table(
         "problems",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -262,7 +262,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("problem_id", "tag_id", name="uq_problem_tag"),
     )
 
-    # ── lessons ────────────────────────────────────────────────────────
+                                                                         
     op.create_table(
         "lessons",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -329,7 +329,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_lesson_progress_user_id", "lesson_progress", ["user_id"])
 
-    # ── submissions ────────────────────────────────────────────────────
+                                                                         
     op.create_table(
         "submissions",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -360,7 +360,7 @@ def upgrade() -> None:
         sa.UniqueConstraint("submission_id", "choice_id", name="uq_submission_choice"),
     )
 
-    # ── classes ────────────────────────────────────────────────────────
+                                                                         
     op.create_table(
         "classes",
         sa.Column("id", sa.UUID(), nullable=False),
@@ -392,7 +392,7 @@ def upgrade() -> None:
     op.create_index("ix_class_students_class_id", "class_students", ["class_id"])
     op.create_index("ix_class_students_student_id", "class_students", ["student_id"])
 
-    # ── user activity events ───────────────────────────────────────────
+                                                                         
     op.create_table(
         "user_activity_events",
         sa.Column("id", sa.UUID(), nullable=False),

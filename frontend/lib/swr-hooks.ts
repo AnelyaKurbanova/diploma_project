@@ -1,12 +1,31 @@
 "use client";
 
 import useSWR from "swr";
-import { apiGet } from "@/lib/api";
+import {
+  apiGet,
+  apiGetLeaderboard,
+  apiGetMyAchievements,
+  apiGetMyNotifications,
+  apiGetMyStreak,
+  apiGetMyXp,
+  type LeaderboardMetric,
+  type LeaderboardResponse,
+  type UserAchievementsResponse,
+  type UserNotificationsResponse,
+  type UserStreak,
+  type UserXp,
+} from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 const SWR_CONFIG = {
   revalidateOnFocus: false,
   dedupingInterval: 60_000,
+};
+
+const NOTIFICATIONS_SWR_CONFIG = {
+  revalidateOnFocus: true,
+  dedupingInterval: 15_000,
+  refreshInterval: 30_000,
 };
 
 function fetcher<T>(path: string, token: string) {
@@ -139,4 +158,89 @@ export function useProblem(problemId: string | null) {
   const key = accessToken && problemId ? [`/problems/${problemId}`, accessToken] : null;
   const { data, error, isLoading, mutate } = useSWR(key, ([path, token]) => fetcher(path, token), SWR_CONFIG);
   return { problem: data, error, isLoading, mutate };
+}
+
+export function useMyXp() {
+  const { accessToken } = useAuth();
+  const key = accessToken ? ["/me/xp", accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR<UserXp>(
+    key,
+    ([, token]) => apiGetMyXp(token),
+    SWR_CONFIG,
+  );
+  return {
+    xp: data ?? { total_xp: 0 },
+    error,
+    isLoading,
+    mutate,
+  };
+}
+
+export function useMyStreak() {
+  const { accessToken } = useAuth();
+  const key = accessToken ? ["/me/streak", accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR<UserStreak>(
+    key,
+    ([, token]) => apiGetMyStreak(token),
+    SWR_CONFIG,
+  );
+  return {
+    streak: data ?? {
+      current_streak: 0,
+      longest_streak: 0,
+      last_activity_date: null,
+    },
+    error,
+    isLoading,
+    mutate,
+  };
+}
+
+export function useMyAchievements() {
+  const { accessToken } = useAuth();
+  const key = accessToken ? ["/me/achievements", accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR<UserAchievementsResponse>(
+    key,
+    ([, token]) => apiGetMyAchievements(token),
+    SWR_CONFIG,
+  );
+  return {
+    achievements: data ?? { items: [], unlocked_count: 0, total: 0 },
+    error,
+    isLoading,
+    mutate,
+  };
+}
+
+export function useMyNotifications() {
+  const { accessToken } = useAuth();
+  const key = accessToken ? ["/me/notifications", accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR<UserNotificationsResponse>(
+    key,
+    ([, token]) => apiGetMyNotifications(token),
+    NOTIFICATIONS_SWR_CONFIG,
+  );
+  return {
+    notifications: data ?? { items: [], unread_count: 0 },
+    error,
+    isLoading,
+    mutate,
+  };
+}
+
+export function useLeaderboard(metric: LeaderboardMetric, limit = 20) {
+  const { accessToken } = useAuth();
+  const key = accessToken ? ["/leaderboard", metric, limit, accessToken] : null;
+  const { data, error, isLoading, mutate } = useSWR<LeaderboardResponse>(
+    key,
+    ([, currentMetric, currentLimit, token]) =>
+      apiGetLeaderboard(currentMetric, token, currentLimit),
+    SWR_CONFIG,
+  );
+  return {
+    leaderboard: data ?? { metric, items: [], my_entry: null },
+    error,
+    isLoading,
+    mutate,
+  };
 }

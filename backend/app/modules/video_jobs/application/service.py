@@ -5,6 +5,7 @@ import json
 import logging
 import re
 import uuid
+from copy import deepcopy
 from typing import Any, Mapping
 
 import aio_pika
@@ -56,19 +57,28 @@ async def _publish_video_requested(job_id: uuid.UUID) -> None:
         exchange = await channel.declare_exchange(
             "video.events", ExchangeType.TOPIC, durable=True
         )
+        queue = await channel.declare_queue("video.worker", durable=True)
+        await queue.bind(exchange, routing_key="video.requested")
+
         payload = {"job_id": str(job_id)}
         message = Message(
             body=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             content_type="application/json",
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
         )
         await exchange.publish(message, routing_key="video.requested")
+        logger.info(
+            "RabbitMQ: video.requested published successfully "
+            "(exchange=video.events, routing_key=video.requested)",
+            extra={"job_id": str(job_id)},
+        )
     finally:
         await connection.close()
 
 
-# ---------------------------------------------------------------------------
-# Template selection constants (mirrors video_worker/app/validators.py)
-# ---------------------------------------------------------------------------
+                                                                             
+                                                                       
+                                                                             
 
 _ALL_TEMPLATES = {
     "title", "hook", "goal", "recap", "definitions", "key_point",
@@ -100,9 +110,9 @@ _PLAIN_TEXT_FIELDS: dict[str, list[str]] = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Validation helpers (lightweight, backend-side)
-# ---------------------------------------------------------------------------
+                                                                             
+                                                
+                                                                             
 
 
 def _build_fallback_plan(topic_title: str) -> dict[str, Any]:
@@ -217,10 +227,24 @@ def _validate_content_structure(
                     "(value_latex, steps, final_latex)."
                 )
 
+    for idx, scene in enumerate(scenes):
+        narration = scene.get("narration") if isinstance(scene, dict) else None
+        if narration is not None:
+            if not isinstance(narration, str) or not narration.strip():
+                errors.append(f"Scene #{idx + 1} 'narration' must be a non-empty string if present")
+            elif len(narration) > 400:
+                errors.append(
+                    f"Scene #{idx + 1} 'narration' exceeds maximum length of 400 characters"
+                )
+            elif _LATEX_IN_PLAIN_TEXT_PATTERN.search(narration):
+                errors.append(
+                    f"Scene #{idx + 1} 'narration' must be plain Russian text without LaTeX commands"
+                )
+
     plan_errors = _validate_plan_structure(data)
     errors.extend(plan_errors)
 
-    # Content must follow the generated plan 1:1 (same length and template order).
+                                                                                  
     if plan_json is not None:
         plan_scenes = plan_json.get("scenes")
         if not isinstance(plan_scenes, list):
@@ -252,9 +276,9 @@ def _validate_content_structure(
     return errors
 
 
-# ---------------------------------------------------------------------------
-# Step 1: Plan generation — choose the optimal template sequence
-# ---------------------------------------------------------------------------
+                                                                             
+                                                                
+                                                                             
 
 _PLAN_SYSTEM_PROMPT = (
     "Ты — опытный педагог-методист по математике и дизайнер видеоуроков.\n"
@@ -456,9 +480,9 @@ async def _generate_plan(
     raise Conflict("Не удалось сгенерировать план видео")
 
 
-# ---------------------------------------------------------------------------
-# Step 2: Content generation — fill in data for each scene
-# ---------------------------------------------------------------------------
+                                                                             
+                                                          
+                                                                             
 
 _CONTENT_SYSTEM_PROMPT = (
     "Ты — опытный учитель математики и эксперт по LaTeX.\n"
@@ -473,7 +497,14 @@ _CONTENT_SYSTEM_PROMPT = (
     "- Все текстовые поля — на русском языке.\n"
     "- LaTeX пиши без окружающих $$ — только формульный код.\n"
     "- Используй ТОЛЬКО информацию из переданного контекста учебника. "
-    "Не придумывай новых фактов или формул."
+    "Не придумывай новых фактов или формул.\n"
+    "ОЗВУЧКА (narration):\n"
+    "- Для каждой сцены добавь поле \"narration\" — русский текст озвучки (2-4 предложения, ~30-50 слов).\n"
+    "- Озвучка — это объяснение ученику «голосом преподавателя», а НЕ описание интерфейса/экрана.\n"
+    "- Запрещены режиссёрские ремарки: \"на экране\", \"появляется\", \"исчезает\", \"должен быть знак\", \"появляются стрелки\" и т.п.\n"
+    "- Говори про математику и смысл шагов: \"Рассмотрим знак интеграла\", \"Сделаем замену\", \"Перенесём слагаемое\".\n"
+    "- Только русский текст, без LaTeX-команд и математических формул в виде кода.\n"
+    "- Формулы произноси словами: \"икс квадрат плюс два икс\" вместо \\x^2 + 2x."
 )
 
 _CONTENT_USER_TEMPLATE = """\
@@ -604,10 +635,33 @@ REQUEST_JSON:
       "text": "краткий итог (без LaTeX)"
     }}
 
+ОЗВУЧКА (поле "narration" для каждой сцены):
+Добавь поле "narration" рядом с "template" и "data". Это русский текст озвучки (2-4 предложения, 30-50 слов).
+Озвучка должна соответствовать происходящему в сцене, но формулироваться как объяснение, без описания экрана.
+СТРОГО ЗАПРЕЩЕНО в narration:
+- фразы про экран/визуал: "на экране", "видно", "появляется/появляются", "исчезает", "элементы", "стрелки"
+- конструкции "должен быть знак ...", "сейчас появится ...", "вот тут показываем ..."
+Как правильно писать narration:
+- говори от лица учителя: "Давай разберём...", "Сначала сделаем...", "Теперь подставим..."
+- проговаривай смысл формул словами (без LaTeX-кода)
+- для пошаговых шаблонов: объясняй действия ("перенесём", "сократим", "подставим"), а не анимацию
+Короткие правила по шаблонам:
+- "title": представь тему и зачем она нужна
+- "hook": заинтересуй вопросом/фактом (без упоминания экрана)
+- "goal": что научимся делать
+- "definitions": что означает каждый термин/обозначение
+- "key_point": главное правило и смысл формулы словами
+- "derivation"/"formula_build"/"step_by_step": объясняй преобразования по шагам
+- "example": объяви задачу и объясни решение
+- "quiz": задай вопрос, дай паузу, объясни ответ
+- "warning": в чём ошибка и как правильно
+- "summary": итог и главный вывод
+Ограничения narration: только русский текст, без LaTeX-команд, максимум 400 символов.
+
 ОГРАНИЧЕНИЯ:
 - Используй ТОЛЬКО шаблоны из ПЛАНА, в том же порядке.
 - Максимум 10 шагов в derivation/example.
-- Максимум 160 символов в любом строковом поле.
+- Максимум 200 символов в любом строковом поле (кроме narration — макс. 400).
 - Никаких пустых строк.
 - LaTeX БЕЗ окружающих $$ — только формульный код.
 - LaTeX должен быть валидным для MathTex (Manim). Избегай \\text внутри MathTex.
@@ -619,10 +673,45 @@ REQUEST_JSON:
 ФОРМАТ ОТВЕТА — ТОЛЬКО валидный JSON (без markdown):
 {{
   "scenes": [
-    {{ "template": "...", "data": {{ ... }} }},
+    {{ "template": "...", "data": {{ ... }}, "narration": "Текст озвучки..." }},
     ...
   ]
 }}"""
+
+
+def _normalize_content_json(content_json: dict[str, Any]) -> dict[str, Any]:
+    """Best-effort normalizer to prevent worker-side validation failures.
+
+    Worker enforces hard limits:
+    - max 200 chars for any string in content_json (excluding narration)
+    - max 400 chars for narration
+    - no empty strings
+    Here we clamp lengths and strip whitespace so occasional LLM drift doesn't fail the job.
+    """
+
+    def _clamp_str(value: str, limit: int) -> str:
+        s = re.sub(r"\s+", " ", (value or "").strip())
+        if not s:
+            return s
+        if len(s) <= limit:
+            return s
+                                                                    
+        s = s[:limit].rstrip(" ,;:-")
+        return s
+
+    def _walk(obj: Any, *, in_narration: bool = False) -> Any:
+        if isinstance(obj, str):
+            return _clamp_str(obj, 400 if in_narration else 200)
+        if isinstance(obj, list):
+            return [_walk(x, in_narration=in_narration) for x in obj]
+        if isinstance(obj, dict):
+            out: dict[str, Any] = {}
+            for k, v in obj.items():
+                out[k] = _walk(v, in_narration=(k == "narration"))
+            return out
+        return obj
+
+    return _walk(deepcopy(content_json)) if isinstance(content_json, dict) else content_json
 
 
 async def _generate_content_from_plan(
@@ -728,9 +817,9 @@ async def _generate_content_from_plan(
     return data
 
 
-# ---------------------------------------------------------------------------
-# Orchestrator: 2-step generation (plan -> content) with retry
-# ---------------------------------------------------------------------------
+                                                                             
+                                                              
+                                                                             
 
 async def _generate_video_content_json(
     *,
@@ -750,7 +839,7 @@ async def _generate_video_content_json(
     if not topic_title or not rag_chunks:
         raise Conflict("Недостаточно учебных материалов для генерации видео")
 
-    # --- Step 1: generate plan (template sequence) ---
+                                                       
     plan_json = await _generate_plan(
         client=client,
         request_json=request_json,
@@ -763,7 +852,7 @@ async def _generate_video_content_json(
         [s.get("template") for s in plan_json.get("scenes", [])],
     )
 
-    # --- Step 2: generate content with retry on validation errors ---
+                                                                      
     previous_errors: list[str] | None = None
     for attempt in range(_CONTENT_MAX_RETRIES + 1):
         content_json = await _generate_content_from_plan(
@@ -912,6 +1001,7 @@ class VideoJobService:
                     topic_title=query_title,
                     rag_chunks=rag_chunks,
                 )
+                content_json = _normalize_content_json(content_json)
 
                 job = await session.get(VideoJobModel, job_id)
                 if job is None:
@@ -923,7 +1013,7 @@ class VideoJobService:
                 await session.commit()
 
             await _publish_video_requested(job_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:                
             logger.exception(
                 "Background planning failed for problem video job",
                 extra={"job_id": str(job_id), "problem_id": str(problem_id)},
@@ -948,6 +1038,7 @@ class VideoJobService:
                     topic_title=query_title,
                     rag_chunks=rag_chunks,
                 )
+                content_json = _normalize_content_json(content_json)
 
                 job = await session.get(VideoJobModel, job_id)
                 if job is None:
@@ -959,7 +1050,7 @@ class VideoJobService:
                 await session.commit()
 
             await _publish_video_requested(job_id)
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:                
             logger.exception(
                 "Background planning failed for topic video job",
                 extra={

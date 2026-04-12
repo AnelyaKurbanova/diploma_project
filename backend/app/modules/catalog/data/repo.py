@@ -11,6 +11,7 @@ from app.core.errors import Conflict, NotFound
 from app.core.i18n import tr
 from app.modules.catalog.data.models import SubjectModel, TopicModel
 from app.modules.classes.data.models import ClassAssessmentItemModel
+from app.modules.knowledge.data.models import RagDocumentModel
 from app.modules.lessons.data.models import LessonModel, LessonStatus
 from app.modules.problems.data.models import ProblemModel
 from app.modules.submissions.data.models import SubmissionModel
@@ -106,9 +107,12 @@ class CatalogRepo:
 
     async def delete_subject(self, subject_id: uuid.UUID) -> None:
         row = await self.get_subject(subject_id)
+        subject_code = row.code
+
         topic_ids = select(TopicModel.id).where(TopicModel.subject_id == subject_id)
-        await self.session.execute(delete(LessonModel).where(LessonModel.topic_id.in_(topic_ids)))
         problem_ids = select(ProblemModel.id).where(ProblemModel.subject_id == subject_id)
+
+        await self.session.execute(delete(LessonModel).where(LessonModel.topic_id.in_(topic_ids)))
         await self.session.execute(
             delete(SubmissionModel).where(SubmissionModel.problem_id.in_(problem_ids))
         )
@@ -118,7 +122,11 @@ class CatalogRepo:
             )
         )
         await self.session.execute(delete(ProblemModel).where(ProblemModel.subject_id == subject_id))
-        await self.session.flush()
+        await self.session.execute(
+            delete(RagDocumentModel).where(RagDocumentModel.subject_code == subject_code)
+        )
+        await self.session.execute(delete(TopicModel).where(TopicModel.subject_id == subject_id))
+
         await self.session.delete(row)
         await self.session.flush()
 

@@ -72,11 +72,11 @@ class ExplanationResponse(BaseModel):
 class GenerateFromRagRequest(BaseModel):
     subject_id: uuid.UUID
     topic_id: uuid.UUID
-    # Общее количество задач (fallback, если не заданы количества по уровням сложности)
+                                                                                       
     count: int = Field(default=10, ge=1, le=30)
-    # Необязательные квоты по уровням сложности.
-    # Если хотя бы одно из полей > 0, то суммарное количество задач
-    # берётся как сумма easy+medium+hard (и дополнительно ограничивается 30).
+                                                
+                                                                   
+                                                                             
     easy_count: int | None = Field(default=None, ge=0, le=30)
     medium_count: int | None = Field(default=None, ge=0, le=30)
     hard_count: int | None = Field(default=None, ge=0, le=30)
@@ -406,13 +406,23 @@ async def delete_problem(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(
         require_roles(
+            UserRole.CONTENT_MAKER,
             UserRole.MODERATOR,
             UserRole.ADMIN,
         )
     ),
 ):
     svc = ProblemService(session)
-    await svc.delete_problem(problem_id)
+    role_val = getattr(current_user.role, "value", current_user.role)
+    privileged = role_val in {
+        UserRole.MODERATOR.value,
+        UserRole.ADMIN.value,
+    }
+    await svc.delete_problem(
+        problem_id,
+        actor_id=current_user.id,
+        actor_can_delete_any=privileged,
+    )
     return None
 
 
@@ -520,20 +530,20 @@ async def generate_problems_from_rag(
         )
     ),
 ):
-    # Определяем желаемые квоты по сложностям, если они заданы.
+                                                               
     easy = body.easy_count or 0
     medium = body.medium_count or 0
     hard = body.hard_count or 0
 
     difficulty_quota: dict[str, int] | None = None
 
-    # Сначала определяем базовое желаемое количество задач с учётом общего лимита.
+                                                                                  
     total_requested = min(max(body.count, 1), 30)
 
     sum_by_levels = easy + medium + hard
     if sum_by_levels > 0:
-        # Если пользователь указал количества по уровням сложности,
-        # используем их сумму как целевое количество задач (также ограниченную 30).
+                                                                   
+                                                                                   
         total_requested = min(sum_by_levels, 30)
         difficulty_quota = {
             "easy": max(0, min(easy, 30)),
@@ -541,8 +551,8 @@ async def generate_problems_from_rag(
             "hard": max(0, min(hard, 30)),
         }
     else:
-        # Если явных квот нет, распределяем count примерно поровну:
-        # сначала лёгкие, затем средние, затем сложные.
+                                                                   
+                                                       
         base = total_requested // 3
         rem = total_requested % 3
         easy_auto = base + (1 if rem > 0 else 0)

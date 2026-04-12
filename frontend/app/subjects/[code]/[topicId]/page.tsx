@@ -94,7 +94,7 @@ export default function TopicDetailPage() {
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -108,18 +108,18 @@ export default function TopicDetailPage() {
   const userRole = user.role ?? "student";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
       <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
         <nav className="mb-6 flex flex-wrap items-center gap-2 text-sm text-slate-400 animate-page-in">
-          <Link href="/subjects" className="transition-colors hover:text-blue-600">
+          <Link href="/subjects" className="transition-colors hover:text-[#5081ba]">
             Предметы
           </Link>
           <span>/</span>
           <Link
             href={`/subjects/${code}`}
-            className="transition-colors hover:text-blue-600"
+            className="transition-colors hover:text-[#5081ba]"
           >
             {subject?.name_ru ?? code}
           </Link>
@@ -146,7 +146,7 @@ export default function TopicDetailPage() {
 
         {!loadError && !noLessons && (
           <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white py-16 text-center">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-blue-600" />
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-slate-300 border-t-[#5081ba]" />
             <p className="mt-3 text-sm text-slate-500">
               Переходим к лекции темы
             </p>

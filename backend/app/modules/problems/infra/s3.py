@@ -30,7 +30,7 @@ ALLOWED_CONTENT_TYPES = frozenset(
     ["image/jpeg", "image/png", "image/gif", "image/webp"]
 )
 
-MAX_UPLOAD_SIZE = 10 * 1024 * 1024  # 10 MB
+MAX_UPLOAD_SIZE = 10 * 1024 * 1024         
 
 _EXT_MAP = {
     "image/jpeg": "jpg",

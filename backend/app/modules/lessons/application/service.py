@@ -26,6 +26,7 @@ from app.modules.lessons.data.models import BlockType, LessonStatus
 from app.modules.lessons.data.repo import LessonsRepo
 from app.modules.problems.application.service import ProblemService
 from app.modules.problems.data.models import ProblemModel, ProblemStatus
+from app.modules.gamification.application.service import GamificationService
 
 
 class LessonService:
@@ -38,7 +39,7 @@ class LessonService:
         if not await self.repo.topic_exists(data.topic_id):
             raise NotFound(tr("topic_not_found"))
 
-        # Наследуем класс (grade_level) от темы.
+                                                
         topic = await self.catalog_repo.get_topic(data.topic_id)
 
         try:
@@ -51,7 +52,7 @@ class LessonService:
             await self.session.commit()
         except IntegrityError:
             await self.session.rollback()
-            # Convert raw DB-level violations to a stable API error for client.
+                                                                               
             raise Conflict("Could not create lesson for this topic")
         return LessonOut(
             id=row.id,
@@ -90,14 +91,14 @@ class LessonService:
             raise NotFound("Lesson not found")
         legacy_problem_ids = await self.repo.list_problem_ids_for_lesson(lesson_id)
 
-        # Собираем все задачи, привязанные к блокам урока.
+                                                          
         all_problem_ids: list[uuid.UUID] = []
         for block in lesson.content_blocks:
             for link in block.problem_links:
                 all_problem_ids.append(link.problem_id)
 
-        # По умолчанию разрешаем задачи в черновике/на проверке/опубликованные,
-        # а в публичном режиме — только опубликованные.
+                                                                               
+                                                       
         allowed_statuses: set[ProblemStatus] = {
             ProblemStatus.DRAFT,
             ProblemStatus.PENDING_REVIEW,
@@ -122,10 +123,10 @@ class LessonService:
             for link in block.problem_links:
                 status = status_by_id.get(link.problem_id)
                 if status is None:
-                    # Задача удалена или не найдена — пропускаем.
+                                                                 
                     continue
                 if status not in allowed_statuses:
-                    # Архивные и прочие запрещённые статусы исключаем.
+                                                                      
                     continue
                 filtered_links.append(
                     ContentBlockProblemOut(
@@ -185,9 +186,9 @@ class LessonService:
         await self.repo.delete_lesson(lesson_id)
         await self.session.commit()
 
-    # ------------------------------------------------------------------
-    # Content blocks CRUD
-    # ------------------------------------------------------------------
+                                                                        
+                         
+                                                                        
 
     async def create_block(
         self, lesson_id: uuid.UUID, data: ContentBlockCreate, *, allow_published_edit: bool = False
@@ -361,7 +362,7 @@ class LessonService:
             raise NotFound("Нет учебных материалов по предмету. Сначала загрузите docx через /knowledge/ingest.")
 
         chunk_contents = [c.content for c in chunks]
-        text = await generate_lecture_from_context(topic.title_ru, chunk_contents)
+        text = await generate_lecture_from_context(lesson.title, chunk_contents)
         if not text:
             raise Conflict(
                 "Модель вернула пустой текст лекции. Попробуйте ещё раз; "
@@ -410,7 +411,7 @@ class LessonService:
             allow_published_edit=allow_published_edit,
         )
 
-        # Получаем предмет и тему для RAG-генерации (аналогично ProblemService.generate_from_rag).
+                                                                                                  
         topic = await self.catalog_repo.get_topic(lesson.topic_id)
         subject = await self.catalog_repo.get_subject(topic.subject_id)
 
@@ -433,8 +434,8 @@ class LessonService:
                     difficulty_quota=None,
                 )
             except Conflict:
-                # Если хотя бы часть задач уже создана в предыдущих батчах —
-                # считаем, что достигли «потолка» по уникальным задачам.
+                                                                            
+                                                                        
                 if all_created:
                     break
                 raise
@@ -445,12 +446,12 @@ class LessonService:
             all_created.extend(problems)
             remaining -= len(problems)
 
-            # Если модель вернула меньше задач, чем просили в батче,
-            # скорее всего дальше уникальные задачи уже не появятся.
+                                                                    
+                                                                    
             if len(problems) < current_batch:
                 break
 
-        # Найти или создать блок задач для урока.
+                                                 
         problem_blocks = [
             b
             for b in lesson.content_blocks
@@ -469,8 +470,8 @@ class LessonService:
                 body=None,
             )
 
-        # Дополняем существующий список задач новыми.
-        from app.modules.lessons.data.repo import LessonsRepo  # local import to avoid cycles
+                                                     
+        from app.modules.lessons.data.repo import LessonsRepo                                
 
         repo: LessonsRepo = self.repo
         existing_ids = await repo.list_block_problem_ids(block.id)
@@ -482,9 +483,9 @@ class LessonService:
         await self.session.commit()
         return await self.get_detail(lesson_id, only_published=False)
 
-    # ------------------------------------------------------------------
-    # Progress
-    # ------------------------------------------------------------------
+                                                                        
+              
+                                                                        
 
     async def mark_completed(
         self,
@@ -492,7 +493,17 @@ class LessonService:
         lesson_id: uuid.UUID,
         time_spent_sec: int | None = None,
     ) -> LessonProgressOut:
-        row = await self.repo.mark_lesson_completed(user_id, lesson_id, time_spent_sec)
+        row, was_first_completion = await self.repo.mark_lesson_completed(
+            user_id,
+            lesson_id,
+            time_spent_sec,
+        )
+        gamification = GamificationService(self.session)
+        await gamification.on_lesson_completed(
+            user_id,
+            was_first_completion=was_first_completion,
+            occurred_at=row.completed_at,
+        )
         await self.session.commit()
         return LessonProgressOut(
             user_id=row.user_id,

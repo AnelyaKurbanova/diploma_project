@@ -7,6 +7,10 @@ import { apiGet, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { ActivityHeatmap } from "@/components/profile/activity-heatmap";
+import { useMyAchievements, useMyStreak, useMyXp } from "@/lib/swr-hooks";
+import { AchievementsPanel } from "@/components/gamification/achievements-panel";
+import { XpCard } from "@/components/gamification/xp-card";
+import { StreakCard } from "@/components/gamification/streak-card";
 
 type MeResponse = {
   id: string;
@@ -75,6 +79,13 @@ export default function ProfilePage() {
   const [friendEmail, setFriendEmail] = useState("");
   const [addingFriend, setAddingFriend] = useState(false);
   const [showAddFriend, setShowAddFriend] = useState(false);
+  const { xp, isLoading: xpLoading } = useMyXp();
+  const { streak, isLoading: streakLoading } = useMyStreak();
+  const {
+    achievements,
+    isLoading: achievementsLoading,
+    error: achievementsError,
+  } = useMyAchievements();
 
   const loadAll = async (token: string) => {
     const [meData, profileData, statsData, socialData] = await Promise.all([
@@ -163,7 +174,7 @@ export default function ProfilePage() {
   };
 
   if (isLoading || !user || !accessToken) {
-    return <div className="min-h-screen bg-slate-50" />;
+    return <div className="min-h-screen bg-[#f8fafc]" />;
   }
 
   const userName = profile?.full_name ?? user.email.split("@")[0];
@@ -172,7 +183,7 @@ export default function ProfilePage() {
   const friendsCount = social?.friends?.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={avatarSrc} />
       <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
         <div className="mb-4">
@@ -205,7 +216,7 @@ export default function ProfilePage() {
             <div className="-mt-8 mb-3 flex items-end justify-between gap-3 sm:-mt-10">
               <div className="flex items-end gap-3">
                 <div className="h-20 w-20 rounded-2xl border-4 border-white bg-white p-1.5 shadow-lg sm:h-24 sm:w-24">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  {}
                   <img
                     src={avatarSrc}
                     alt={userName}
@@ -214,7 +225,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="pb-1 sm:pb-0">
                   <h1 className="text-3xl font-extrabold leading-tight sm:text-4xl sm:leading-none">{userName}</h1>
-                  <p className="text-xs font-medium text-blue-600">
+                  <p className="text-xs font-medium text-[#5081ba]">
                     {me?.role ? ROLE_LABELS[me.role] ?? me.role : "Пользователь"}
                   </p>
                   <p className="mt-1 text-sm text-slate-500">
@@ -236,6 +247,13 @@ export default function ProfilePage() {
           <div className="space-y-4">
             <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               <StatCard
+                color="green"
+                iconSrc="/icons/stat-achievements.png"
+                iconAlt="XP"
+                value={xpLoading ? "..." : xp.total_xp}
+                label="Всего XP"
+              />
+              <StatCard
                 color="blue"
                 iconSrc="/icons/stat-progress.png"
                 iconAlt="Задачи"
@@ -243,59 +261,33 @@ export default function ProfilePage() {
                 label="Задач выполнено"
               />
               <StatCard
-                color="green"
-                iconSrc="/icons/stat-achievements.png"
-                iconAlt="Прогресс"
-                value={`${stats?.overall_progress ?? 0}%`}
-                label="Общий прогресс"
-              />
-              <StatCard
                 color="orange"
                 iconSrc="/icons/stat-tasks.png"
                 iconAlt="Достижения"
-                value={stats?.completed_lectures ?? 0}
+                value={achievementsLoading ? "..." : achievements.unlocked_count}
                 label="Достижений"
               />
               <StatCard
                 color="red"
                 iconSrc="/icons/stat-streak.png"
                 iconAlt="Серия"
-                value={Math.max(1, Math.round((stats?.accuracy ?? 0) / 12))}
+                value={streakLoading ? "..." : streak.current_streak}
                 label="Дней подряд"
               />
             </section>
 
+            <section className="grid gap-4 lg:grid-cols-2">
+              <XpCard xp={xp} isLoading={xpLoading} />
+              <StreakCard streak={streak} isLoading={streakLoading} />
+            </section>
+
             <ActivityHeatmap activity={social?.activity ?? []} />
 
-            <section className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-              <h2 className="mb-4 text-xl font-bold">Достижения</h2>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <AchievementCard
-                  title="Первые шаги"
-                  subtitle={`Выполнено ${Math.min(5, stats?.solved_tasks ?? 0)} задач`}
-                  progress={Math.min(100, ((stats?.solved_tasks ?? 0) / 5) * 100)}
-                />
-                <AchievementCard
-                  title="Ежедневная активность"
-                  subtitle={`Серия ${Math.max(1, Math.round((stats?.accuracy ?? 0) / 12))} дней`}
-                  progress={Math.min(100, (stats?.accuracy ?? 0) * 1.2)}
-                />
-                <AchievementCard
-                  title="Мастер"
-                  subtitle={`Пройдено ${stats?.completed_lectures ?? 0} уроков`}
-                  progress={
-                    stats?.total_lectures
-                      ? Math.min(100, (stats.completed_lectures / stats.total_lectures) * 100)
-                      : 0
-                  }
-                />
-                <AchievementCard
-                  title="Прогресс"
-                  subtitle={`Точность ${stats?.accuracy ?? 0}%`}
-                  progress={stats?.accuracy ?? 0}
-                />
-              </div>
-            </section>
+            <AchievementsPanel
+              achievements={achievements}
+              isLoading={achievementsLoading}
+              error={achievementsError}
+            />
           </div>
 
           <aside className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
@@ -348,14 +340,14 @@ export default function ProfilePage() {
                     type="email"
                     value={friendEmail}
                     onChange={(e) => setFriendEmail(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-[#5081ba]"
                     placeholder="friend@example.com"
                   />
                   <button
                     type="button"
                     onClick={handleAddFriend}
                     disabled={addingFriend}
-                    className="rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                    className="rounded-lg bg-[#0f2d51] px-3 py-2 text-sm font-medium text-white hover:bg-[#184070] disabled:opacity-50"
                   >
                     {addingFriend ? "..." : "Добавить"}
                   </button>
@@ -407,7 +399,7 @@ function StatCard({
     <article className={`aspect-square rounded-2xl border-4 bg-white px-4 py-4 ${palette[color]}`}>
       <div className="grid h-full grid-rows-[40px_1fr_44px] items-center">
         <div className="flex items-center justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
+          {}
           <img src={iconSrc} alt={iconAlt} className="h-8 w-8 object-contain" />
         </div>
         <p className="text-center text-3xl font-extrabold leading-none text-slate-800 sm:text-4xl">{value}</p>
@@ -419,33 +411,10 @@ function StatCard({
   );
 }
 
-function AchievementCard({
-  title,
-  subtitle,
-  progress,
-}: {
-  title: string;
-  subtitle: string;
-  progress: number;
-}) {
-  return (
-    <article className="rounded-xl border border-blue-200 bg-white p-3">
-      <h3 className="text-base font-semibold text-slate-900">{title}</h3>
-      <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
-      <div className="mt-2 h-2 rounded-full bg-slate-200">
-        <div
-          className="h-2 rounded-full bg-blue-500"
-          style={{ width: `${Math.max(0, Math.min(100, progress))}%` }}
-        />
-      </div>
-    </article>
-  );
-}
-
 function Friend({ name, role, avatarUrl }: { name: string; role: string; avatarUrl?: string | null }) {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-gray-100 bg-white px-3 py-2">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {}
       <img
         src={avatarUrl || "/images/default-avatar.png"}
         alt={name}

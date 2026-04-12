@@ -1,5 +1,4 @@
 const messagesRu: Record<string, string> = {
-  // ── common ────────────────────────────────────────────────────────
   loading: "Загрузка...",
   error_generic: "Произошла ошибка. Попробуйте ещё раз.",
   save: "Сохранить",
@@ -10,7 +9,6 @@ const messagesRu: Record<string, string> = {
   submit: "Отправить",
   no_data: "Нет данных",
 
-  // ── auth ──────────────────────────────────────────────────────────
   login: "Войти",
   register: "Зарегистрироваться",
   logout: "Выйти",
@@ -21,7 +19,6 @@ const messagesRu: Record<string, string> = {
   login_with_google: "Войти через Google",
   or_separator: "или",
 
-  // ── problems ──────────────────────────────────────────────────────
   all_problems: "Все задачи",
   practice_hint: "Практикуйтесь на задачах разной сложности",
   all_filter: "Все",
@@ -38,7 +35,6 @@ const messagesRu: Record<string, string> = {
   score_template: "Баллы: {score} из {max}",
   explanation: "Объяснение",
 
-  // ── proxy errors ──────────────────────────────────────────────────
   submission_proxy_error: "Ошибка при отправке решения",
   request_failed: "Запрос не выполнен (статус {status})",
 };

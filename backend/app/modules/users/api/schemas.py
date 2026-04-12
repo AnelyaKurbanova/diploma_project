@@ -15,6 +15,13 @@ PrimaryGoal = Literal[
     "classroom_learning",
 ]
 
+NotificationType = Literal[
+    "achievement_unlocked",
+    "friend_request_received",
+    "friend_added",
+    "class_assessment_published",
+]
+
 
 class UserProfileOut(BaseModel):
     id: uuid.UUID
@@ -103,7 +110,7 @@ class FriendOut(BaseModel):
 
 
 class ActivityDayOut(BaseModel):
-    date: str  # YYYY-MM-DD
+    date: str              
     count: int
 
 
@@ -130,6 +137,25 @@ class FriendAddIn(BaseModel):
         if self.friend_user_id is None and not (self.friend_email or "").strip():
             raise ValueError("Нужно указать friend_user_id или friend_email")
         return self
+
+
+class UserNotificationOut(BaseModel):
+    id: uuid.UUID
+    type: NotificationType
+    title: str
+    message: str
+    is_read: bool
+    created_at: datetime
+    read_at: datetime | None = None
+    actor_user_id: uuid.UUID | None = None
+    actor_name: str | None = None
+    actor_avatar_url: str | None = None
+    action_url: str | None = None
+
+
+class NotificationListOut(BaseModel):
+    items: list[UserNotificationOut]
+    unread_count: int
 
 
 class PublicStatsOut(BaseModel):

@@ -4,11 +4,11 @@ from typing import Iterable
 
 from manim import (
     DOWN,
-    UP,
     FadeIn,
     Indicate,
-    MathTable,
     Scene,
+    Table,
+    Text,
     config,
 )
 from manim.utils.rate_functions import smooth
@@ -40,11 +40,15 @@ class TableScene(Scene):
 
         all_rows = [self._headers] + self._rows
 
-        table = MathTable(
+        table = Table(
             all_rows,
             include_outer_lines=True,
             line_config={"stroke_width": 1.5, "color": DIM},
-            element_to_mobject_config={"color": TEXT_COLOR, "font_size": FONT_SIZE_SMALL},
+            element_to_mobject=lambda value: Text(
+                str(value),
+                color=TEXT_COLOR,
+                font_size=FONT_SIZE_SMALL,
+            ),
         )
         table.get_horizontal_lines().set_color(DIM)
         table.get_vertical_lines().set_color(DIM)

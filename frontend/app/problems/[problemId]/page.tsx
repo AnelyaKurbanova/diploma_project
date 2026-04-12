@@ -1,12 +1,15 @@
 'use client';
 
 import confetti from "canvas-confetti";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useSWRConfig } from "swr";
 import { apiGet, apiGetStudentAssessmentDetail, apiPost } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { ProblemContent } from "@/components/ui/problem-content";
+import { ChatWidget } from "@/components/chat/ChatWidget";
+import { HintButton } from "@/components/chat/HintButton";
 
 type Problem = {
   id: string;
@@ -61,6 +64,7 @@ type SubmissionProgress = {
   last_answer_choice_ids: string[] | null;
   last_answer_text: string | null;
   last_created_at: string | null;
+  attempt_no: number | null;
 };
 
 const DIFFICULTY_LABELS: Record<string, string> = {
@@ -75,6 +79,10 @@ const DIFFICULTY_COLORS: Record<string, string> = {
   hard: "bg-rose-50 text-rose-700",
 };
 
+const FONT_ROSTOV = "var(--font-rostov)";
+const FONT_JOST = "var(--font-jost)";
+const FONT_JAKARTA = "var(--font-jakarta), 'Plus Jakarta Sans', sans-serif";
+
 
 function fireConfetti() {
   if (typeof window === "undefined") return;
@@ -82,6 +90,7 @@ function fireConfetti() {
 }
 
 export default function ProblemDetailsPage() {
+  const { mutate } = useSWRConfig();
   const { problemId } = useParams<{ problemId: string }>();
   const { user, isLoading, accessToken } = useAuth();
   const router = useRouter();
@@ -101,9 +110,10 @@ export default function ProblemDetailsPage() {
     "correct" | "incorrect" | null
   >(null);
   const [initialProgressLoaded, setInitialProgressLoaded] = useState(false);
+  const [, setAttemptNo] = useState<number | null>(null);
   const [imageLightboxIndex, setImageLightboxIndex] = useState<number | null>(null);
   const [navProblemIds, setNavProblemIds] = useState<string[] | null>(null);
-  const [navSolvedIds, setNavSolvedIds] = useState<string[]>([]);
+  const [, setNavSolvedIds] = useState<string[]>([]);
 
   useEffect(() => {
     if (isLoading) return;
@@ -148,7 +158,6 @@ export default function ProblemDetailsPage() {
     })();
   }, [accessToken, profile, problemId]);
 
-  // Load last submission progress for this problem to restore state
   useEffect(() => {
     if (!accessToken || !problem || initialProgressLoaded) return;
 
@@ -161,6 +170,9 @@ export default function ProblemDetailsPage() {
           accessToken,
         );
         setInitialProgressLoaded(true);
+        if (progress.attempt_no) {
+          setAttemptNo(progress.attempt_no);
+        }
         if (!progress.has_attempt) return;
 
         if (
@@ -195,7 +207,6 @@ export default function ProblemDetailsPage() {
           }
         }
       } catch {
-        // ignore
       }
     })();
   }, [accessToken, problem, initialProgressLoaded, assessmentId]);
@@ -259,7 +270,6 @@ export default function ProblemDetailsPage() {
         }
       }
     } catch {
-      // ignore
     }
     if (!accessToken) return;
     (async () => {
@@ -353,6 +363,8 @@ export default function ProblemDetailsPage() {
       );
 
       setSubmissionResult(result);
+      setAttemptNo((prev) => (prev ?? 0) + 1);
+      await mutate(["/me/notifications", accessToken]);
 
       if (result.status === "graded") {
         if (result.is_correct) {
@@ -371,11 +383,11 @@ export default function ProblemDetailsPage() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [problem, accessToken, canSubmit, isChoiceType, selectedChoiceIds, answerText, assessmentId]);
+  }, [problem, accessToken, canSubmit, isChoiceType, selectedChoiceIds, answerText, assessmentId, mutate]);
 
   if (isLoading || !user || !profile) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
           <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
             <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
@@ -400,10 +412,10 @@ export default function ProblemDetailsPage() {
       : "Назад к лекции";
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900">
+    <div className="min-h-screen bg-[#f8fafc] text-[#0f2d51]">
       <DashboardHeader userName={userName} userRole={userRole} avatarUrl={profile.avatar_url ?? null} />
 
-      {/* Full-screen overlay during submission check */}
+      {}
       {isSubmitting && (
         <div className="animate-overlay-in fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="animate-spinner-card-in flex flex-col items-center rounded-2xl bg-white px-10 py-8 shadow-2xl">
@@ -423,7 +435,8 @@ export default function ProblemDetailsPage() {
           <button
             type="button"
             onClick={() => router.push(backHref)}
-            className="text-sm font-medium text-blue-600 hover:text-blue-700"
+            className="text-sm font-medium text-[#5081ba] hover:text-[#0f2d51]"
+            style={{ fontFamily: FONT_JOST }}
           >
             {backLabel}
           </button>
@@ -447,7 +460,8 @@ export default function ProblemDetailsPage() {
                   : `/problems/${prevProblemId}`;
                 router.push(url);
               }}
-              className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md active:scale-[0.98]"
+              className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-[#dbeafe] hover:bg-[#eff6ff] hover:text-[#0f2d51] hover:shadow-md active:scale-[0.98]"
+              style={{ fontFamily: FONT_JAKARTA }}
             >
               <svg
                 className="h-4 w-4 transition-transform duration-200 group-hover:-translate-x-0.5"
@@ -478,7 +492,8 @@ export default function ProblemDetailsPage() {
                   : `/problems/${nextProblemId}`;
                 router.push(url);
               }}
-              className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 hover:shadow-md active:scale-[0.98]"
+              className="group flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:scale-[1.02] hover:border-[#dbeafe] hover:bg-[#eff6ff] hover:text-[#0f2d51] hover:shadow-md active:scale-[0.98]"
+              style={{ fontFamily: FONT_JAKARTA }}
             >
               Следующая
               <svg
@@ -495,7 +510,7 @@ export default function ProblemDetailsPage() {
         </div>
 
         {loadError && (
-          <div className="mb-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">
+          <div className="mb-6 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600" style={{ fontFamily: FONT_JOST }}>
             {loadError}
           </div>
         )}
@@ -507,7 +522,7 @@ export default function ProblemDetailsPage() {
           </div>
         ) : (
           problem && (
-            <article className="animate-page-in animate-stagger-1 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow duration-300 hover:shadow-md">
+            <article className="animate-page-in animate-stagger-1 rounded-[24px] border border-[#f1f5f9] bg-white p-6 shadow-[0px_10px_40px_-10px_rgba(15,45,81,0.08)] transition-shadow duration-300 hover:shadow-md">
               <div className="mb-3 flex items-center gap-2">
                 <span
                   className={`rounded-full px-2 py-0.5 text-xs font-medium ${
@@ -517,18 +532,18 @@ export default function ProblemDetailsPage() {
                 >
                   {DIFFICULTY_LABELS[problem.difficulty] ?? problem.difficulty}
                 </span>
-                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600" style={{ fontFamily: FONT_JAKARTA }}>
                   {problem.points} балл.
                 </span>
               </div>
-              <h1 className="text-2xl font-extrabold text-slate-900">
+              <h1 className="text-2xl text-slate-900" style={{ fontFamily: FONT_ROSTOV, letterSpacing: "-0.35px" }}>
                 <ProblemContent body={problem.title} variant="inline" />
               </h1>
-              <div className="mt-4 text-sm text-slate-700">
+              <div className="mt-4 text-sm text-slate-700" style={{ fontFamily: FONT_JOST }}>
                 <ProblemContent body={problem.statement} />
               </div>
 
-              {/* Problem images */}
+              {}
               {problem.images && problem.images.length > 0 && (
                 <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {[...problem.images]
@@ -538,9 +553,9 @@ export default function ProblemDetailsPage() {
                         key={img.id}
                         type="button"
                         onClick={() => setImageLightboxIndex(idx)}
-                        className="group relative w-full overflow-hidden rounded-xl border border-gray-200 bg-slate-100 shadow-sm transition hover:border-blue-300 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                        className="group relative w-full overflow-hidden rounded-xl border border-gray-200 bg-slate-100 shadow-sm transition hover:border-[#5081ba] hover:shadow-md focus:outline-none focus:ring-2 focus:ring-[#5081ba] focus:ring-offset-2"
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {}
                         <img
                           src={img.url}
                           alt={img.alt_text || `Изображение ${img.order_no + 1}`}
@@ -558,7 +573,7 @@ export default function ProblemDetailsPage() {
                 </div>
               )}
 
-              {/* Fullscreen image lightbox */}
+              {}
               {imageLightboxIndex !== null &&
                 problem.images &&
                 problem.images.length > 0 && (() => {
@@ -614,7 +629,7 @@ export default function ProblemDetailsPage() {
                         className="max-h-[90vh] max-w-[90vw] px-4"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        {}
                         <img
                           src={current.url}
                           alt={current.alt_text || `Изображение`}
@@ -628,7 +643,7 @@ export default function ProblemDetailsPage() {
                   );
                 })()}
 
-              {/* Choice inputs (single / multiple) */}
+              {}
               {(problem.type === "single_choice" ||
                 problem.type === "multiple_choice") &&
                 problem.choices.length > 0 && (
@@ -638,9 +653,10 @@ export default function ProblemDetailsPage() {
                         key={choice.id}
                         className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-sm transition-colors ${
                           selectedChoiceIds.includes(choice.id)
-                            ? "border-blue-300 bg-blue-50 text-blue-800"
+                            ? "border-[#93c5fd] bg-[#eff6ff] text-[#0f2d51]"
                             : "border-gray-200 bg-slate-50 text-slate-700 hover:border-gray-300"
                         } ${isSubmitting ? "pointer-events-none opacity-60" : ""}`}
+                        style={{ fontFamily: FONT_JOST }}
                       >
                         <input
                           type={
@@ -665,10 +681,10 @@ export default function ProblemDetailsPage() {
                   </div>
                 )}
 
-              {/* Unified text input for numeric + short_text */}
+              {}
               {isTextType && (
                 <div className="mt-6">
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-sm font-medium text-slate-700" style={{ fontFamily: FONT_JAKARTA }}>
                     Ваш ответ
                   </label>
                   <input
@@ -676,7 +692,8 @@ export default function ProblemDetailsPage() {
                     value={answerText}
                     onChange={(e) => setAnswerText(e.target.value)}
                     disabled={isSubmitting}
-                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-slate-900 transition-colors focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-4 py-3 text-sm text-slate-900 transition-colors focus:border-[#5081ba] focus:outline-none focus:ring-2 focus:ring-[#bfdbfe] disabled:cursor-not-allowed disabled:opacity-60"
+                    style={{ fontFamily: FONT_JOST }}
                     placeholder={
                       problem.type === "numeric"
                         ? "Введите ответ (число, дробь, с единицами и т.д.)"
@@ -689,7 +706,7 @@ export default function ProblemDetailsPage() {
                     }}
                   />
                   {isHardShortText && (
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-400" style={{ fontFamily: FONT_JOST }}>
                       Ответ без специальных математических символов — только числа, буквы и простые
                       знаки вроде +, -, /, точка и запятая.
                     </p>
@@ -697,26 +714,32 @@ export default function ProblemDetailsPage() {
                 </div>
               )}
 
-              {/* Submit button */}
+              {}
               <div className="mt-6">
                 <button
                   type="button"
                   onClick={handleSubmit}
                   disabled={!canSubmit}
-                  className="rounded-lg bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-blue-700 hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                  className="rounded-lg bg-[#0f2d51] px-6 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-[#184070] hover:shadow-md active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 disabled:shadow-none"
+                  style={{ fontFamily: FONT_JAKARTA }}
                 >
                   Отправить решение
                 </button>
               </div>
 
-              {/* Error message */}
+              {}
+              <div className="mt-4">
+                <HintButton visible={resultAnimation === "incorrect"} />
+              </div>
+
+              {}
               {submitError && (
-                <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">
+                <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600" style={{ fontFamily: FONT_JOST }}>
                   {submitError}
                 </p>
               )}
 
-              {/* Result banner with animations */}
+              {}
               {submissionResult && (
                 <div
                   className={`mt-5 animate-slide-up-fade rounded-xl border p-5 text-sm ${
@@ -771,6 +794,7 @@ export default function ProblemDetailsPage() {
                               ? "text-rose-700"
                               : "text-slate-900"
                         }`}
+                        style={{ fontFamily: FONT_JAKARTA }}
                       >
                         {submissionResult.status === "graded"
                           ? submissionResult.is_correct
@@ -779,7 +803,7 @@ export default function ProblemDetailsPage() {
                           : "На проверке"}
                       </p>
                       {submissionResult.score != null && (
-                        <p className="mt-0.5 text-slate-500">
+                        <p className="mt-0.5 text-slate-500" style={{ fontFamily: FONT_JOST }}>
                           Баллы: {submissionResult.score} из {problem.points}
                         </p>
                       )}
@@ -788,7 +812,7 @@ export default function ProblemDetailsPage() {
                 </div>
               )}
 
-              {/* Shake animation on the answer area when incorrect */}
+              {}
               {resultAnimation === "incorrect" && isTextType && (
                 <style>{`
                   input[type="text"] {
@@ -797,20 +821,11 @@ export default function ProblemDetailsPage() {
                 `}</style>
               )}
 
-              {problem.explanation && submissionResult && (
-                <section className="mt-8 border-t border-gray-100 pt-5">
-                  <h2 className="text-sm font-semibold text-slate-900">
-                    Объяснение
-                  </h2>
-                  <div className="mt-2 text-sm text-slate-600">
-                    <ProblemContent body={problem.explanation} />
-                  </div>
-                </section>
-              )}
             </article>
           )
         )}
       </main>
+      <ChatWidget contextType="problem" problemId={problemId} />
     </div>
   );
 }

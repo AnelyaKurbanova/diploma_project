@@ -26,7 +26,6 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
     setLoading(true);
     setError(null);
     try {
-      // Admin-only endpoint for managing schools
       const data = await apiGet<School[]>("/schools/admin", accessToken);
       setSchools(data);
     } catch (err) {
@@ -40,7 +39,6 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
 
   useEffect(() => {
     void loadSchools();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [accessToken]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,7 +60,6 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
       setLastCreatedCode(created.teacher_code);
       setName("");
 
-      // Refresh list
       await loadSchools();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при создании школы");
@@ -77,7 +74,6 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
       await navigator.clipboard.writeText(lastCreatedCode);
       setSuccess("Код скопирован в буфер обмена");
     } catch {
-      // ignore
     }
   };
 
@@ -125,7 +121,7 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
         className="space-y-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm"
       >
         <div className="flex items-center justify-between">
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-brand-navy">
             Создать школу и получить код учителя
           </h3>
         </div>
@@ -143,7 +139,7 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Школа №123, г. Алматы"
-              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 focus:ring-1 focus:ring-brand-navy/25"
             />
           </div>
         </div>
@@ -179,7 +175,7 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+            className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
           >
             {submitting ? "Создание..." : "Создать школу"}
           </button>
@@ -188,7 +184,7 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
 
       <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
         <div className="border-b border-gray-100 px-6 py-4">
-          <h3 className="text-base font-bold text-slate-900">
+          <h3 className="text-base font-bold text-brand-navy">
             Список школ (для онбординга)
           </h3>
           <p className="mt-1 text-xs text-slate-400">
@@ -215,7 +211,7 @@ export function SchoolsTab({ accessToken }: SchoolsTabProps) {
                 className="flex items-center justify-between px-6 py-3 hover:bg-gray-50/50"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium text-slate-900">{s.name}</p>
+                  <p className="font-medium text-brand-navy">{s.name}</p>
                   <p className="mt-0.5 break-all text-xs text-slate-400">
                     ID школы: {s.id}
                   </p>

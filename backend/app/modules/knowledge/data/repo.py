@@ -15,6 +15,19 @@ class KnowledgeRepo:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
 
+    async def document_exists(
+        self,
+        *,
+        filename: str,
+        subject_code: str,
+    ) -> bool:
+        stmt = select(RagDocumentModel.id).where(
+            RagDocumentModel.subject_code == subject_code,
+            RagDocumentModel.filename == filename,
+        )
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none() is not None
+
     async def create_document(
         self,
         *,

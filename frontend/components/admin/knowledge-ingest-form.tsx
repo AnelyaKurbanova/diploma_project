@@ -89,8 +89,9 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
       setError("Выберите файл и предмет");
       return;
     }
-    if (!file.name.toLowerCase().endsWith(".docx")) {
-      setError("Поддерживаются только файлы .docx");
+    const lowerName = file.name.toLowerCase();
+    if (!(lowerName.endsWith(".docx") || lowerName.endsWith(".epub"))) {
+      setError("Поддерживаются только файлы .docx и .epub");
       return;
     }
 
@@ -134,20 +135,20 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
 
   return (
     <div className="rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
-      <h2 className="text-lg font-bold text-slate-900">Загрузка учебников в базу знаний</h2>
+      <h2 className="text-lg font-bold text-brand-navy">Загрузка учебников в базу знаний</h2>
       <p className="mt-1 text-sm text-slate-500">
-        Загрузите .docx с теорией по предмету. Материалы используются для RAG-генерации лекций.
+        Загрузите .docx или .epub с теорией по предмету. Материалы используются для RAG-генерации лекций.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
+          <label className="mb-1 block text-sm font-medium text-brand-navy/90">
             Предмет
           </label>
           <select
             value={selectedCode}
             onChange={(e) => setSelectedCode(e.target.value)}
-            className="w-full max-w-md rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-blue-400"
+            className="w-full max-w-md rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
           >
             <option value="">Выберите предмет</option>
             {subjects.map((s) => (
@@ -159,15 +160,15 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
         </div>
 
         <div>
-          <label className="mb-1 block text-sm font-medium text-slate-700">
-            Файл .docx
+          <label className="mb-1 block text-sm font-medium text-brand-navy/90">
+            Файл .docx или .epub
           </label>
           <input
             id="knowledge-file-input"
             type="file"
-            accept=".docx"
+            accept=".docx,.epub"
             onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-            className="block w-full max-w-md text-sm text-slate-500 file:mr-4 file:rounded-lg file:border-0 file:bg-blue-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-blue-700 hover:file:bg-blue-100"
+            className="block w-full max-w-md text-sm text-slate-500 file:mr-4 file:rounded-lg file:border-0 file:bg-brand-navy/10 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-navy hover:file:bg-brand-navy/[0.14]"
           />
           {file && (
             <p className="mt-1 text-xs text-slate-400">{file.name}</p>
@@ -188,14 +189,14 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
         <button
           type="submit"
           disabled={submitting || !file || !selectedCode}
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+          className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
         >
           {submitting ? "Загрузка..." : "Загрузить в базу знаний"}
         </button>
       </form>
 
       <div className="mt-10 border-t border-gray-200 pt-8">
-        <h3 className="text-base font-bold text-slate-900">Загруженные документы</h3>
+        <h3 className="text-base font-bold text-brand-navy">Загруженные документы</h3>
         <p className="mt-1 text-sm text-slate-500">
           Документы в базе знаний по предметам. Удаление удалит и все чанки.
         </p>
@@ -204,7 +205,7 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
           <select
             value={filterCode}
             onChange={(e) => setFilterCode(e.target.value)}
-            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-blue-400"
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm outline-none focus:border-brand-navy/50"
           >
             <option value="">Все</option>
             {subjects.map((s) => (
@@ -223,17 +224,17 @@ export function KnowledgeIngestForm({ accessToken }: KnowledgeIngestFormProps) {
             <table className="min-w-full divide-y divide-gray-200 text-left text-sm">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-4 py-2 font-medium text-slate-700">Файл</th>
-                  <th className="px-4 py-2 font-medium text-slate-700">Предмет (код)</th>
-                  <th className="px-4 py-2 font-medium text-slate-700">Чанков</th>
-                  <th className="px-4 py-2 font-medium text-slate-700">Загружен</th>
-                  <th className="px-4 py-2 font-medium text-slate-700"></th>
+                  <th className="px-4 py-2 font-medium text-brand-navy/90">Файл</th>
+                  <th className="px-4 py-2 font-medium text-brand-navy/90">Предмет (код)</th>
+                  <th className="px-4 py-2 font-medium text-brand-navy/90">Чанков</th>
+                  <th className="px-4 py-2 font-medium text-brand-navy/90">Загружен</th>
+                  <th className="px-4 py-2 font-medium text-brand-navy/90"></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {documents.map((doc) => (
                   <tr key={doc.id}>
-                    <td className="px-4 py-2 text-slate-900">{doc.filename}</td>
+                    <td className="px-4 py-2 text-brand-navy">{doc.filename}</td>
                     <td className="px-4 py-2 text-slate-600">{doc.subject_code}</td>
                     <td className="px-4 py-2 text-slate-600">{doc.chunks_count}</td>
                     <td className="px-4 py-2 text-slate-500">

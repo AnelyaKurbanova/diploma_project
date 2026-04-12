@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.data.db.session import get_session
 from app.modules.auth.deps import require_roles
 from app.modules.knowledge.api.schemas import DocumentOut, IngestResponse
-from app.modules.knowledge.application.ingestion import ingest_docx
+from app.modules.knowledge.application.ingestion import IngestionError, ingest_docx, ingest_epub
 from app.modules.knowledge.data.repo import KnowledgeRepo
 from app.modules.users.data.models import UserRole
 
@@ -28,20 +28,44 @@ async def ingest_document(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(require_roles(UserRole.MODERATOR, UserRole.ADMIN)),
 ):
-    if not file.filename or not file.filename.lower().endswith(".docx"):
-        raise HTTPException(status_code=400, detail="Only .docx files are supported")
-    original_name = Path(file.filename).name[:255]
-    with tempfile.NamedTemporaryFile(suffix=".docx", delete=False) as tmp:
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="Filename is required")
+
+    original_filename = Path(file.filename).name
+    lower = original_filename.lower()
+    if not (lower.endswith(".docx") or lower.endswith(".epub")):
+        raise HTTPException(status_code=400, detail="Only .docx and .epub files are supported")
+
+    repo = KnowledgeRepo(session)
+    if await repo.document_exists(filename=original_filename, subject_code=subject_code):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Document '{original_filename}' already exists for subject '{subject_code}'",
+        )
+
+    suffix = ".docx" if lower.endswith(".docx") else ".epub"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
         content = await file.read()
         tmp.write(content)
         tmp_path = Path(tmp.name)
     try:
-        doc, chunks_count = await ingest_docx(
-            session,
-            tmp_path,
-            subject_code,
-            original_filename=original_name,
-        )
+        try:
+            if suffix == ".docx":
+                doc, chunks_count = await ingest_docx(
+                    session,
+                    tmp_path,
+                    subject_code,
+                    original_filename=original_filename,
+                )
+            else:
+                doc, chunks_count = await ingest_epub(
+                    session,
+                    tmp_path,
+                    subject_code,
+                    original_filename=original_filename,
+                )
+        except IngestionError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
         return IngestResponse(
             document_id=doc.id,
             chunks_count=chunks_count,

@@ -18,16 +18,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1) Add nullable column first so we can backfill existing rows.
+                                                                    
     op.add_column(
         "problems",
         sa.Column("statement_normalized", sa.Text(), nullable=True),
     )
 
-    # 2) Backfill using a simple normalization that matches the Python helper:
-    # - trim outer whitespace
-    # - normalize Windows/Mac newlines to '\n'
-    # - collapse consecutive spaces/tabs into a single space
+                                                                              
+                             
+                                              
+                                                            
     op.execute(
         sa.text(
             """
@@ -46,7 +46,7 @@ def upgrade() -> None:
         )
     )
 
-    # 3) Make the column non-nullable.
+                                      
     op.alter_column(
         "problems",
         "statement_normalized",
@@ -54,7 +54,7 @@ def upgrade() -> None:
         existing_type=sa.Text(),
     )
 
-    # 4) Add a unique constraint to prevent strict duplicates per topic.
+                                                                        
     op.create_unique_constraint(
         "uq_problem_topic_statement_norm",
         "problems",

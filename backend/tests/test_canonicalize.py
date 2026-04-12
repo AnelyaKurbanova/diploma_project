@@ -32,7 +32,7 @@ def _make_answer_key(
 class TestNormalizeForStorage:
     """Test the deterministic canonicalization function."""
 
-    # ── Numbers with units (speed) ───────────────────────────────
+                                                                   
     def test_kmh_cyrillic_no_space(self):
         assert normalize_for_storage("36км/ч") == "36 km/h"
 
@@ -51,7 +51,7 @@ class TestNormalizeForStorage:
     def test_ms_latin(self):
         assert normalize_for_storage("12 m/s") == "12 m/s"
 
-    # ── Numbers with units (other) ───────────────────────────────
+                                                                   
     def test_kg(self):
         assert normalize_for_storage("5кг") == "5 kg"
 
@@ -79,7 +79,7 @@ class TestNormalizeForStorage:
     def test_liters(self):
         assert normalize_for_storage("3л") == "3 L"
 
-    # ── Pure numbers ─────────────────────────────────────────────
+                                                                   
     def test_integer(self):
         assert normalize_for_storage("42") == "42"
 
@@ -104,7 +104,7 @@ class TestNormalizeForStorage:
     def test_fraction_integer_result(self):
         assert normalize_for_storage("10/5") == "2"
 
-    # ── Text answers ─────────────────────────────────────────────
+                                                                   
     def test_text_lowercase_and_trim(self):
         assert normalize_for_storage("   Пифагоров теорема  ") == "пифагоров теорема"
 
@@ -117,14 +117,14 @@ class TestNormalizeForStorage:
     def test_text_strip_edge_punctuation(self):
         assert normalize_for_storage("...ответ!!!") == "ответ"
 
-    # ── Unicode handling ─────────────────────────────────────────
+                                                                   
     def test_unicode_minus(self):
         assert normalize_for_storage("\u22125") == "-5"
 
     def test_nbsp_handling(self):
         assert normalize_for_storage("36\u00a0км/ч") == "36 km/h"
 
-    # ── Edge cases ───────────────────────────────────────────────
+                                                                   
     def test_empty_string(self):
         assert normalize_for_storage("") is None
 
