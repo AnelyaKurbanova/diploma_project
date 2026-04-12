@@ -1,9 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api";
+import { API_BASE_URL, getErrorMessage, readApiErrorMessage } from "@/lib/api";
 
 export type ChatMessage = {
   id: string;
@@ -53,12 +51,18 @@ export function useChatStream(accessToken: string | null) {
         );
 
         if (!response.ok) {
-          const body = await response.json().catch(() => null);
-          throw new Error(body?.message || body?.detail || `Error ${response.status}`);
+          throw new Error(
+            await readApiErrorMessage(
+              response,
+              `/chat/conversations/${conversationId}/messages`,
+            ),
+          );
         }
 
         const reader = response.body?.getReader();
-        if (!reader) throw new Error("No response body");
+        if (!reader) {
+          throw new Error("Сервер не вернул поток ответа. Попробуйте ещё раз.");
+        }
 
         const decoder = new TextDecoder();
         let accumulated = "";
@@ -103,7 +107,12 @@ export function useChatStream(accessToken: string | null) {
         }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
-          setError(err instanceof Error ? err.message : "Stream failed");
+          setError(
+            getErrorMessage(
+              err,
+              "Не удалось отправить сообщение. Попробуйте ещё раз.",
+            ),
+          );
         }
       } finally {
         setIsStreaming(false);
@@ -140,12 +149,18 @@ export function useChatStream(accessToken: string | null) {
         );
 
         if (!response.ok) {
-          const body = await response.json().catch(() => null);
-          throw new Error(body?.message || body?.detail || `Error ${response.status}`);
+          throw new Error(
+            await readApiErrorMessage(
+              response,
+              `/chat/conversations/${conversationId}/hint`,
+            ),
+          );
         }
 
         const reader = response.body?.getReader();
-        if (!reader) throw new Error("No response body");
+        if (!reader) {
+          throw new Error("Сервер не вернул поток подсказки. Попробуйте ещё раз.");
+        }
 
         const decoder = new TextDecoder();
         let accumulated = "";
@@ -188,7 +203,12 @@ export function useChatStream(accessToken: string | null) {
         }
       } catch (err) {
         if ((err as Error).name !== "AbortError") {
-          setError(err instanceof Error ? err.message : "Hint stream failed");
+          setError(
+            getErrorMessage(
+              err,
+              "Не удалось получить подсказку. Попробуйте ещё раз.",
+            ),
+          );
         }
       } finally {
         setIsStreaming(false);

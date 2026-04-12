@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { apiGet, API_BASE_URL } from "@/lib/api";
+import { apiGet, API_BASE_URL, getErrorMessage, readApiErrorMessage } from "@/lib/api";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { ChatBubble } from "@/components/chat/ChatBubble";
 import { useProfile } from "@/lib/swr-hooks";
@@ -73,12 +73,13 @@ export default function AikaPage() {
       });
 
       if (!response.ok) {
-        const body = await response.json().catch(() => null);
-        throw new Error(body?.message || body?.detail || `Error ${response.status}`);
+        throw new Error(await readApiErrorMessage(response, "/chat/aika/messages"));
       }
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error("No body");
+      if (!reader) {
+        throw new Error("Сервер не вернул поток ответа. Попробуйте ещё раз.");
+      }
 
       const decoder = new TextDecoder();
       let accumulated = "";
@@ -113,7 +114,7 @@ export default function AikaPage() {
         }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(getErrorMessage(err, "Не удалось отправить сообщение. Попробуйте ещё раз."));
     } finally {
       setIsStreaming(false);
       setStreamingContent("");
@@ -134,8 +135,7 @@ export default function AikaPage() {
           body: form,
         });
         if (!res.ok) {
-          const body = await res.json().catch(() => null);
-          throw new Error(body?.message || body?.detail || "Ошибка загрузки");
+          throw new Error(await readApiErrorMessage(res, "/chat/aika/upload"));
         }
         const data = await res.json();
         setDocuments((prev) => [
@@ -143,7 +143,7 @@ export default function AikaPage() {
           ...prev,
         ]);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Ошибка загрузки");
+        setError(getErrorMessage(err, "Не удалось загрузить файл. Попробуйте ещё раз."));
       } finally {
         setUploading(false);
       }
@@ -154,13 +154,20 @@ export default function AikaPage() {
   const handleDelete = useCallback(
     async (docId: string) => {
       if (!accessToken) return;
+      setError(null);
       try {
-        await fetch(`${API_BASE_URL}/chat/aika/documents/${docId}`, {
+        const response = await fetch(`${API_BASE_URL}/chat/aika/documents/${docId}`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${accessToken}` },
         });
+        if (!response.ok) {
+          throw new Error(
+            await readApiErrorMessage(response, `/chat/aika/documents/${docId}`),
+          );
+        }
         setDocuments((prev) => prev.filter((d) => d.id !== docId));
-      } catch {
+      } catch (err) {
+        setError(getErrorMessage(err, "Не удалось удалить документ. Попробуйте ещё раз."));
       }
     },
     [accessToken],
