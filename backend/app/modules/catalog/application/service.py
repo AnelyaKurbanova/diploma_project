@@ -15,6 +15,13 @@ from app.modules.catalog.api.schemas import (
 )
 
 
+async def _invalidate_catalog_tree_cache(cache: CacheService) -> None:
+    """Subjects list includes per-subject topic counts; topics/problems share the same UX surfaces."""
+    await cache.invalidate_pattern(f"{NAMESPACE.catalog_subjects}:*")
+    await cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
+    await cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+
+
 class SubjectService:
     def __init__(
         self,
@@ -33,6 +40,9 @@ class SubjectService:
             name_en=data.name_en,
         )
         await self.session.commit()
+
+        await _invalidate_catalog_tree_cache(self.cache)
+
         return row
 
     async def get(self, subject_id: uuid.UUID) -> SubjectModel:
@@ -77,9 +87,7 @@ class SubjectService:
         )
         await self.session.commit()
 
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_subjects}:*")
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+        await _invalidate_catalog_tree_cache(self.cache)
 
         return row
 
@@ -87,9 +95,7 @@ class SubjectService:
         await self.repo.delete_subject(subject_id)
         await self.session.commit()
 
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_subjects}:*")
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+        await _invalidate_catalog_tree_cache(self.cache)
 
 
 class TopicService:
@@ -113,6 +119,9 @@ class TopicService:
             order_no=0,
         )
         await self.session.commit()
+
+        await _invalidate_catalog_tree_cache(self.cache)
+
         return row
 
     async def get(self, topic_id: uuid.UUID) -> TopicModel:
@@ -161,8 +170,7 @@ class TopicService:
         )
         await self.session.commit()
 
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+        await _invalidate_catalog_tree_cache(self.cache)
 
         return row
 
@@ -170,8 +178,7 @@ class TopicService:
         await self.repo.delete_topic(topic_id)
         await self.session.commit()
 
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_topics}:*")
-        await self.cache.invalidate_pattern(f"{NAMESPACE.catalog_problems}:*")
+        await _invalidate_catalog_tree_cache(self.cache)
 
 
 class CurriculumService:
