@@ -5,13 +5,17 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy.exc import SQLAlchemyError
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.settings import settings
 from app.core.logging import (
@@ -31,11 +35,67 @@ setup_logging()
 logger = logging.getLogger(__name__)
 
 
+DEFAULT_ERROR_MESSAGES = {
+    status.HTTP_400_BAD_REQUEST: "Запрос составлен неверно. Проверьте данные и попробуйте ещё раз.",
+    status.HTTP_401_UNAUTHORIZED: "Нужно войти в аккаунт, чтобы продолжить.",
+    status.HTTP_403_FORBIDDEN: "У вас нет доступа к этому действию.",
+    status.HTTP_404_NOT_FOUND: "Запрашиваемый ресурс не найден.",
+    status.HTTP_409_CONFLICT: "Действие конфликтует с текущим состоянием данных.",
+    status.HTTP_422_UNPROCESSABLE_ENTITY: "Проверьте заполнение полей и попробуйте ещё раз.",
+    status.HTTP_429_TOO_MANY_REQUESTS: "Слишком много запросов. Попробуйте немного позже.",
+    status.HTTP_500_INTERNAL_SERVER_ERROR: "На сервере произошла ошибка. Попробуйте позже.",
+}
+
+
+def _request_id(request: Request) -> str | None:
+    value = getattr(request.state, "request_id", None)
+    if isinstance(value, str) and value:
+        return value
+    header_value = request.headers.get("X-Request-ID")
+    return header_value or None
+
+
+def _error_response(
+    request: Request,
+    *,
+    status_code: int,
+    error: str,
+    message: str | None = None,
+    details: list[dict[str, Any]] | None = None,
+    headers: dict[str, str] | None = None,
+) -> JSONResponse:
+    content: dict[str, Any] = {
+        "error": error,
+        "message": message or DEFAULT_ERROR_MESSAGES.get(status_code, "Не удалось выполнить запрос."),
+    }
+    request_id = _request_id(request)
+    if request_id:
+        content["request_id"] = request_id
+    if details:
+        content["details"] = details
+    return JSONResponse(status_code=status_code, content=content, headers=headers)
+
+
+def _validation_details(exc: RequestValidationError) -> list[dict[str, Any]]:
+    details: list[dict[str, Any]] = []
+    for item in exc.errors():
+        loc = item.get("loc") or ()
+        field = ".".join(str(part) for part in loc if part != "body") or "request"
+        details.append(
+            {
+                "field": field,
+                "message": item.get("msg", "Некорректное значение"),
+            }
+        )
+    return details
+
+
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
     """Generates request_id, logs every HTTP request/response, injects X-Request-ID header."""
 
     async def dispatch(self, request: Request, call_next):
         request_id = request.headers.get("X-Request-ID") or generate_request_id()
+        request.state.request_id = request_id
 
                                                                                         
                                                                                                   
@@ -147,12 +207,66 @@ async def health():
 
                             
 @app.exception_handler(AppError)
-async def app_error_handler(_: Request, exc: AppError):
+async def app_error_handler(request: Request, exc: AppError):
     payload = exc.payload()
-    return JSONResponse(
+    return _error_response(
+        request,
         status_code=exc.http_status,
-        content={"error": payload.error, "message": payload.message},
+        error=payload.error,
+        message=payload.message,
     )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_error_handler(request: Request, exc: RequestValidationError):
+    return _error_response(
+        request,
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        error="validation_error",
+        details=_validation_details(exc),
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_error_handler(request: Request, exc: StarletteHTTPException):
+    detail = exc.detail if isinstance(exc.detail, str) else None
+    if detail in {"Not Found", "Method Not Allowed", "Not authenticated"}:
+        detail = None
+    error = "http_error"
+    if exc.status_code == status.HTTP_401_UNAUTHORIZED:
+        error = "unauthorized"
+    elif exc.status_code == status.HTTP_403_FORBIDDEN:
+        error = "forbidden"
+    elif exc.status_code == status.HTTP_404_NOT_FOUND:
+        error = "not_found"
+    elif exc.status_code == status.HTTP_405_METHOD_NOT_ALLOWED:
+        error = "method_not_allowed"
+    return _error_response(
+        request,
+        status_code=exc.status_code,
+        error=error,
+        message=detail,
+        headers=exc.headers,
+    )
+
+
+@app.exception_handler(SQLAlchemyError)
+async def database_error_handler(request: Request, exc: SQLAlchemyError):
+    logger.exception(
+        "Database error",
+        exc_info=exc,
+        extra={
+            "http_method": request.method,
+            "http_path": request.url.path,
+        },
+    )
+    return _error_response(
+        request,
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        error="database_error",
+        message="Не удалось выполнить операцию с данными. Попробуйте позже.",
+    )
+
 
 @app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
@@ -164,9 +278,10 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
             "http_path": request.url.path,
         },
     )
-    return JSONResponse(
+    return _error_response(
+        request,
         status_code=500,
-        content={"error": "internal_server_error", "message": "Internal server error"},
+        error="internal_server_error",
     )
 
                 

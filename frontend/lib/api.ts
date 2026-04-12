@@ -21,12 +21,192 @@ interface RequestOptions extends RequestInit {
   accessToken?: string | null;
 }
 
+type ApiErrorBody = {
+  error?: unknown;
+  message?: unknown;
+  detail?: unknown;
+  details?: unknown;
+  request_id?: unknown;
+};
+
+export class ApiError extends Error {
+  status: number;
+  code: string;
+  body?: unknown;
+  details?: unknown;
+  requestId?: string;
+  path?: string;
+
+  constructor(
+    message: string,
+    {
+      status,
+      code,
+      body,
+      details,
+      requestId,
+      path,
+    }: {
+      status: number;
+      code: string;
+      body?: unknown;
+      details?: unknown;
+      requestId?: string;
+      path?: string;
+    },
+  ) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+    this.body = body;
+    this.details = details;
+    this.requestId = requestId;
+    this.path = path;
+  }
+}
+
 let refreshAccessTokenHandler: (() => Promise<string | null>) | null = null;
 
 export function setRefreshAccessTokenHandler(
   handler: () => Promise<string | null>,
 ): void {
   refreshAccessTokenHandler = handler;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
+
+function statusFallbackMessage(status: number): string {
+  if (status === 0) {
+    return "Не удалось связаться с сервером. Проверьте интернет или попробуйте позже.";
+  }
+  if (status === 400) return "Проверьте введённые данные и попробуйте ещё раз.";
+  if (status === 401) return "Сессия истекла. Войдите в аккаунт заново.";
+  if (status === 403) return "У вас нет доступа к этому действию.";
+  if (status === 404) return "Нужные данные не найдены.";
+  if (status === 409) return "Действие конфликтует с текущим состоянием данных.";
+  if (status === 422) return "Проверьте заполнение полей и попробуйте ещё раз.";
+  if (status === 429) return "Слишком много запросов. Попробуйте немного позже.";
+  if (status >= 500) return "На сервере произошла ошибка. Попробуйте позже.";
+  return `Запрос не выполнен (статус ${status}).`;
+}
+
+function formatValidationDetails(details: unknown): string | null {
+  if (!Array.isArray(details) || details.length === 0) {
+    return null;
+  }
+
+  const fields = details
+    .slice(0, 3)
+    .map((item) => {
+      if (!isRecord(item)) return null;
+      const field = typeof item.field === "string" ? item.field : null;
+      const message = typeof item.message === "string" ? item.message : null;
+      if (field && message) return `${field}: ${message}`;
+      return field || message;
+    })
+    .filter(Boolean);
+
+  if (fields.length === 0) {
+    return null;
+  }
+
+  const suffix = details.length > fields.length ? " и другие поля" : "";
+  return `Проверьте поля: ${fields.join("; ")}${suffix}.`;
+}
+
+function formatDetail(detail: unknown): string | null {
+  if (typeof detail === "string" && detail.trim()) {
+    return detail;
+  }
+  if (Array.isArray(detail)) {
+    return formatValidationDetails(
+      detail.map((item) => {
+        if (!isRecord(item)) return item;
+        const loc = Array.isArray(item.loc) ? item.loc.filter((part) => part !== "body") : [];
+        return {
+          field: loc.join(".") || "request",
+          message: item.msg,
+        };
+      }),
+    );
+  }
+  return null;
+}
+
+function messageFromBody(body: unknown, status: number): string {
+  if (!isRecord(body)) {
+    return statusFallbackMessage(status);
+  }
+
+  const typed = body as ApiErrorBody;
+  const message = typeof typed.message === "string" ? typed.message.trim() : "";
+  if (message) return message;
+
+  const detailMessage = formatDetail(typed.detail);
+  if (detailMessage) return detailMessage;
+
+  const detailsMessage = formatValidationDetails(typed.details);
+  if (detailsMessage) return detailsMessage;
+
+  return statusFallbackMessage(status);
+}
+
+async function readJsonSafely(response: Response): Promise<unknown> {
+  const contentType = response.headers.get("Content-Type") ?? "";
+  if (!contentType.includes("application/json")) {
+    return null;
+  }
+  return response.json().catch(() => null);
+}
+
+export async function apiErrorFromResponse(
+  response: Response,
+  path?: string,
+): Promise<ApiError> {
+  const body = await readJsonSafely(response);
+  const code = isRecord(body) && typeof body.error === "string" ? body.error : "http_error";
+  const requestId =
+    (isRecord(body) && typeof body.request_id === "string" ? body.request_id : null) ??
+    response.headers.get("X-Request-ID") ??
+    undefined;
+
+  return new ApiError(messageFromBody(body, response.status), {
+    status: response.status,
+    code,
+    body,
+    details: isRecord(body) ? body.details : undefined,
+    requestId,
+    path,
+  });
+}
+
+export async function readApiErrorMessage(
+  response: Response,
+  fallback?: string,
+): Promise<string> {
+  const error = await apiErrorFromResponse(response);
+  return error.message || fallback || statusFallbackMessage(response.status);
+}
+
+export function getErrorMessage(
+  error: unknown,
+  fallback = "Не удалось выполнить действие. Попробуйте ещё раз.",
+): string {
+  if (error instanceof ApiError) {
+    return error.requestId
+      ? `${error.message} Код обращения: ${error.requestId}.`
+      : error.message;
+  }
+  if (error instanceof TypeError) {
+    return "Не удалось связаться с сервером. Проверьте интернет или попробуйте позже.";
+  }
+  if (error instanceof Error && error.message.trim()) {
+    return error.message;
+  }
+  return fallback;
 }
 
 async function request<T>(
@@ -53,7 +233,19 @@ async function request<T>(
       cache: "no-store",
     };
 
-    const response = await fetch(url, init);
+    let response: Response;
+    try {
+      response = await fetch(url, init);
+    } catch (error) {
+      if (error instanceof Error && error.name === "AbortError") {
+        throw error;
+      }
+      throw new ApiError(statusFallbackMessage(0), {
+        status: 0,
+        code: "network_error",
+        path,
+      });
+    }
 
     const contentType = response.headers.get("Content-Type") ?? "";
     const isJson = contentType.includes("application/json");
@@ -75,18 +267,7 @@ async function request<T>(
         }
       }
 
-      const errorBody = isJson ? await response.json().catch(() => null) : null;
-      const message =
-        (errorBody && (errorBody.message ?? errorBody.detail)) ??
-        `Запрос ${path} не выполнен (статус ${response.status})`;
-
-      const error = new Error(message) as Error & {
-        status?: number;
-        body?: unknown;
-      };
-      error.status = response.status;
-      error.body = errorBody;
-      throw error;
+      throw await apiErrorFromResponse(response, path);
     }
 
     if (response.status === 204 || !isJson) {
@@ -101,7 +282,11 @@ async function request<T>(
     return JSON.parse(text) as T;
   }
 
-  throw new Error(`Запрос ${path} не выполнен после повторной попытки`);
+  throw new ApiError("Запрос не выполнен после повторной попытки. Попробуйте позже.", {
+    status: 0,
+    code: "retry_failed",
+    path,
+  });
 }
 
 export function apiGet<T>(

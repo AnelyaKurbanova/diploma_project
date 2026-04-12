@@ -202,20 +202,11 @@ export default function ProblemsPage() {
   ]);
 
   const totalPages = Math.max(1, Math.ceil(filteredProblems.length / PAGE_SIZE));
+  const effectiveCurrentPage = Math.min(currentPage, totalPages);
   const paginatedProblems = useMemo(() => {
-    const start = (currentPage - 1) * PAGE_SIZE;
+    const start = (effectiveCurrentPage - 1) * PAGE_SIZE;
     return filteredProblems.slice(start, start + PAGE_SIZE);
-  }, [filteredProblems, currentPage]);
-
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [selectedDifficulty, selectedType, selectedStatus, searchQuery, sortBy]);
-
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [currentPage, totalPages]);
+  }, [filteredProblems, effectiveCurrentPage]);
 
   useEffect(() => {
     if (typeof window === "undefined" || filteredProblems.length === 0) return;
@@ -291,7 +282,10 @@ export default function ProblemsPage() {
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Поиск</label>
               <input
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 placeholder="По названию или условию задачи"
                 className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
                 style={{ fontFamily: FONT_JOST }}
@@ -302,7 +296,10 @@ export default function ProblemsPage() {
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Сложность</label>
               <select
                 value={selectedDifficulty}
-                onChange={(e) => setSelectedDifficulty(e.target.value)}
+                onChange={(e) => {
+                  setSelectedDifficulty(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
                 style={{ fontFamily: FONT_JOST }}
               >
@@ -317,7 +314,10 @@ export default function ProblemsPage() {
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Тип</label>
               <select
                 value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
+                onChange={(e) => {
+                  setSelectedType(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
                 style={{ fontFamily: FONT_JOST }}
               >
@@ -332,7 +332,10 @@ export default function ProblemsPage() {
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Статус</label>
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value as SolveStatusFilter)}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value as SolveStatusFilter);
+                  setCurrentPage(1);
+                }}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
                 style={{ fontFamily: FONT_JOST }}
               >
@@ -347,7 +350,10 @@ export default function ProblemsPage() {
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>Сортировка</label>
               <select
                 value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as SortOption)}
+                onChange={(e) => {
+                  setSortBy(e.target.value as SortOption);
+                  setCurrentPage(1);
+                }}
                 className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-[#5081ba] focus:ring-2 focus:ring-[#dbeafe]"
                 style={{ fontFamily: FONT_JOST }}
               >
@@ -362,7 +368,7 @@ export default function ProblemsPage() {
 
           <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs text-slate-500" style={{ fontFamily: FONT_JAKARTA }}>
-              Страница {currentPage} из {totalPages}
+              Страница {effectiveCurrentPage} из {totalPages}
             </p>
             <button
               type="button"
@@ -372,6 +378,7 @@ export default function ProblemsPage() {
                 setSelectedStatus("all");
                 setSearchQuery("");
                 setSortBy("newest");
+                setCurrentPage(1);
               }}
               className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-50"
               style={{ fontFamily: FONT_JAKARTA }}
@@ -448,7 +455,7 @@ export default function ProblemsPage() {
           <div className="mt-6 flex items-center justify-center gap-2">
             <button
               type="button"
-              disabled={currentPage <= 1}
+              disabled={effectiveCurrentPage <= 1}
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ fontFamily: FONT_JAKARTA }}
@@ -463,7 +470,7 @@ export default function ProblemsPage() {
                   type="button"
                   onClick={() => setCurrentPage(pageNum)}
                   className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
-                    currentPage === pageNum
+                    effectiveCurrentPage === pageNum
                       ? "bg-[#0f2d51] text-white"
                       : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                   }`}
@@ -476,9 +483,9 @@ export default function ProblemsPage() {
             {totalPages > 7 && (
               <button
                 type="button"
-                onClick={() => setCurrentPage(totalPages)}
-                className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
-                    currentPage === totalPages
+                  onClick={() => setCurrentPage(totalPages)}
+                  className={`h-9 min-w-9 rounded-xl px-3 text-sm font-semibold transition ${
+                    effectiveCurrentPage === totalPages
                     ? "bg-[#0f2d51] text-white"
                     : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
                 }`}
@@ -488,7 +495,7 @@ export default function ProblemsPage() {
             )}
             <button
               type="button"
-              disabled={currentPage >= totalPages}
+              disabled={effectiveCurrentPage >= totalPages}
               onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               style={{ fontFamily: FONT_JAKARTA }}
