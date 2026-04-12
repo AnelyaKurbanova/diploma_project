@@ -175,7 +175,6 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         response.headers["X-Request-ID"] = request_id
         return response
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:

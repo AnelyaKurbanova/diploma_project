@@ -188,3 +188,44 @@ async def ingest_epub(
     await session.commit()
     await session.refresh(doc)
     return doc, len(chunk_pairs)
+
+
+async def ingest_epub(
+    session: AsyncSession,
+    file_path: Path,
+    subject_code: str,
+    *,
+    original_filename: str | None = None,
+) -> tuple[RagDocumentModel, int]:
+    """Convert epub to markdown, chunk, embed and store in the knowledge base."""
+    md = _convert_epub_to_markdown(file_path)
+    extracted = _extract_textish(md)
+    if len(extracted) < 2000:
+        raise IngestionError(
+            "EPUB contains too little extractable text. "
+            "It may be an image-only/scan EPUB or protected (DRM)."
+        )
+    chunk_pairs = _build_chunks(md)
+
+    repo = KnowledgeRepo(session)
+    doc = await repo.create_document(
+        filename=original_filename or file_path.name,
+        subject_code=subject_code,
+    )
+
+    contents = [c[1] for c in chunk_pairs]
+    embeddings = await embed_batch_async(contents)
+
+    for idx, ((section, content), embedding) in enumerate(zip(chunk_pairs, embeddings)):
+        await repo.create_chunk(
+            document_id=doc.id,
+            content=content,
+            embedding=embedding,
+            section=section,
+            chunk_index=idx,
+            metadata={"section": section} if section else None,
+        )
+
+    await session.commit()
+    await session.refresh(doc)
+    return doc, len(chunk_pairs)
