@@ -2,7 +2,7 @@
 
 import type React from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { apiGet, apiPost, apiPatch, apiDelete } from "@/lib/api";
+import { apiGet, apiPost, apiPatch, apiDelete, getErrorMessage } from "@/lib/api";
 import { ProblemContent } from "@/components/ui/problem-content";
 
 
@@ -612,11 +612,16 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
         file_name: file.name,
       }, accessToken);
 
-      await fetch(presign.upload_url, {
+      const uploadResponse = await fetch(presign.upload_url, {
         method: "PUT",
         headers: { "Content-Type": file.type },
         body: file,
       });
+      if (!uploadResponse.ok) {
+        throw new Error(
+          `Не удалось загрузить изображение в хранилище (статус ${uploadResponse.status}).`,
+        );
+      }
 
       setImages(prev =>
         prev.map((img, i) =>
@@ -627,7 +632,7 @@ export function ProblemsForm({ accessToken, userRole, onCreated }: ProblemsFormP
       );
     } catch (err) {
       setImages(prev => prev.filter((_, i) => i !== orderNo));
-      setError(err instanceof Error ? err.message : "Ошибка загрузки изображения");
+      setError(getErrorMessage(err, "Ошибка загрузки изображения"));
     }
   };
 
