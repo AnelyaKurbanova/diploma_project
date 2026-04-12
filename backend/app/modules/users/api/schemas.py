@@ -19,6 +19,7 @@ NotificationType = Literal[
     "achievement_unlocked",
     "friend_request_received",
     "friend_added",
+    "class_assessment_published",
 ]
 
 

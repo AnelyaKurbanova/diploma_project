@@ -63,6 +63,11 @@ async def _publish_video_requested(job_id: uuid.UUID) -> None:
             content_type="application/json",
         )
         await exchange.publish(message, routing_key="video.requested")
+        logger.info(
+            "RabbitMQ: video.requested published successfully "
+            "(exchange=video.events, routing_key=video.requested)",
+            extra={"job_id": str(job_id)},
+        )
     finally:
         await connection.close()
 

@@ -13,7 +13,7 @@ from app.modules.dashboard.application.service import DashboardService
 from app.modules.problems.data.models import ProblemModel
 from app.modules.submissions.data.models import SubmissionModel, SubmissionStatus
 from app.modules.users.data.models import UserRole, UserModel
-from app.modules.users.data.repo import UserProfileRepo
+from app.modules.users.data.repo import UserNotificationRepo, UserProfileRepo
 
 
 class ClassService:
@@ -109,6 +109,60 @@ class ClassService:
             raise Forbidden("Доступно только ученикам")
         return await self.repo.list_for_student(current_user.id)
 
+    async def get_student_class_workspace(self, current_user, class_id: uuid.UUID) -> dict:
+        if current_user.role != UserRole.STUDENT:
+            raise Forbidden("Доступно только ученикам")
+
+        classes = await self.repo.list_for_student(current_user.id)
+        cls = next((c for c in classes if c.id == class_id), None)
+        if cls is None:
+            raise NotFound("Класс не найден")
+
+        links = await self.repo.list_students(cls.id)
+        link = next((l for l in links if l.student_id == current_user.id), None)
+
+        teacher = await self.session.get(UserModel, cls.teacher_id)
+        teacher_profiles = UserProfileRepo(self.session)
+        teacher_profile = await teacher_profiles.get_by_user_id(cls.teacher_id)
+        teacher_name = (
+            (teacher_profile.full_name if teacher_profile else None)
+            or (teacher.email if teacher else None)
+        )
+
+        dashboard = DashboardService(self.session)
+        stats = await dashboard.get_stats(current_user.id)
+        overall_progress = stats.overall_progress
+
+        assessments_rows = await self.repo.list_assessments_by_class_ids(
+            [class_id],
+            only_published=True,
+        )
+        assessments_out: list[dict] = []
+        for row in assessments_rows:
+            aitems = await self.repo.list_assessment_items(row.id)
+            assessments_out.append(
+                {
+                    "id": row.id,
+                    "class_id": row.class_id,
+                    "class_name": cls.name,
+                    "title": row.title,
+                    "description": row.description,
+                    "due_at": row.due_at,
+                    "time_limit_min": row.time_limit_min,
+                    "items_count": len(aitems),
+                    "total_points": sum(item.points for item in aitems),
+                }
+            )
+
+        return {
+            "id": cls.id,
+            "name": cls.name,
+            "teacher_name": teacher_name,
+            "joined_at": link.created_at if link else cls.created_at,
+            "overall_progress": overall_progress,
+            "assessments": assessments_out,
+        }
+
     async def get_class_stats_for_teacher(
         self,
         current_user,
@@ -190,6 +244,22 @@ class ClassService:
                 for idx, (problem_id, points) in enumerate(items)
             ],
         )
+
+        students = await self.repo.list_students(cls.id)
+        notif_repo = UserNotificationRepo(self.session)
+        for link in students:
+            await notif_repo.create(
+                user_id=link.student_id,
+                type="class_assessment_published",
+                title="Новая контрольная",
+                message=f"В классе «{cls.name}» добавлена контрольная «{clean_title}».",
+                actor_user_id=current_user.id,
+                payload={
+                    "class_id": str(cls.id),
+                    "assessment_id": str(assessment.id),
+                },
+            )
+
         await self.session.commit()
         await self.session.refresh(assessment)
         return assessment

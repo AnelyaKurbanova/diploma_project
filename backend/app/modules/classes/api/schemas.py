@@ -102,6 +102,10 @@ class StudentAssessmentOut(BaseModel):
     total_points: int
 
 
+class StudentClassDetailOut(StudentClassOut):
+    assessments: list[StudentAssessmentOut]
+
+
 class StudentAssessmentItemOut(BaseModel):
     id: uuid.UUID
     problem_id: uuid.UUID

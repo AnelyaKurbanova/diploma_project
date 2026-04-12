@@ -21,6 +21,7 @@ from app.modules.classes.api.schemas import (
     StudentAssessmentItemOut,
     TeacherAssessmentProgressOut,
     TeacherAssessmentStudentProgressOut,
+    StudentClassDetailOut,
     StudentClassOut,
     TeacherClassOut,
 )
@@ -357,6 +358,24 @@ async def list_my_classes_student(
         )
 
     return result
+
+
+@router.get("/me/{class_id:uuid}", response_model=StudentClassDetailOut)
+async def get_my_class_workspace(
+    class_id: uuid.UUID,
+    session: AsyncSession = Depends(get_session),
+    current_user=Depends(get_current_user),
+):
+    svc = ClassService(session)
+    data = await svc.get_student_class_workspace(current_user, class_id)
+    return StudentClassDetailOut(
+        id=data["id"],
+        name=data["name"],
+        teacher_name=data["teacher_name"],
+        joined_at=data["joined_at"],
+        overall_progress=data["overall_progress"],
+        assessments=[StudentAssessmentOut(**row) for row in data["assessments"]],
+    )
 
 
 @router.get("/me/assessments", response_model=list[StudentAssessmentOut])

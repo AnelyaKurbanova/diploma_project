@@ -406,6 +406,10 @@ export type StudentAssessment = {
   total_points: number;
 };
 
+export type StudentClassWorkspace = StudentClass & {
+  assessments: StudentAssessment[];
+};
+
 export type StudentAssessmentItem = {
   id: string;
   problem_id: string;
@@ -501,7 +505,11 @@ export type UserAchievementsResponse = {
 
 export type UserNotification = {
   id: string;
-  type: "achievement_unlocked" | "friend_request_received" | "friend_added";
+  type:
+    | "achievement_unlocked"
+    | "friend_request_received"
+    | "friend_added"
+    | "class_assessment_published";
   title: string;
   message: string;
   is_read: boolean;
@@ -593,6 +601,13 @@ export function apiListStudentClasses(
   accessToken: string,
 ): Promise<StudentClass[]> {
   return apiGet<StudentClass[]>("/classes/me", accessToken);
+}
+
+export function apiGetStudentClassWorkspace(
+  classId: string,
+  accessToken: string,
+): Promise<StudentClassWorkspace> {
+  return apiGet<StudentClassWorkspace>(`/classes/me/${classId}`, accessToken);
 }
 
 export function apiListStudentAssessments(

@@ -6,6 +6,8 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+_VIDEO_WORKER_ROOT = Path(__file__).resolve().parent.parent
+
 
 class Settings(BaseSettings):
     """Top-level application settings loaded from environment variables."""
@@ -42,7 +44,10 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=(
+            _VIDEO_WORKER_ROOT / ".env",
+            Path(".env"),
+        ),
         env_prefix="",
         case_sensitive=False,
         extra="ignore",

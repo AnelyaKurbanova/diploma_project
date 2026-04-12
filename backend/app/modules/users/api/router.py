@@ -173,6 +173,11 @@ async def _load_notification_actor_map(
 def _notification_action_url(notification: UserNotificationModel) -> str:
     if notification.type == "friend_added" and notification.actor_user_id is not None:
         return f"/profile/{notification.actor_user_id}"
+    if notification.type == "class_assessment_published":
+        payload = notification.payload or {}
+        class_id = payload.get("class_id")
+        if isinstance(class_id, str) and class_id:
+            return f"/classes/{class_id}"
     return "/profile"
 
 

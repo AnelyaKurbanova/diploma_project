@@ -581,11 +581,22 @@ export default function DashboardPage() {
                 </form>
                 {studentClasses.length > 0 && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {studentClasses.slice(0, 2).map((c) => (
-                      <div key={c.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderTop: "1px solid #f1f5f9" }}>
-                        <span style={{ fontFamily: J, fontSize: 13, color: "#0f2d51", fontWeight: 500 }}>{c.name}</span>
+                    {studentClasses.map((c) => (
+                      <Link
+                        key={c.id}
+                        href={`/classes/${c.id}`}
+                        className="flex items-center justify-between rounded-lg py-2 transition-colors hover:bg-slate-50/90"
+                        style={{
+                          borderTop: "1px solid #f1f5f9",
+                          textDecoration: "none",
+                          color: "inherit",
+                          paddingLeft: 4,
+                          paddingRight: 4,
+                        }}
+                      >
+                        <span style={{ fontFamily: J, fontSize: 13, color: "#5081ba", fontWeight: 600 }}>{c.name}</span>
                         <span style={{ fontFamily: J, fontSize: 11, color: "#94a3b8" }}>{c.teacher_name ?? "—"}</span>
-                      </div>
+                      </Link>
                     ))}
                   </div>
                 )}

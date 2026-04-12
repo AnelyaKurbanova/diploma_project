@@ -12,12 +12,16 @@ import {
   apiGetClassAssessmentProgress,
   apiGet,
   apiGetClassDetail,
+  apiGetStudentClassWorkspace,
   apiListClassAssessments,
   apiRemoveClassStudent,
+  type StudentClassWorkspace,
   type TeacherAssessmentProgress,
 } from "@/lib/api";
+import { StudentClassWorkspaceView } from "@/components/classes/student-class-workspace";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { buttonClasses } from "@/components/ui/button";
+import { ProblemContent } from "@/components/ui/problem-content";
 
 type ProfileResponse = {
   full_name: string | null;
@@ -64,6 +68,8 @@ export default function ClassDetailsPage() {
   const [newAssessmentTimeLimit, setNewAssessmentTimeLimit] = useState("");
   const [selectedProblems, setSelectedProblems] = useState<Record<string, number>>({});
   const [creatingAssessment, setCreatingAssessment] = useState(false);
+  const [studentWorkspace, setStudentWorkspace] = useState<StudentClassWorkspace | null>(null);
+  const [studentLoading, setStudentLoading] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -77,10 +83,6 @@ export default function ClassDetailsPage() {
     (async () => {
       try {
         const p = await apiGet<ProfileResponse>("/me/profile", accessToken);
-        if (p.role !== "teacher") {
-          router.replace("/dashboard");
-          return;
-        }
         setProfile(p);
       } catch (err) {
         const status = (err as { status?: number }).status;
@@ -93,8 +95,11 @@ export default function ClassDetailsPage() {
     })();
   }, [accessToken, user, router]);
 
+  const isTeacher = profile?.role === "teacher";
+  const isStudent = profile?.role === "student";
+
   useEffect(() => {
-    if (!accessToken || !profile || !classId) return;
+    if (!accessToken || !profile || !classId || !isTeacher) return;
     (async () => {
       setPageLoading(true);
       setError(null);
@@ -114,10 +119,10 @@ export default function ClassDetailsPage() {
         setPageLoading(false);
       }
     })();
-  }, [accessToken, profile, classId]);
+  }, [accessToken, profile, classId, isTeacher]);
 
   useEffect(() => {
-    if (!accessToken || !profile || !classId) return;
+    if (!accessToken || !profile || !classId || !isTeacher) return;
     (async () => {
       setAssessmentsLoading(true);
       try {
@@ -129,7 +134,38 @@ export default function ClassDetailsPage() {
         setAssessmentsLoading(false);
       }
     })();
-  }, [accessToken, profile, classId]);
+  }, [accessToken, profile, classId, isTeacher]);
+
+  useEffect(() => {
+    if (!accessToken || !profile || !classId || !isStudent) return;
+    (async () => {
+      setStudentLoading(true);
+      setError(null);
+      try {
+        const data = await apiGetStudentClassWorkspace(classId, accessToken);
+        setStudentWorkspace(data);
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        if (status === 404) {
+          setError("Класс не найден или вы не состоите в нём.");
+        } else if (status === 403) {
+          setError("Нет доступа.");
+        } else {
+          setError("Не удалось загрузить данные класса.");
+        }
+        setStudentWorkspace(null);
+      } finally {
+        setStudentLoading(false);
+      }
+    })();
+  }, [accessToken, profile, classId, isStudent]);
+
+  const roleOk = profile?.role === "teacher" || profile?.role === "student";
+
+  useEffect(() => {
+    if (!profile || roleOk) return;
+    router.replace("/dashboard");
+  }, [profile, roleOk, router]);
 
   const handleCopyCode = async () => {
     if (!detail) return;
@@ -226,13 +262,31 @@ export default function ClassDetailsPage() {
     try {
       let dueAtIso: string | null = null;
       if (newAssessmentDueAt) {
-        const parsed = new Date(newAssessmentDueAt);
-        if (Number.isNaN(parsed.getTime())) {
+        const parts = newAssessmentDueAt.split("-").map(Number);
+        const y = parts[0];
+        const mo = parts[1];
+        const d = parts[2];
+        if (
+          parts.length !== 3 ||
+          !y ||
+          !mo ||
+          !d ||
+          mo < 1 ||
+          mo > 12 ||
+          d < 1 ||
+          d > 31
+        ) {
           setError("Некорректная дата дедлайна.");
           setCreatingAssessment(false);
           return;
         }
-        dueAtIso = parsed.toISOString();
+        const endOfDayLocal = new Date(y, mo - 1, d, 23, 59, 59, 999);
+        if (Number.isNaN(endOfDayLocal.getTime())) {
+          setError("Некорректная дата дедлайна.");
+          setCreatingAssessment(false);
+          return;
+        }
+        dueAtIso = endOfDayLocal.toISOString();
       }
 
       const created = await apiCreateClassAssessment(
@@ -309,7 +363,15 @@ export default function ClassDetailsPage() {
     }
   };
 
-  if (isLoading || !user || !accessToken || !profile || pageLoading) {
+  const mainLoading =
+    isLoading ||
+    !user ||
+    !accessToken ||
+    !profile ||
+    (isTeacher && pageLoading) ||
+    (isStudent && studentLoading);
+
+  if (mainLoading) {
     return (
       <div className="min-h-screen bg-[#f8fafc]">
         <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
@@ -320,6 +382,63 @@ export default function ClassDetailsPage() {
         <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
           <div className="h-28 animate-pulse rounded-2xl bg-white" />
           <div className="mt-4 h-64 animate-pulse rounded-2xl bg-white" />
+        </main>
+      </div>
+    );
+  }
+
+  if (!roleOk) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc]">
+        <div className="sticky top-0 z-50 border-b border-gray-100 bg-white/80 backdrop-blur-md">
+          <div className="mx-auto flex h-16 max-w-6xl items-center px-4 sm:px-6">
+            <div className="h-5 w-32 animate-pulse rounded bg-gray-200" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isStudent) {
+    if (error) {
+      return (
+        <div className="min-h-screen bg-[#f8fafc]">
+          <DashboardHeader
+            userName={profile.full_name ?? user.email.split("@")[0] ?? "Ученик"}
+            userRole={profile.role ?? "student"}
+            avatarUrl={profile.avatar_url ?? null}
+          />
+          <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+            <div className="rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{error}</div>
+            <button
+              type="button"
+              onClick={() => router.push("/dashboard")}
+              className="mt-4 text-sm font-medium text-blue-600 hover:text-blue-700"
+            >
+              На главную
+            </button>
+          </main>
+        </div>
+      );
+    }
+    if (studentWorkspace) {
+      return (
+        <StudentClassWorkspaceView
+          workspace={studentWorkspace}
+          profile={profile}
+          userEmail={user.email}
+        />
+      );
+    }
+    return (
+      <div className="min-h-screen bg-[#f8fafc]">
+        <DashboardHeader
+          userName={profile.full_name ?? user.email.split("@")[0] ?? "Ученик"}
+          userRole={profile.role ?? "student"}
+          avatarUrl={profile.avatar_url ?? null}
+        />
+        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+          <div className="h-28 animate-pulse rounded-2xl bg-white" />
         </main>
       </div>
     );
@@ -589,8 +708,15 @@ export default function ClassDetailsPage() {
                             key={item.id}
                             className="flex items-center justify-between rounded-lg border border-slate-100 bg-white px-3 py-2 text-xs"
                           >
-                            <span className="truncate pr-3 text-slate-700">
-                              {idx + 1}. {item.problem_title ?? item.problem_id}
+                            <span className="min-w-0 flex-1 pr-2 text-slate-700">
+                              <span className="flex flex-wrap items-baseline gap-x-1 text-xs font-medium leading-snug [&_.katex]:text-[0.9em]">
+                                <span>{idx + 1}.</span>
+                                <ProblemContent
+                                  variant="inline"
+                                  body={item.problem_title ?? item.problem_id}
+                                  className="min-w-0 text-slate-700 [&_p]:m-0 [&_p]:inline"
+                                />
+                              </span>
                             </span>
                             <span className="font-semibold text-slate-900">
                               {item.points} б.
@@ -728,11 +854,14 @@ export default function ClassDetailsPage() {
                 <label className="block space-y-1 text-sm">
                   <span className="font-medium text-slate-700">Дедлайн</span>
                   <input
-                    type="datetime-local"
+                    type="date"
                     value={newAssessmentDueAt}
                     onChange={(e) => setNewAssessmentDueAt(e.target.value)}
                     className="w-full rounded-xl border border-gray-300 bg-gray-50 px-3 py-2 text-sm text-slate-900 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/40"
                   />
+                  <span className="text-xs text-slate-400">
+                    Сдача доступна до конца выбранного дня (ваше локальное время).
+                  </span>
                 </label>
                 <label className="block space-y-1 text-sm">
                   <span className="font-medium text-slate-700">Лимит времени (мин)</span>

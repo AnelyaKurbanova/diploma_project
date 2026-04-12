@@ -11,6 +11,7 @@ import {
 } from "@/lib/api";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import { buttonClasses } from "@/components/ui/button";
+import { ProblemContent } from "@/components/ui/problem-content";
 
 type ProfileResponse = {
   full_name: string | null;
@@ -192,11 +193,16 @@ export default function AssessmentPage() {
                   const p = progressByProblem[item.problem_id];
                   const isSolved = p?.last_status === "graded" && p?.last_is_correct === true;
                   return (
-                    <div key={item.id} className="flex items-center justify-between rounded-xl border border-slate-200/80 bg-gradient-to-r from-white to-slate-50 px-4 py-3 shadow-[0_8px_20px_-20px_rgba(15,23,42,0.7)]">
-                      <div className="min-w-0 pr-3">
-                        <p className="truncate text-sm font-semibold text-slate-900">
-                          {idx + 1}. {item.problem_title ?? `Задача ${idx + 1}`}
-                        </p>
+                    <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-200/80 bg-gradient-to-r from-white to-slate-50 px-4 py-3 shadow-[0_8px_20px_-20px_rgba(15,23,42,0.7)]">
+                      <div className="min-w-0 flex-1 pr-1">
+                        <div className="flex flex-wrap items-baseline gap-x-1.5 text-sm font-semibold leading-snug text-slate-900 [&_.katex]:text-[0.95em]">
+                          <span>{idx + 1}.</span>
+                          <ProblemContent
+                            variant="inline"
+                            body={item.problem_title ?? `Задача ${idx + 1}`}
+                            className="min-w-0 font-semibold text-slate-900 [&_p]:m-0 [&_p]:inline"
+                          />
+                        </div>
                         <p className="mt-1 text-xs text-slate-500">
                           {item.points} балл(ов) {isSolved ? "· решена" : ""}
                         </p>
