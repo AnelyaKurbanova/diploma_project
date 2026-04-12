@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { ProblemEditorModal, type ProblemEditorResult } from "@/components/admin/problem-editor-modal";
 
@@ -101,6 +101,33 @@ const LESSON_STATUS_LABELS: Record<
   archived: { label: "Архив", cls: "bg-slate-100 text-slate-500" },
 };
 
+const GENERATION_RUNNING_LABEL = "Генерация…";
+
+const GENERATION_STATUS_MESSAGES = {
+  lecture:
+    "Идёт генерация лекции. Текст появится в поле выше после завершения.",
+  video:
+    "Идёт генерация видео. Ссылка появится в поле выше после завершения.",
+  problems:
+    "Идёт генерация задач. Список и блок обновятся автоматически.",
+} as const;
+
+function GenerationRunningBanner({ message }: { message: string }) {
+  return (
+    <div
+      className="mb-2 flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-700 shadow-sm"
+      role="status"
+      aria-live="polite"
+    >
+      <span
+        className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"
+        aria-hidden
+      />
+      <span>{message}</span>
+    </div>
+  );
+}
+
 export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -136,9 +163,15 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
   const [creatingVideoJob, setCreatingVideoJob] = useState(false);
 
+  const selectedLessonIdRef = useRef<string | null>(null);
+  const selectedTopicRef = useRef<string>("");
+  const editingBlockIdRef = useRef<string | null>(null);
+  const blockFormRef = useRef(blockForm);
+
   const [problemModalOpen, setProblemModalOpen] = useState(false);
   const [problemModalMode, setProblemModalMode] = useState<"create" | "edit" | "view">("create");
   const [problemModalProblemId, setProblemModalProblemId] = useState<string | null>(null);
+  const [deletingProblemId, setDeletingProblemId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -200,6 +233,22 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     void loadProblemsForTopic();
   }, [loadProblemsForTopic]);
 
+  useEffect(() => {
+    selectedLessonIdRef.current = selectedLessonId;
+  }, [selectedLessonId]);
+
+  useEffect(() => {
+    selectedTopicRef.current = selectedTopic;
+  }, [selectedTopic]);
+
+  useEffect(() => {
+    editingBlockIdRef.current = editingBlockId;
+  }, [editingBlockId]);
+
+  useEffect(() => {
+    blockFormRef.current = blockForm;
+  }, [blockForm]);
+
   const loadLessons = useCallback(async () => {
     if (!selectedTopic) {
       setLessons([]);
@@ -260,10 +309,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   const usedBlockTypes = new Set(
     (lessonDetail?.content_blocks ?? []).map((block) => block.block_type),
   );
-  const lessonProblems = useMemo(
-    () => problems.filter((p) => selectedProblemIds.includes(p.id)),
-    [problems, selectedProblemIds],
-  );
   const canCreateLectureBlock = !usedBlockTypes.has("lecture");
   const canCreateVideoBlock = !usedBlockTypes.has("video");
   const canCreateProblemBlock = !usedBlockTypes.has("problem_set");
@@ -274,6 +319,14 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     ((blockForm.block_type === "lecture" && !canCreateLectureBlock) ||
       (blockForm.block_type === "video" && !canCreateVideoBlock) ||
       (blockForm.block_type === "problem_set" && usedBlockTypes.has("problem_set")));
+
+  const generationLectureActive =
+    Boolean(selectedLessonId) && generatingDraft === selectedLessonId;
+  const generationVideoActive = creatingVideoJob;
+  const generationProblemsActive =
+    Boolean(selectedLessonId) &&
+    (generatingProblems === selectedLessonId ||
+      problemsGenerationLessonId === selectedLessonId);
 
   useEffect(() => {
     if (lessons.length === 0) {
@@ -410,6 +463,25 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
             setLessonDetail(detail);
             setGeneratingDraft(null);
             setSuccess("Черновик лекции сгенерирован.");
+
+            if (selectedLessonIdRef.current === lessonId) {
+              const lecture = detail.content_blocks.find((b) => b.block_type === "lecture");
+              if (lecture) {
+                const eid = editingBlockIdRef.current;
+                const bf = blockFormRef.current;
+                if (bf.block_type === "lecture" && (eid === null || eid === lecture.id)) {
+                  setBlockForm((prev) => ({
+                    ...prev,
+                    block_type: "lecture",
+                    body: lecture.body ?? "",
+                    title: lecture.title != null && lecture.title !== "" ? lecture.title : prev.title,
+                  }));
+                  if (eid === null) {
+                    setEditingBlockId(lecture.id);
+                  }
+                }
+              }
+            }
             return;
           }
         } catch {
@@ -470,6 +542,33 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                 ? `Генерация задач завершена, добавлено ${created} задач.`
                 : "Генерация задач завершена.",
             );
+
+            if (selectedLessonIdRef.current === lessonId) {
+              if (detail.topic_id === selectedTopicRef.current) {
+                void loadProblemsForTopic();
+              }
+              const problemSet = detail.content_blocks.find(
+                (b) => b.block_type === "problem_set",
+              );
+              if (problemSet) {
+                const eid = editingBlockIdRef.current;
+                const bf = blockFormRef.current;
+                if (bf.block_type === "problem_set" && (eid === null || eid === problemSet.id)) {
+                  setSelectedProblemIds(problemSet.problems.map((p) => p.problem_id));
+                  setBlockForm((prev) => ({
+                    ...prev,
+                    block_type: "problem_set",
+                    title:
+                      problemSet.title != null && problemSet.title !== ""
+                        ? problemSet.title
+                        : prev.title,
+                  }));
+                  if (eid === null) {
+                    setEditingBlockId(problemSet.id);
+                  }
+                }
+              }
+            }
             return;
           }
         } catch (err) {
@@ -483,7 +582,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
         "Генерация задач всё ещё выполняется. Обновите урок вручную чуть позже, чтобы увидеть результат.",
       );
     },
-    [accessToken],
+    [accessToken, loadProblemsForTopic],
   );
 
   const handleGenerateProblems = async (lessonId: string) => {
@@ -517,6 +616,32 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       setGeneratingProblems(null);
     }
   };
+
+  const handleDeleteProblem = useCallback(
+    async (problemId: string) => {
+      if (!window.confirm("Удалить эту задачу? Действие необратимо.")) {
+        return;
+      }
+      setError(null);
+      setSuccess(null);
+      setDeletingProblemId(problemId);
+      try {
+        await apiDelete(`/problems/${problemId}`, accessToken);
+        setSuccess("Задача удалена");
+        setProblems((prev) => prev.filter((p) => p.id !== problemId));
+        setSelectedProblemIds((prev) => prev.filter((id) => id !== problemId));
+        if (selectedLessonId) {
+          await loadLessonDetail(selectedLessonId);
+        }
+        await loadProblemsForTopic();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Не удалось удалить задачу");
+      } finally {
+        setDeletingProblemId(null);
+      }
+    },
+    [accessToken, loadLessonDetail, loadProblemsForTopic, selectedLessonId],
+  );
 
   const persistGeneratedVideoUrl = useCallback(
     async (videoUrl: string) => {
@@ -1004,61 +1129,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
       {selectedLessonId && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-            <p className="text-sm text-slate-600">
-              Сгенерировать лекцию на основе учебных материалов (RAG). Заменит текущий текст лекции. Сначала загрузите docx в базу знаний.
-            </p>
-            <button
-              type="button"
-              onClick={() => handleGenerateDraft(selectedLessonId)}
-              disabled={generatingDraft === selectedLessonId}
-              className="rounded-lg bg-brand-navy px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
-            >
-              {generatingDraft === selectedLessonId ? "Генерация..." : "Сгенерировать лекцию"}
-            </button>
-          </div>
-          <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
-            <div className="text-sm text-slate-600">
-              <p>
-                Сгенерировать задачи по этой теме (RAG) и автоматически добавить их в блок{" "}
-                <span className="font-semibold">«Задачи»</span> выбранного урока.
-              </p>
-              <p className="mt-1 text-xs text-slate-400">
-                Генерация идёт в фоне; после завершения задачи появятся в блоке как задачи в статусе «на проверке».
-              </p>
-              {problemsGenerationLessonId === selectedLessonId && (
-                <p className="mt-1 text-xs text-brand-navy">
-                  Идёт генерация задач для этого урока... Мы периодически обновляем блок задач, пока процесс не завершится.
-                </p>
-              )}
-            </div>
-            <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1 text-xs text-slate-600">
-                <span>Количество задач:</span>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={problemsCount}
-                  onChange={(e) => {
-                    const value = Number(e.target.value.replace(/[^\d]/g, "")) || 1;
-                    const clamped = Math.max(1, Math.min(100, value));
-                    setProblemsCount(clamped);
-                  }}
-                  className="w-20 rounded border border-gray-200 px-2 py-1 text-xs outline-none focus:border-brand-navy/50"
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => handleGenerateProblems(selectedLessonId)}
-                disabled={generatingProblems === selectedLessonId}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
-              >
-                {generatingProblems === selectedLessonId ? "Генерация задач..." : "Сгенерировать задачи"}
-              </button>
-            </div>
-          </div>
-
           {(canAddAnyBlock || editingBlockId) ? (
           <form onSubmit={handleBlockSubmit} className="space-y-4 rounded-xl border border-gray-100 bg-white p-6 shadow-sm">
             <div className="flex items-center justify-between">
@@ -1117,15 +1187,40 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
             </div>
 
             {blockForm.block_type === "lecture" && (
-              <div>
-                <label className="mb-1 block text-xs font-medium text-slate-500">Текст лекции</label>
-                <textarea
-                  rows={6}
-                  value={blockForm.body}
-                  onChange={(e) => setBlockForm((f) => ({ ...f, body: e.target.value }))}
-                  placeholder="Поддерживается markdown, включая изображения: ![alt](https://s3-url/image.png)"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-slate-500">Текст лекции</label>
+                  <textarea
+                    rows={6}
+                    value={blockForm.body}
+                    onChange={(e) => setBlockForm((f) => ({ ...f, body: e.target.value }))}
+                    placeholder="Поддерживается markdown, включая изображения: ![alt](https://s3-url/image.png)"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
+                  />
+                </div>
+
+                <div className="rounded-lg border border-brand-navy/15 bg-brand-navy/5 p-3">
+                  <p className="mb-2 text-xs font-medium text-brand-navy">
+                    Сгенерировать лекцию на основе учебных материалов (RAG)
+                  </p>
+                  {generationLectureActive && (
+                    <GenerationRunningBanner message={GENERATION_STATUS_MESSAGES.lecture} />
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateDraft(selectedLessonId)}
+                      disabled={generationLectureActive}
+                      className="rounded-lg bg-brand-navy px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-brand-navy-hover disabled:opacity-50"
+                    >
+                      {generationLectureActive ? GENERATION_RUNNING_LABEL : "Сгенерировать лекцию"}
+                    </button>
+                  </div>
+                  <p className="mt-1 text-[11px] text-brand-navy/80">
+                    Заменит текущий текст лекции. Сначала загрузите docx в базу знаний. После завершения
+                    обновите блок или дождитесь автоматического обновления.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -1157,14 +1252,17 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                   <p className="mb-2 text-xs font-medium text-purple-800">
                     Сгенерировать видео по уроку
                   </p>
+                  {generationVideoActive && (
+                    <GenerationRunningBanner message={GENERATION_STATUS_MESSAGES.video} />
+                  )}
                   <div className="flex flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={handleCreateVideoForBlock}
-                      disabled={creatingVideoJob || !selectedTopic}
+                      disabled={generationVideoActive || !selectedTopic}
                       className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
                     >
-                      {creatingVideoJob ? "Запуск..." : "Сгенерировать видео"}
+                      {generationVideoActive ? GENERATION_RUNNING_LABEL : "Сгенерировать видео"}
                     </button>
                   </div>
                   <p className="mt-1 text-[11px] text-purple-700">
@@ -1204,13 +1302,9 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     <p className="text-xs text-slate-400">
                       В выбранной теме пока нет задач.
                     </p>
-                  ) : lessonProblems.length === 0 ? (
-                    <p className="text-xs text-slate-400">
-                      У этого урока пока нет собственных задач. Создайте их вручную или сгенерируйте через ИИ.
-                    </p>
                   ) : (
                     <div className="space-y-2">
-                      {lessonProblems.map((problem) => {
+                      {problems.map((problem) => {
                         const checked = selectedProblemIds.includes(problem.id);
                         return (
                           <div
@@ -1262,32 +1356,50 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                                   Редактировать
                                 </button>
                               </div>
-                              {problem.status === "draft" && (
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    setError(null);
-                                    setSuccess(null);
-                                    try {
-                                      await apiPost(
-                                        `/problems/${problem.id}/submit-review`,
-                                        undefined,
-                                        accessToken,
-                                      );
-                                      setSuccess("Задача отправлена на проверку");
-                                      await loadProblemsForTopic();
-                                    } catch (err) {
-                                      setError(
-                                        err instanceof Error
-                                          ? err.message
-                                          : "Не удалось отправить задачу на проверку",
-                                      );
-                                    }
-                                  }}
-                                  className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100"
-                                >
-                                  На проверку
-                                </button>
+                              {(problem.status === "draft" ||
+                                problem.status === "pending_review" ||
+                                isModerator) && (
+                                <div className="flex flex-wrap justify-end gap-1">
+                                  {problem.status === "draft" && (
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        setError(null);
+                                        setSuccess(null);
+                                        try {
+                                          await apiPost(
+                                            `/problems/${problem.id}/submit-review`,
+                                            undefined,
+                                            accessToken,
+                                          );
+                                          setSuccess("Задача отправлена на проверку");
+                                          await loadProblemsForTopic();
+                                        } catch (err) {
+                                          setError(
+                                            err instanceof Error
+                                              ? err.message
+                                              : "Не удалось отправить задачу на проверку",
+                                          );
+                                        }
+                                      }}
+                                      className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700 hover:bg-amber-100"
+                                    >
+                                      На проверку
+                                    </button>
+                                  )}
+                                  {(isModerator ||
+                                    problem.status === "draft" ||
+                                    problem.status === "pending_review") && (
+                                    <button
+                                      type="button"
+                                      onClick={() => void handleDeleteProblem(problem.id)}
+                                      disabled={deletingProblemId === problem.id}
+                                      className="rounded-md bg-rose-50 px-2 py-0.5 text-[11px] font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50"
+                                    >
+                                      {deletingProblemId === problem.id ? "Удаление…" : "Удалить"}
+                                    </button>
+                                  )}
+                                </div>
                               )}
                             </div>
                           </div>
@@ -1296,6 +1408,46 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     </div>
                   )}
                 </div>
+
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
+                  <p className="mb-2 text-xs font-medium text-emerald-900">
+                    Сгенерировать задачи по теме (RAG)
+                  </p>
+                  <p className="mb-2 text-[11px] text-emerald-800/90">
+                    Новые задачи автоматически попадут в блок «Задачи» этого урока в статусе «на проверке».
+                    Генерация выполняется в фоне.
+                  </p>
+                  {generationProblemsActive && (
+                    <GenerationRunningBanner message={GENERATION_STATUS_MESSAGES.problems} />
+                  )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-1 text-xs text-emerald-900">
+                      <span>Количество:</span>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={problemsCount}
+                        disabled={generationProblemsActive}
+                        onChange={(e) => {
+                          const value = Number(e.target.value.replace(/[^\d]/g, "")) || 1;
+                          const clamped = Math.max(1, Math.min(100, value));
+                          setProblemsCount(clamped);
+                        }}
+                        className="w-20 rounded border border-emerald-200 bg-white px-2 py-1 text-xs outline-none focus:border-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateProblems(selectedLessonId)}
+                      disabled={generationProblemsActive}
+                      className="rounded-lg bg-emerald-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      {generationProblemsActive ? GENERATION_RUNNING_LABEL : "Сгенерировать задачи"}
+                    </button>
+                  </div>
+                </div>
+
                 <p className="mt-1 text-xs text-slate-500">
                   Выбрано задач: {selectedProblemIds.length}
                 </p>
@@ -1421,10 +1573,24 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
             setProblemModalProblemId(null);
           }}
           onSaved={(p: ProblemEditorResult) => {
+            setProblems((prev) => {
+              if (prev.some((x) => x.id === p.id)) return prev;
+              return [
+                ...prev,
+                {
+                  id: p.id,
+                  title: p.title,
+                  topic_id: p.topic_id,
+                  difficulty: p.difficulty,
+                  type: p.type,
+                  status: p.status,
+                },
+              ];
+            });
+            setSelectedProblemIds((prev) =>
+              prev.includes(p.id) ? prev : [...prev, p.id],
+            );
             void loadProblemsForTopic();
-            if (!selectedProblemIds.includes(p.id)) {
-              setSelectedProblemIds((prev) => [...prev, p.id]);
-            }
           }}
         />
       )}

@@ -7,7 +7,7 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache import CacheService, NAMESPACE, get_cache_service
-from app.core.errors import Conflict, NotFound
+from app.core.errors import Conflict, Forbidden, NotFound
 from app.core.i18n import tr
 from app.modules.catalog.data.repo import CatalogRepo
 from app.modules.knowledge.application.retrieval import search as knowledge_search
@@ -302,11 +302,28 @@ class ProblemService:
 
         return result
 
-    async def delete_problem(self, problem_id: uuid.UUID) -> None:
-                                                              
+    async def delete_problem(
+        self,
+        problem_id: uuid.UUID,
+        *,
+        actor_id: uuid.UUID | None = None,
+        actor_can_delete_any: bool = False,
+    ) -> None:
         problem = await self.repo.get_problem(problem_id)
 
-                                                                                             
+        if not actor_can_delete_any:
+            if actor_id is None:
+                raise Forbidden("Недостаточно прав для удаления задачи.")
+            if problem.created_by != actor_id:
+                raise Forbidden("Недостаточно прав для удаления этой задачи.")
+            if problem.status not in (
+                ProblemStatus.DRAFT,
+                ProblemStatus.PENDING_REVIEW,
+            ):
+                raise Conflict(
+                    "Удаление доступно только для черновика или задачи на проверке.",
+                )
+
         if problem.status == ProblemStatus.ARCHIVED:
                                                                                  
             await self.session.execute(

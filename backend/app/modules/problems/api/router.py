@@ -406,13 +406,23 @@ async def delete_problem(
     session: AsyncSession = Depends(get_session),
     current_user=Depends(
         require_roles(
+            UserRole.CONTENT_MAKER,
             UserRole.MODERATOR,
             UserRole.ADMIN,
         )
     ),
 ):
     svc = ProblemService(session)
-    await svc.delete_problem(problem_id)
+    role_val = getattr(current_user.role, "value", current_user.role)
+    privileged = role_val in {
+        UserRole.MODERATOR.value,
+        UserRole.ADMIN.value,
+    }
+    await svc.delete_problem(
+        problem_id,
+        actor_id=current_user.id,
+        actor_can_delete_any=privileged,
+    )
     return None
 
 
