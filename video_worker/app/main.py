@@ -62,12 +62,78 @@ async def _update_lesson_video_url_from_job(
         {"video_url": s3_url, "lesson_id": lesson_id},
     )
     updated = int(result.rowcount or 0)
-    if updated == 0:
-        LOGGER.warning(
-            "Lesson video URL update affected no rows",
+    if updated > 0:
+        return updated
+
+    # If the lesson has no video block yet, create one at the end of the lesson.
+    insert_result = await session.execute(
+        text(
+            """
+            INSERT INTO lesson_content_blocks (
+                id,
+                lesson_id,
+                block_type,
+                order_no,
+                title,
+                video_url,
+                video_description
+            )
+            SELECT
+                CAST(:block_id AS uuid),
+                l.id,
+                'video',
+                COALESCE(MAX(b.order_no) + 1, 0),
+                :title,
+                :video_url,
+                :video_description
+            FROM lessons l
+            LEFT JOIN lesson_content_blocks b ON b.lesson_id = l.id
+            WHERE l.id = CAST(:lesson_id AS uuid)
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM lesson_content_blocks existing
+                  WHERE existing.lesson_id = l.id
+                    AND existing.block_type = 'video'
+              )
+            GROUP BY l.id
+            """
+        ),
+        {
+            "block_id": str(uuid.uuid4()),
+            "lesson_id": lesson_id,
+            "title": "Видео урока",
+            "video_url": s3_url,
+            "video_description": "Автоматически добавлено после генерации видео.",
+        },
+    )
+    inserted = int(insert_result.rowcount or 0)
+    if inserted > 0:
+        LOGGER.info(
+            "Created lesson video block from completed job",
             extra={"job_id": str(job.id), "lesson_id": lesson_id},
         )
-    return updated
+        return inserted
+
+    # A concurrent request may have created the block after our first UPDATE.
+    retry_result = await session.execute(
+        text(
+            """
+            UPDATE lesson_content_blocks
+            SET video_url = :video_url,
+                updated_at = NOW()
+            WHERE lesson_id = :lesson_id
+              AND block_type = 'video'
+            """
+        ),
+        {"video_url": s3_url, "lesson_id": lesson_id},
+    )
+    retried = int(retry_result.rowcount or 0)
+    if retried == 0:
+        LOGGER.warning(
+            "Lesson video URL update affected no rows and no video block was created",
+            extra={"job_id": str(job.id), "lesson_id": lesson_id},
+        )
+    return retried
 
 
 async def handle_requested_message(
@@ -279,4 +345,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
