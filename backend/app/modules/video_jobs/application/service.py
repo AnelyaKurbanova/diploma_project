@@ -57,10 +57,14 @@ async def _publish_video_requested(job_id: uuid.UUID) -> None:
         exchange = await channel.declare_exchange(
             "video.events", ExchangeType.TOPIC, durable=True
         )
+        queue = await channel.declare_queue("video.worker", durable=True)
+        await queue.bind(exchange, routing_key="video.requested")
+
         payload = {"job_id": str(job_id)}
         message = Message(
             body=json.dumps(payload, ensure_ascii=False).encode("utf-8"),
             content_type="application/json",
+            delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
         )
         await exchange.publish(message, routing_key="video.requested")
         logger.info(
