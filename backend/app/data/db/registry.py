@@ -12,6 +12,7 @@ from app.modules.classes.data import models as _classes_models
 from app.modules.activity.data import models as _activity_models              
 from app.modules.knowledge.data import models as _knowledge_models              
 from app.modules.video_jobs.data import models as _video_jobs_models              
+from app.modules.generation_jobs.data import models as _generation_jobs_models              
 from app.modules.llm_usage.data import models as _llm_usage_models              
 from app.modules.chat.data import models as _chat_models              
 from app.modules.gamification.data import models as _gamification_models              

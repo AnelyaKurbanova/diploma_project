@@ -3,6 +3,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api";
 import { ProblemEditorModal, type ProblemEditorResult } from "@/components/admin/problem-editor-modal";
+import { GenerationStatusPanel } from "@/components/ui/generation-status-panel";
+import {
+  loadStoredJobId,
+  saveStoredJobId,
+  useGenerationJob,
+  type GenerationJobSnapshot,
+} from "@/lib/generation-jobs";
 
 type Subject = {
   id: string;
@@ -103,31 +110,6 @@ const LESSON_STATUS_LABELS: Record<
 
 const GENERATION_RUNNING_LABEL = "Генерация…";
 
-const GENERATION_STATUS_MESSAGES = {
-  lecture:
-    "Идёт генерация лекции. Текст появится в поле выше после завершения.",
-  video:
-    "Идёт генерация видео. Ссылка появится в поле выше после завершения.",
-  problems:
-    "Идёт генерация задач. Список и блок обновятся автоматически.",
-} as const;
-
-function GenerationRunningBanner({ message }: { message: string }) {
-  return (
-    <div
-      className="mb-2 flex items-center gap-2.5 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-xs font-medium text-slate-700 shadow-sm"
-      role="status"
-      aria-live="polite"
-    >
-      <span
-        className="inline-block size-4 shrink-0 animate-spin rounded-full border-2 border-slate-200 border-t-slate-700"
-        aria-hidden
-      />
-      <span>{message}</span>
-    </div>
-  );
-}
-
 export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
@@ -152,16 +134,23 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   const [submittingLesson, setSubmittingLesson] = useState(false);
   const [submittingBlock, setSubmittingBlock] = useState(false);
   const [movingBlock, setMovingBlock] = useState(false);
-  const [generatingDraft, setGeneratingDraft] = useState<string | null>(null);
-  const [generatingProblems, setGeneratingProblems] = useState<string | null>(null);
   const [problemsCount, setProblemsCount] = useState(10);
-  const [problemsGenerationLessonId, setProblemsGenerationLessonId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [lessonActionInProgress, setLessonActionInProgress] = useState<string | null>(null);
   const isModerator = userRole === "moderator" || userRole === "admin";
 
-  const [creatingVideoJob, setCreatingVideoJob] = useState(false);
+  // Active job ids per lesson, scoped by kind. Persisted in localStorage so a
+  // page reload resumes live feedback without losing the user's context.
+  const [lectureJobId, setLectureJobId] = useState<string | null>(null);
+  const [problemsJobId, setProblemsJobId] = useState<string | null>(null);
+  const [videoJobId, setVideoJobId] = useState<string | null>(null);
+
+  // Lightweight "initiating" flags for the 300ms between click and the first
+  // server acknowledgement. Avoids a blank UI while the POST is in flight.
+  const [startingLecture, setStartingLecture] = useState(false);
+  const [startingProblems, setStartingProblems] = useState(false);
+  const [startingVideo, setStartingVideo] = useState(false);
 
   const selectedLessonIdRef = useRef<string | null>(null);
   const selectedTopicRef = useRef<string>("");
@@ -320,13 +309,192 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       (blockForm.block_type === "video" && !canCreateVideoBlock) ||
       (blockForm.block_type === "problem_set" && usedBlockTypes.has("problem_set")));
 
+  // ------------------------------------------------------------------
+  // Live generation job tracking (lecture / problems / video)
+  // ------------------------------------------------------------------
+
+  const lectureScope = selectedLessonId ? `lesson:${selectedLessonId}:lecture` : null;
+  const problemsScope = selectedLessonId ? `lesson:${selectedLessonId}:problems` : null;
+  const videoScope = selectedLessonId ? `lesson:${selectedLessonId}:video` : null;
+
+  // Restore in-flight jobs after a page reload so the UI keeps showing progress.
+  useEffect(() => {
+    if (!selectedLessonId) {
+      setLectureJobId(null);
+      setProblemsJobId(null);
+      setVideoJobId(null);
+      return;
+    }
+    setLectureJobId(loadStoredJobId(`lesson:${selectedLessonId}:lecture`));
+    setProblemsJobId(loadStoredJobId(`lesson:${selectedLessonId}:problems`));
+    setVideoJobId(loadStoredJobId(`lesson:${selectedLessonId}:video`));
+  }, [selectedLessonId]);
+
+  const handleLectureDone = useCallback(
+    async () => {
+      const currentLesson = selectedLessonIdRef.current;
+      if (!currentLesson) return;
+      try {
+        const detail = await apiGet<LessonDetail>(
+          `/lessons/${currentLesson}?admin_view=1`,
+          accessToken,
+        );
+        setLessonDetail(detail);
+        const lecture = detail.content_blocks.find((b) => b.block_type === "lecture");
+        if (lecture) {
+          const eid = editingBlockIdRef.current;
+          const bf = blockFormRef.current;
+          if (bf.block_type === "lecture" && (eid === null || eid === lecture.id)) {
+            setBlockForm((prev) => ({
+              ...prev,
+              block_type: "lecture",
+              body: lecture.body ?? "",
+              title:
+                lecture.title != null && lecture.title !== ""
+                  ? lecture.title
+                  : prev.title,
+            }));
+            if (eid === null) {
+              setEditingBlockId(lecture.id);
+            }
+          }
+        }
+      } catch {
+        // ignore refresh errors; next poll / manual reload will fix it
+      }
+    },
+    [accessToken],
+  );
+
+  const handleProblemsDone = useCallback(
+    async () => {
+      const currentLesson = selectedLessonIdRef.current;
+      if (!currentLesson) return;
+      try {
+        const detail = await apiGet<LessonDetail>(
+          `/lessons/${currentLesson}?admin_view=1`,
+          accessToken,
+        );
+        setLessonDetail(detail);
+        if (detail.topic_id === selectedTopicRef.current) {
+          void loadProblemsForTopic();
+        }
+        const problemSet = detail.content_blocks.find(
+          (b) => b.block_type === "problem_set",
+        );
+        if (problemSet) {
+          const eid = editingBlockIdRef.current;
+          const bf = blockFormRef.current;
+          if (bf.block_type === "problem_set" && (eid === null || eid === problemSet.id)) {
+            setSelectedProblemIds(problemSet.problems.map((p) => p.problem_id));
+            setBlockForm((prev) => ({
+              ...prev,
+              block_type: "problem_set",
+              title:
+                problemSet.title != null && problemSet.title !== ""
+                  ? problemSet.title
+                  : prev.title,
+            }));
+            if (eid === null) {
+              setEditingBlockId(problemSet.id);
+            }
+          }
+        }
+      } catch {
+        // see comment above
+      }
+    },
+    [accessToken, loadProblemsForTopic],
+  );
+
+  const persistGeneratedVideoUrlRef = useRef<(url: string) => Promise<void>>(
+    async () => {},
+  );
+
+  const handleVideoDone = useCallback(
+    async (snapshot: GenerationJobSnapshot) => {
+      const url = snapshot.s3_url || snapshot.presigned_url || null;
+      if (!url) return;
+      try {
+        await persistGeneratedVideoUrlRef.current(url);
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Не удалось сохранить ссылку на видео.",
+        );
+      }
+    },
+    [],
+  );
+
+  const lectureJob = useGenerationJob({
+    jobId: lectureJobId,
+    endpoint: "generation",
+    accessToken,
+    onDone: handleLectureDone,
+  });
+  const problemsJob = useGenerationJob({
+    jobId: problemsJobId,
+    endpoint: "generation",
+    accessToken,
+    onDone: handleProblemsDone,
+  });
+  const videoJob = useGenerationJob({
+    jobId: videoJobId,
+    endpoint: "video",
+    accessToken,
+    onDone: handleVideoDone,
+  });
+
+  const lectureSnapshot = lectureJob.snapshot;
+  const problemsSnapshot = problemsJob.snapshot;
+  const videoSnapshot = videoJob.snapshot;
+
+  // Snapshot merged with hook-local elapsed ticker so the UI shows smoothly
+  // incrementing time even between long-poll roundtrips.
+  const lectureDisplay: GenerationJobSnapshot | null = lectureSnapshot
+    ? { ...lectureSnapshot, elapsed_ms: lectureJob.elapsedMs }
+    : null;
+  const problemsDisplay: GenerationJobSnapshot | null = problemsSnapshot
+    ? { ...problemsSnapshot, elapsed_ms: problemsJob.elapsedMs }
+    : null;
+  const videoDisplay: GenerationJobSnapshot | null = videoSnapshot
+    ? { ...videoSnapshot, elapsed_ms: videoJob.elapsedMs }
+    : null;
+
   const generationLectureActive =
-    Boolean(selectedLessonId) && generatingDraft === selectedLessonId;
-  const generationVideoActive = creatingVideoJob;
+    startingLecture ||
+    Boolean(
+      lectureJobId &&
+        (!lectureSnapshot || (lectureSnapshot.status !== "done" && lectureSnapshot.status !== "failed")),
+    );
   const generationProblemsActive =
-    Boolean(selectedLessonId) &&
-    (generatingProblems === selectedLessonId ||
-      problemsGenerationLessonId === selectedLessonId);
+    startingProblems ||
+    Boolean(
+      problemsJobId &&
+        (!problemsSnapshot || (problemsSnapshot.status !== "done" && problemsSnapshot.status !== "failed")),
+    );
+  const generationVideoActive =
+    startingVideo ||
+    Boolean(
+      videoJobId &&
+        (!videoSnapshot || (videoSnapshot.status !== "done" && videoSnapshot.status !== "failed")),
+    );
+
+  // Clear job ids once the job is complete (success or failure) so the panel
+  // can auto-dismiss after the user acknowledges, and so a subsequent click
+  // starts fresh.
+  const clearLectureJob = useCallback(() => {
+    if (lectureScope) saveStoredJobId(lectureScope, null);
+    setLectureJobId(null);
+  }, [lectureScope]);
+  const clearProblemsJob = useCallback(() => {
+    if (problemsScope) saveStoredJobId(problemsScope, null);
+    setProblemsJobId(null);
+  }, [problemsScope]);
+  const clearVideoJob = useCallback(() => {
+    if (videoScope) saveStoredJobId(videoScope, null);
+    setVideoJobId(null);
+  }, [videoScope]);
 
   useEffect(() => {
     if (lessons.length === 0) {
@@ -439,181 +607,51 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     }
   };
 
-  const hasLectureBody = (detail: LessonDetail | null): boolean => {
-    if (!detail) return false;
-    const lecture = detail.content_blocks.find((b) => b.block_type === "lecture");
-    return Boolean(lecture?.body?.trim());
-  };
-
-  const pollGeneratedDraft = useCallback(
-    async (lessonId: string) => {
-      const maxAttempts = 36; // 36 * 5с ≈ 3 минуты
-      const delayMs = 5000;
-
-      setGeneratingDraft(lessonId);
-
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        try {
-          const detail = await apiGet<LessonDetail>(
-            `/lessons/${lessonId}?admin_view=1`,
-            accessToken,
-          );
-
-          if (hasLectureBody(detail)) {
-            setLessonDetail(detail);
-            setGeneratingDraft(null);
-            setSuccess("Черновик лекции сгенерирован.");
-
-            if (selectedLessonIdRef.current === lessonId) {
-              const lecture = detail.content_blocks.find((b) => b.block_type === "lecture");
-              if (lecture) {
-                const eid = editingBlockIdRef.current;
-                const bf = blockFormRef.current;
-                if (bf.block_type === "lecture" && (eid === null || eid === lecture.id)) {
-                  setBlockForm((prev) => ({
-                    ...prev,
-                    block_type: "lecture",
-                    body: lecture.body ?? "",
-                    title: lecture.title != null && lecture.title !== "" ? lecture.title : prev.title,
-                  }));
-                  if (eid === null) {
-                    setEditingBlockId(lecture.id);
-                  }
-                }
-              }
-            }
-            return;
-          }
-        } catch {
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-
-      setGeneratingDraft(null);
-      setSuccess(
-        "Генерация лекции всё ещё выполняется. Обновите урок вручную чуть позже.",
-      );
-    },
-    [accessToken],
-  );
-
   const handleGenerateDraft = async (lessonId: string) => {
+    if (generationLectureActive) return;
     setError(null);
     setSuccess(null);
+    setStartingLecture(true);
     try {
-      await apiPost(`/lessons/${lessonId}/generate-draft`, undefined, accessToken);
-      setSuccess("Генерация лекции запущена. Ожидайте обновления блока лекции.");
-      void pollGeneratedDraft(lessonId);
+      const res = await apiPost<{ job_id: string; message?: string }>(
+        `/lessons/${lessonId}/generate-draft`,
+        undefined,
+        accessToken,
+      );
+      if (res?.job_id) {
+        saveStoredJobId(`lesson:${lessonId}:lecture`, res.job_id);
+        setLectureJobId(res.job_id);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при генерации черновика");
+    } finally {
+      setStartingLecture(false);
     }
   };
 
-  const countProblemsInLesson = (detail: LessonDetail | null): number => {
-    if (!detail) return 0;
-    return detail.content_blocks
-      .filter((b) => b.block_type === "problem_set")
-      .reduce((sum, b) => sum + (b.problems?.length ?? 0), 0);
-  };
-
-  const pollGeneratedProblems = useCallback(
-    async (lessonId: string, initialCount: number) => {
-      const maxAttempts = 60; // 60 * 5с = ~5 минут
-      const delayMs = 5000;
-
-      setProblemsGenerationLessonId(lessonId);
-
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        try {
-          const detail = await apiGet<LessonDetail>(
-            `/lessons/${lessonId}?admin_view=1`,
-            accessToken,
-          );
-
-          const currentCount = countProblemsInLesson(detail);
-
-          if (currentCount > initialCount) {
-            setLessonDetail(detail);
-            setProblemsGenerationLessonId(null);
-            const created = currentCount - initialCount;
-            setSuccess(
-              created > 0
-                ? `Генерация задач завершена, добавлено ${created} задач.`
-                : "Генерация задач завершена.",
-            );
-
-            if (selectedLessonIdRef.current === lessonId) {
-              if (detail.topic_id === selectedTopicRef.current) {
-                void loadProblemsForTopic();
-              }
-              const problemSet = detail.content_blocks.find(
-                (b) => b.block_type === "problem_set",
-              );
-              if (problemSet) {
-                const eid = editingBlockIdRef.current;
-                const bf = blockFormRef.current;
-                if (bf.block_type === "problem_set" && (eid === null || eid === problemSet.id)) {
-                  setSelectedProblemIds(problemSet.problems.map((p) => p.problem_id));
-                  setBlockForm((prev) => ({
-                    ...prev,
-                    block_type: "problem_set",
-                    title:
-                      problemSet.title != null && problemSet.title !== ""
-                        ? problemSet.title
-                        : prev.title,
-                  }));
-                  if (eid === null) {
-                    setEditingBlockId(problemSet.id);
-                  }
-                }
-              }
-            }
-            return;
-          }
-        } catch (err) {
-        }
-
-        await new Promise((resolve) => setTimeout(resolve, delayMs));
-      }
-
-      setProblemsGenerationLessonId(null);
-      setSuccess(
-        "Генерация задач всё ещё выполняется. Обновите урок вручную чуть позже, чтобы увидеть результат.",
-      );
-    },
-    [accessToken, loadProblemsForTopic],
-  );
-
   const handleGenerateProblems = async (lessonId: string) => {
+    if (generationProblemsActive) return;
     if (!Number.isFinite(problemsCount) || problemsCount <= 0 || problemsCount > 100) {
       setError("Введите корректное количество задач (от 1 до 100).");
       return;
     }
-
-    setGeneratingProblems(lessonId);
     setError(null);
     setSuccess(null);
+    setStartingProblems(true);
     try {
-      const initialCount = countProblemsInLesson(lessonDetail);
-
-      const res = await apiPost<{ status?: string; message?: string }>(
+      const res = await apiPost<{ job_id: string; message?: string }>(
         `/lessons/${lessonId}/generate-problems`,
         { count: problemsCount },
         accessToken,
       );
-      setSuccess(
-        res?.message ??
-          "Генерация задач запущена. Мы автоматически обновим блок задач после завершения.",
-      );
-
-      void pollGeneratedProblems(lessonId, initialCount);
+      if (res?.job_id) {
+        saveStoredJobId(`lesson:${lessonId}:problems`, res.job_id);
+        setProblemsJobId(res.job_id);
+      }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Ошибка при генерации задач для урока",
-      );
+      setError(err instanceof Error ? err.message : "Ошибка при генерации задач для урока");
     } finally {
-      setGeneratingProblems(null);
+      setStartingProblems(false);
     }
   };
 
@@ -644,7 +682,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   );
 
   const persistGeneratedVideoUrl = useCallback(
-    async (videoUrl: string) => {
+    async (videoUrl: string): Promise<void> => {
       if (!selectedLessonId) return;
 
       const existingVideoBlock =
@@ -703,74 +741,39 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     ],
   );
 
+  // Keep the ref in sync so the `onDone` callback (bound once) can call the
+  // latest version that closes over fresh block / lesson state.
+  useEffect(() => {
+    persistGeneratedVideoUrlRef.current = persistGeneratedVideoUrl;
+  }, [persistGeneratedVideoUrl]);
+
   const handleCreateVideoForBlock = async () => {
+    if (generationVideoActive) return;
     if (!selectedTopic || !selectedLessonId) {
       setError("Сначала выберите тему и урок, для которого нужно сгенерировать видео.");
       return;
     }
-    setCreatingVideoJob(true);
     setError(null);
     setSuccess(null);
+    setStartingVideo(true);
     try {
       const createRes = await apiPost<{ job_id: string; status: string }>(
         `/topics/${selectedTopic}/video`,
         { lesson_id: selectedLessonId },
         accessToken,
       );
-
-      const jobId = createRes.job_id;
-      const maxAttempts = 60; // 60 * 5с = 5 минут
-      let lastStatus: string | null = null;
-      let lastError: string | null = null;
-      let lastS3Url: string | null = null;
-
-      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-        const job = await apiGet<{
-          job_id: string;
-          status: string;
-          s3_url: string | null;
-          presigned_url: string | null;
-          error: string | null;
-        }>(
-          `/video-jobs/${jobId}`,
-          accessToken,
-        );
-
-        lastStatus = job.status;
-        lastError = job.error ?? null;
-        lastS3Url = job.s3_url ?? null;
-
-        if (job.status === "done" && job.s3_url) {
-          await persistGeneratedVideoUrl(job.s3_url);
-          setSuccess("Видео сгенерировано: ссылка автоматически сохранена в блоке и обновлена.");
-          return;
-        }
-
-        if (job.status === "failed") {
-          setError(job.error || "Видео по уроку не удалось сгенерировать.");
-          setCreatingVideoJob(false);
-          return;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 5000));
-      }
-
-      if (lastStatus === "done" && lastS3Url) {
-        await persistGeneratedVideoUrl(lastS3Url);
-        setSuccess("Видео сгенерировано: ссылка автоматически сохранена в блоке и обновлена.");
-      } else if (lastStatus === "failed") {
-        setError(lastError || "Видео по уроку не удалось сгенерировать.");
-      } else {
-        setSuccess("Генерация видео по уроку запущена, но ещё не завершена. Попробуйте снова чуть позже.");
+      if (createRes?.job_id) {
+        saveStoredJobId(`lesson:${selectedLessonId}:video`, createRes.job_id);
+        setVideoJobId(createRes.job_id);
       }
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "Ошибка при запуске или ожидании генерации видео для урока",
+          : "Ошибка при запуске генерации видео для урока",
       );
     } finally {
-      setCreatingVideoJob(false);
+      setStartingVideo(false);
     }
   };
 
@@ -1203,8 +1206,35 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                   <p className="mb-2 text-xs font-medium text-brand-navy">
                     Сгенерировать лекцию на основе учебных материалов (RAG)
                   </p>
-                  {generationLectureActive && (
-                    <GenerationRunningBanner message={GENERATION_STATUS_MESSAGES.lecture} />
+                  {(generationLectureActive || lectureDisplay) && (
+                    <div className="mb-2">
+                      <GenerationStatusPanel
+                        title="Генерация лекции"
+                        snapshot={lectureDisplay}
+                        active={generationLectureActive}
+                        tone="brand"
+                        fallbackMessage="Готовим генерацию лекции…"
+                        onRetry={
+                          lectureDisplay?.status === "failed"
+                            ? () => {
+                                clearLectureJob();
+                                void handleGenerateDraft(selectedLessonId);
+                              }
+                            : undefined
+                        }
+                        onDismiss={
+                          lectureDisplay &&
+                          (lectureDisplay.status === "done" || lectureDisplay.status === "failed")
+                            ? clearLectureJob
+                            : undefined
+                        }
+                        successMessage={
+                          lectureDisplay?.status === "done"
+                            ? "Черновик лекции обновлён в блоке лекции."
+                            : null
+                        }
+                      />
+                    </div>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -1252,8 +1282,35 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                   <p className="mb-2 text-xs font-medium text-purple-800">
                     Сгенерировать видео по уроку
                   </p>
-                  {generationVideoActive && (
-                    <GenerationRunningBanner message={GENERATION_STATUS_MESSAGES.video} />
+                  {(generationVideoActive || videoDisplay) && (
+                    <div className="mb-2">
+                      <GenerationStatusPanel
+                        title="Генерация видео"
+                        snapshot={videoDisplay}
+                        active={generationVideoActive}
+                        tone="purple"
+                        fallbackMessage="Ставим задачу в очередь видео-воркера…"
+                        onRetry={
+                          videoDisplay?.status === "failed"
+                            ? () => {
+                                clearVideoJob();
+                                void handleCreateVideoForBlock();
+                              }
+                            : undefined
+                        }
+                        onDismiss={
+                          videoDisplay &&
+                          (videoDisplay.status === "done" || videoDisplay.status === "failed")
+                            ? clearVideoJob
+                            : undefined
+                        }
+                        successMessage={
+                          videoDisplay?.status === "done"
+                            ? "Ссылка на видео автоматически сохранена в блоке."
+                            : null
+                        }
+                      />
+                    </div>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -1417,8 +1474,35 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     Новые задачи автоматически попадут в блок «Задачи» этого урока в статусе «на проверке».
                     Генерация выполняется в фоне.
                   </p>
-                  {generationProblemsActive && (
-                    <GenerationRunningBanner message={GENERATION_STATUS_MESSAGES.problems} />
+                  {(generationProblemsActive || problemsDisplay) && (
+                    <div className="mb-2">
+                      <GenerationStatusPanel
+                        title="Генерация задач"
+                        snapshot={problemsDisplay}
+                        active={generationProblemsActive}
+                        tone="emerald"
+                        fallbackMessage="Готовим генерацию задач…"
+                        onRetry={
+                          problemsDisplay?.status === "failed"
+                            ? () => {
+                                clearProblemsJob();
+                                void handleGenerateProblems(selectedLessonId);
+                              }
+                            : undefined
+                        }
+                        onDismiss={
+                          problemsDisplay &&
+                          (problemsDisplay.status === "done" || problemsDisplay.status === "failed")
+                            ? clearProblemsJob
+                            : undefined
+                        }
+                        successMessage={
+                          problemsDisplay?.status === "done"
+                            ? "Задачи добавлены в блок задач урока."
+                            : null
+                        }
+                      />
+                    </div>
                   )}
                   <div className="flex flex-wrap items-center gap-2">
                     <label className="flex items-center gap-1 text-xs text-emerald-900">
