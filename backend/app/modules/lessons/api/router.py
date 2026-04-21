@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
+from typing import Any
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import get_session, SessionLocal
 from app.modules.auth.deps import get_current_user, require_roles
+from app.modules.generation_jobs.application.service import (
+    GenerationJobTracker,
+    create_job as create_generation_job,
+    find_active_job,
+)
 from app.modules.lessons.application.service import LessonService
 from app.modules.lessons.api.schemas import (
     ContentBlockCreate,
@@ -26,43 +33,77 @@ from app.modules.lessons.api.schemas import (
 from app.modules.users.data.models import UserRole
 
 
+_logger = logging.getLogger(__name__)
+
+
 async def _run_generate_problems(
+    job_id: uuid.UUID,
     lesson_id: uuid.UUID,
     count: int,
     created_by: uuid.UUID | None,
     allow_published_edit: bool,
 ) -> None:
-    """Фоновая задача: генерация задач по уроку в отдельной сессии."""
-    async with SessionLocal() as session:
-        svc = LessonService(session)
-        await svc.generate_problems_from_rag(
-            lesson_id,
-            count=count,
-            created_by=created_by,
-            allow_published_edit=allow_published_edit,
+    """Background task: run lesson problem generation with progress tracking."""
+
+    tracker = GenerationJobTracker(job_id)
+    try:
+        await tracker.update(status="running", progress_percent=1)
+
+        async def _progress(**kwargs: Any) -> None:
+            await tracker.update(**kwargs)
+
+        async with SessionLocal() as session:
+            svc = LessonService(session)
+            await svc.generate_problems_from_rag(
+                lesson_id,
+                count=count,
+                created_by=created_by,
+                allow_published_edit=allow_published_edit,
+                on_progress=_progress,
+            )
+
+        await tracker.complete(
+            result_json={"lesson_id": str(lesson_id)},
+            stage_message="Задачи сгенерированы",
         )
+    except Exception as exc:
+        _logger.exception(
+            "generate_problems failed for lesson_id=%s: %s", lesson_id, exc
+        )
+        await tracker.fail(str(exc))
 
 
 async def _run_generate_draft(
+    job_id: uuid.UUID,
     lesson_id: uuid.UUID,
     allow_published_edit: bool,
 ) -> None:
-    """Фоновая задача: генерация черновика лекции. Исключения логируем, не пробрасываем —
-    ответ 202 уже отправлен клиенту."""
-    logger = logging.getLogger(__name__)
+    """Background task: run lesson draft generation with progress tracking."""
+
+    tracker = GenerationJobTracker(job_id)
     try:
+        await tracker.update(status="running", progress_percent=1)
+
+        async def _progress(**kwargs: Any) -> None:
+            await tracker.update(**kwargs)
+
         async with SessionLocal() as session:
             svc = LessonService(session)
             await svc.generate_draft(
                 lesson_id,
                 allow_published_edit=allow_published_edit,
+                on_progress=_progress,
             )
-    except Exception as exc:
-        logger.exception(
-            "generate_draft failed for lesson_id=%s: %s",
-            lesson_id,
-            exc,
+
+        await tracker.complete(
+            result_json={"lesson_id": str(lesson_id)},
+            stage_message="Черновик готов",
         )
+    except Exception as exc:
+        _logger.exception(
+            "generate_draft failed for lesson_id=%s: %s", lesson_id, exc
+        )
+        await tracker.fail(str(exc))
 
 
 router = APIRouter(tags=["lessons"])
@@ -222,18 +263,47 @@ async def reject_lesson(
 )
 async def generate_lesson_draft(
     lesson_id: uuid.UUID,
-    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
     current_user=Depends(
         require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
     ),
 ):
-    """Запускает генерацию черновика лекции в фоне; ответ 202 без ожидания завершения."""
-    background_tasks.add_task(
-        _run_generate_draft,
-        lesson_id,
-        _can_edit_published(current_user.role),
+    """Запускает генерацию черновика лекции в фоне и возвращает job_id.
+
+    Если для этого урока уже есть активная задача — возвращаем её id, чтобы
+    повторные клики не плодили дубликатов.
+    """
+
+    existing = await find_active_job(
+        session,
+        kind="lesson_draft",
+        target_kind="lesson",
+        target_id=lesson_id,
     )
-    return LessonGenerateDraftAcceptedOut()
+    if existing is not None:
+        return LessonGenerateDraftAcceptedOut(
+            job_id=existing.id,
+            message="Генерация уже идёт. Следим за прогрессом.",
+        )
+
+    job = await create_generation_job(
+        session,
+        kind="lesson_draft",
+        target_kind="lesson",
+        target_id=lesson_id,
+        created_by=current_user.id,
+        request_json={"lesson_id": str(lesson_id)},
+        stage_message="Готовим генерацию лекции",
+    )
+
+    asyncio.create_task(
+        _run_generate_draft(
+            job.id,
+            lesson_id,
+            _can_edit_published(current_user.role),
+        )
+    )
+    return LessonGenerateDraftAcceptedOut(job_id=job.id)
 
 
 @router.post(
@@ -244,20 +314,45 @@ async def generate_lesson_draft(
 async def generate_lesson_problems(
     lesson_id: uuid.UUID,
     body: LessonGenerateProblemsIn,
-    background_tasks: BackgroundTasks,
+    session: AsyncSession = Depends(get_session),
     current_user=Depends(
         require_roles(UserRole.CONTENT_MAKER, UserRole.MODERATOR, UserRole.ADMIN)
     ),
 ):
-    """Запускает генерацию задач в фоне; ответ 202 без ожидания завершения."""
-    background_tasks.add_task(
-        _run_generate_problems,
-        lesson_id,
-        body.count,
-        current_user.id,
-        _can_edit_published(current_user.role),
+    """Запускает генерацию задач в фоне и возвращает job_id для отслеживания."""
+
+    existing = await find_active_job(
+        session,
+        kind="lesson_problems",
+        target_kind="lesson",
+        target_id=lesson_id,
     )
-    return LessonGenerateProblemsAcceptedOut()
+    if existing is not None:
+        return LessonGenerateProblemsAcceptedOut(
+            job_id=existing.id,
+            message="Генерация уже идёт. Следим за прогрессом.",
+        )
+
+    job = await create_generation_job(
+        session,
+        kind="lesson_problems",
+        target_kind="lesson",
+        target_id=lesson_id,
+        created_by=current_user.id,
+        request_json={"lesson_id": str(lesson_id), "count": body.count},
+        stage_message="Готовим генерацию задач",
+    )
+
+    asyncio.create_task(
+        _run_generate_problems(
+            job.id,
+            lesson_id,
+            body.count,
+            current_user.id,
+            _can_edit_published(current_user.role),
+        )
+    )
+    return LessonGenerateProblemsAcceptedOut(job_id=job.id)
 
 
 @router.post(

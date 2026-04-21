@@ -6,7 +6,8 @@ import logging
 import re
 import uuid
 from copy import deepcopy
-from typing import Any, Mapping
+from datetime import datetime, timezone
+from typing import Any, Awaitable, Callable, Mapping
 
 import aio_pika
 from aio_pika import ExchangeType, Message
@@ -28,6 +29,73 @@ from app.settings import settings
 
 
 logger = logging.getLogger(__name__)
+
+
+# -----------------------------------------------------------------------------
+# Progress tracking helpers
+# -----------------------------------------------------------------------------
+# The monolith owns the "planning" half of the pipeline (LLM plan + content).
+# The worker owns the "rendering" half. Progress baselines line up with the
+# worker's STAGE_PROGRESS table so the UI sees a smooth 0..100% bar:
+#   collecting_context   5  %
+#   planning_plan       10  %
+#   planning_content    25  %
+#   queued              40  %  (handoff to worker)
+#   rendering           45  %
+#   merging             85  %
+#   uploading           95  %
+#   done               100  %
+# -----------------------------------------------------------------------------
+
+_STAGE_LABELS: dict[str, str] = {
+    "collecting_context": "Собираем учебные материалы",
+    "planning_plan": "Проектируем структуру урока",
+    "planning_content": "Готовим сценарий и озвучку",
+    "queued": "Отправляем в рендер",
+    "rendering": "Рендерим сцены видео",
+    "merging": "Склеиваем сцены",
+    "uploading": "Загружаем видео",
+    "done": "Готово",
+    "failed": "Ошибка при генерации видео",
+}
+
+
+async def _update_video_progress(
+    job_id: uuid.UUID,
+    *,
+    status: str | None = None,
+    stage_message: str | None = None,
+    progress_percent: int | None = None,
+    error_text: str | None = None,
+    mark_started: bool = False,
+    mark_finished: bool = False,
+) -> None:
+    """Update progress fields on the video job in a short-lived session.
+
+    Any argument left as ``None`` is preserved. ``stage_message`` is derived
+    automatically from ``status`` when not explicitly provided so callers can
+    just pass the canonical stage name.
+    """
+
+    async with SessionLocal() as session:
+        job = await session.get(VideoJobModel, job_id)
+        if job is None:
+            return
+        if status is not None:
+            job.status = status
+        if stage_message is None and status is not None:
+            stage_message = _STAGE_LABELS.get(status)
+        if stage_message is not None:
+            job.stage_message = stage_message
+        if progress_percent is not None:
+            job.progress_percent = max(0, min(100, int(progress_percent)))
+        if error_text is not None:
+            job.error_text = error_text
+        if mark_started and job.started_at is None:
+            job.started_at = datetime.now(timezone.utc)
+        if mark_finished and job.finished_at is None:
+            job.finished_at = datetime.now(timezone.utc)
+        await session.commit()
 
 _client: AsyncOpenAI | None = None
 
@@ -821,11 +889,15 @@ async def _generate_content_from_plan(
                                                               
                                                                              
 
+ProgressCallback = Callable[..., Awaitable[None]]
+
+
 async def _generate_video_content_json(
     *,
     request_json: Mapping[str, Any],
     topic_title: str,
     rag_chunks: list[str],
+    on_progress: ProgressCallback | None = None,
 ) -> dict[str, Any]:
     """Generate full video content JSON using a 2-step LLM approach.
 
@@ -839,7 +911,13 @@ async def _generate_video_content_json(
     if not topic_title or not rag_chunks:
         raise Conflict("Недостаточно учебных материалов для генерации видео")
 
-                                                       
+    if on_progress is not None:
+        await on_progress(
+            status="planning",
+            stage_message=_STAGE_LABELS["planning_plan"],
+            progress_percent=10,
+        )
+
     plan_json = await _generate_plan(
         client=client,
         request_json=request_json,
@@ -852,7 +930,13 @@ async def _generate_video_content_json(
         [s.get("template") for s in plan_json.get("scenes", [])],
     )
 
-                                                                      
+    if on_progress is not None:
+        await on_progress(
+            status="planning",
+            stage_message=_STAGE_LABELS["planning_content"],
+            progress_percent=25,
+        )
+
     previous_errors: list[str] | None = None
     for attempt in range(_CONTENT_MAX_RETRIES + 1):
         content_json = await _generate_content_from_plan(
@@ -876,6 +960,17 @@ async def _generate_video_content_json(
         )
         if attempt < _CONTENT_MAX_RETRIES:
             previous_errors = errors
+            if on_progress is not None:
+                # Nudge progress a little on each retry so the UI shows activity
+                # when content generation has to iterate.
+                await on_progress(
+                    status="planning",
+                    stage_message=(
+                        f"{_STAGE_LABELS['planning_content']} "
+                        f"(попытка {attempt + 2}/{_CONTENT_MAX_RETRIES + 1})"
+                    ),
+                    progress_percent=25 + 5 * (attempt + 1),
+                )
         else:
             raise Conflict(
                 f"Не удалось сгенерировать валидный контент видео после "
@@ -982,38 +1077,61 @@ class VideoJobService:
 
     @staticmethod
     async def _mark_job_failed(job_id: uuid.UUID, error_text: str) -> None:
-        async with SessionLocal() as session:
-            job = await session.get(VideoJobModel, job_id)
-            if job is None:
-                return
-            job.status = "failed"
-            job.error_text = error_text
-            await session.commit()
+        """Persist a failure on the job row, including stage metadata."""
+
+        await _update_video_progress(
+            job_id,
+            status="failed",
+            stage_message=(error_text or _STAGE_LABELS["failed"])[:500],
+            progress_percent=0,
+            error_text=error_text,
+            mark_finished=True,
+        )
 
     @staticmethod
-    async def _run_problem_job_background(job_id: uuid.UUID, problem_id: uuid.UUID) -> None:
+    async def _run_problem_job_background(
+        job_id: uuid.UUID, problem_id: uuid.UUID
+    ) -> None:
         try:
+            await _update_video_progress(
+                job_id,
+                status="planning",
+                stage_message=_STAGE_LABELS["collecting_context"],
+                progress_percent=5,
+                mark_started=True,
+            )
+
             async with SessionLocal() as session:
                 svc = VideoJobService(session)
-                request_json, query_title, rag_chunks = await svc._build_problem_request_payload(problem_id)
-                content_json = await _generate_video_content_json(
-                    request_json=request_json,
-                    topic_title=query_title,
-                    rag_chunks=rag_chunks,
+                request_json, query_title, rag_chunks = (
+                    await svc._build_problem_request_payload(problem_id)
                 )
-                content_json = _normalize_content_json(content_json)
 
+            async def _progress(**kwargs: Any) -> None:
+                await _update_video_progress(job_id, **kwargs)
+
+            content_json = await _generate_video_content_json(
+                request_json=request_json,
+                topic_title=query_title,
+                rag_chunks=rag_chunks,
+                on_progress=_progress,
+            )
+            content_json = _normalize_content_json(content_json)
+
+            async with SessionLocal() as session:
                 job = await session.get(VideoJobModel, job_id)
                 if job is None:
                     return
                 job.request_json = request_json
                 job.plan_json = content_json
                 job.status = "queued"
+                job.stage_message = _STAGE_LABELS["queued"]
+                job.progress_percent = 40
                 job.error_text = None
                 await session.commit()
 
             await _publish_video_requested(job_id)
-        except Exception as exc:                
+        except Exception as exc:
             logger.exception(
                 "Background planning failed for problem video job",
                 extra={"job_id": str(job_id), "problem_id": str(problem_id)},
@@ -1027,30 +1145,48 @@ class VideoJobService:
         lesson_id: uuid.UUID | None = None,
     ) -> None:
         try:
+            await _update_video_progress(
+                job_id,
+                status="planning",
+                stage_message=_STAGE_LABELS["collecting_context"],
+                progress_percent=5,
+                mark_started=True,
+            )
+
             async with SessionLocal() as session:
                 svc = VideoJobService(session)
-                request_json, query_title, rag_chunks = await svc._build_topic_request_payload(
-                    topic_id,
-                    lesson_id=lesson_id,
+                request_json, query_title, rag_chunks = (
+                    await svc._build_topic_request_payload(
+                        topic_id,
+                        lesson_id=lesson_id,
+                    )
                 )
-                content_json = await _generate_video_content_json(
-                    request_json=request_json,
-                    topic_title=query_title,
-                    rag_chunks=rag_chunks,
-                )
-                content_json = _normalize_content_json(content_json)
 
+            async def _progress(**kwargs: Any) -> None:
+                await _update_video_progress(job_id, **kwargs)
+
+            content_json = await _generate_video_content_json(
+                request_json=request_json,
+                topic_title=query_title,
+                rag_chunks=rag_chunks,
+                on_progress=_progress,
+            )
+            content_json = _normalize_content_json(content_json)
+
+            async with SessionLocal() as session:
                 job = await session.get(VideoJobModel, job_id)
                 if job is None:
                     return
                 job.request_json = request_json
                 job.plan_json = content_json
                 job.status = "queued"
+                job.stage_message = _STAGE_LABELS["queued"]
+                job.progress_percent = 40
                 job.error_text = None
                 await session.commit()
 
             await _publish_video_requested(job_id)
-        except Exception as exc:                
+        except Exception as exc:
             logger.exception(
                 "Background planning failed for topic video job",
                 extra={
@@ -1064,6 +1200,7 @@ class VideoJobService:
     async def create_problem_video_job(self, problem_id: uuid.UUID) -> VideoJobModel:
         """Create a video job and prepare content asynchronously."""
 
+        now = datetime.now(timezone.utc)
         job = VideoJobModel(
             status="planning",
             request_json={
@@ -1073,6 +1210,9 @@ class VideoJobService:
             plan_json=None,
             result_json=None,
             error_text=None,
+            progress_percent=1,
+            stage_message=_STAGE_LABELS["collecting_context"],
+            started_at=now,
         )
         self.session.add(job)
         await self.session.commit()
@@ -1092,6 +1232,7 @@ class VideoJobService:
     ) -> VideoJobModel:
         """Create a video job and prepare content asynchronously."""
 
+        now = datetime.now(timezone.utc)
         job = VideoJobModel(
             status="planning",
             request_json={
@@ -1102,6 +1243,9 @@ class VideoJobService:
             plan_json=None,
             result_json=None,
             error_text=None,
+            progress_percent=1,
+            stage_message=_STAGE_LABELS["collecting_context"],
+            started_at=now,
         )
         self.session.add(job)
         await self.session.commit()

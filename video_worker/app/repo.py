@@ -30,13 +30,58 @@ def _now() -> datetime:
     return datetime.now(timezone.utc)
 
 
+# Progress baseline per stage. Worker takes over at "rendering" (45%).
+# The monolith planning stages cover 0..45%. The worker covers 45..100%:
+#   rendering 45, merging 85, uploading 95, done 100.
+STAGE_PROGRESS = {
+    "queued": 40,
+    "rendering": 45,
+    "merging": 85,
+    "uploading": 95,
+    "done": 100,
+    "failed": 100,
+}
+
+# Human-readable stage messages shown to the user. Russian so they match
+# existing UI strings.
+STAGE_MESSAGES = {
+    "queued": "Ожидаем рендеринг сцен",
+    "rendering": "Рендерим сцены видео",
+    "merging": "Склеиваем сцены",
+    "uploading": "Загружаем видео",
+    "done": "Готово",
+    "failed": "Ошибка при генерации видео",
+}
+
+
 async def set_status(
     session: AsyncSession,
     job: Job,
     status: str,
+    *,
+    progress_percent: Optional[int] = None,
+    stage_message: Optional[str] = None,
 ) -> None:
+    """Update status plus derived progress fields in a single commit."""
+
     job.status = status
     job.updated_at = _now()
+    if job.started_at is None and status != "failed":
+        job.started_at = _now()
+
+    if progress_percent is None:
+        progress_percent = STAGE_PROGRESS.get(status)
+    if progress_percent is not None:
+        job.progress_percent = max(0, min(100, int(progress_percent)))
+
+    if stage_message is None:
+        stage_message = STAGE_MESSAGES.get(status)
+    if stage_message is not None:
+        job.stage_message = stage_message
+
+    if status in {"done", "failed"} and job.finished_at is None:
+        job.finished_at = _now()
+
     await session.commit()
 
 
@@ -61,6 +106,13 @@ async def set_result(
     job.error_text = error_text
     job.result_json = dict(result_json) if result_json is not None else None
     job.updated_at = _now()
+    if status in {"done", "failed"} and job.finished_at is None:
+        job.finished_at = _now()
+    if status == "done":
+        job.progress_percent = 100
+        job.stage_message = STAGE_MESSAGES["done"]
+    elif status == "failed":
+        job.stage_message = (error_text or STAGE_MESSAGES["failed"])[:500]
     await session.commit()
 
 
@@ -94,4 +146,3 @@ async def update_timings(
     job.result_json = result
     job.updated_at = _now()
     await session.commit()
-
