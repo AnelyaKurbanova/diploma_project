@@ -107,6 +107,7 @@ class LessonGenerateProblemsAcceptedOut(BaseModel):
     message: str = (
         "Генерация задач запущена. Задачи появятся в блоке урока после завершения процесса."
     )
+    job_id: uuid.UUID
 
 
 class LessonGenerateDraftAcceptedOut(BaseModel):
@@ -116,3 +117,4 @@ class LessonGenerateDraftAcceptedOut(BaseModel):
     message: str = (
         "Генерация лекции запущена. Черновик появится в блоке урока после завершения."
     )
+    job_id: uuid.UUID

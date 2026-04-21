@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import DateTime, Integer, String, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -30,6 +30,20 @@ class Job(Base):
         JSONB, nullable=True
     )
     error_text: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+    # Progress metadata shared with the monolith. All nullable so that
+    # rollout is backwards compatible with rows created before the migration.
+    progress_percent: Mapped[int] = mapped_column(
+        Integer, nullable=False, server_default="0"
+    )
+    stage_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    started_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -39,4 +53,3 @@ class Job(Base):
         onupdate=func.now(),
         nullable=False,
     )
-

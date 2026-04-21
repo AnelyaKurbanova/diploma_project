@@ -14,6 +14,7 @@ from app.modules.schools.api.router import router as schools_router
 from app.modules.classes.api.router import router as classes_router
 from app.modules.dashboard.api.router import router as dashboard_router
 from app.modules.video_jobs.api.router import router as video_jobs_router
+from app.modules.generation_jobs.api.router import router as generation_jobs_router
 from app.modules.chat.api.router import router as chat_router
 from app.modules.gamification.api.router import router as gamification_router
 
@@ -31,6 +32,7 @@ api_router.include_router(auth_router)
 api_router.include_router(users_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(video_jobs_router)
+api_router.include_router(generation_jobs_router)
 api_router.include_router(chat_router)
 api_router.include_router(gamification_router)
 

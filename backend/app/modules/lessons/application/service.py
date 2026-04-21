@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import uuid
+from typing import Any, Awaitable, Callable
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+
+ProgressCallback = Callable[..., Awaitable[None]]
 
 from app.core.errors import Conflict, NotFound
 from app.core.i18n import tr
@@ -343,8 +346,23 @@ class LessonService:
         )
 
     async def generate_draft(
-        self, lesson_id: uuid.UUID, *, allow_published_edit: bool = False
+        self,
+        lesson_id: uuid.UUID,
+        *,
+        allow_published_edit: bool = False,
+        on_progress: ProgressCallback | None = None,
     ) -> LessonDetailOut:
+        async def _report(**kwargs: Any) -> None:
+            if on_progress is not None:
+                await on_progress(**kwargs)
+
+        await _report(
+            status="running",
+            stage="collecting_context",
+            stage_message="Собираем учебные материалы",
+            progress_percent=10,
+        )
+
         lesson = await self.repo.get_lesson_with_blocks(lesson_id)
         await self._normalize_editable_status(lesson, allow_published_edit=allow_published_edit)
 
@@ -361,6 +379,12 @@ class LessonService:
         if not chunks:
             raise NotFound("Нет учебных материалов по предмету. Сначала загрузите docx через /knowledge/ingest.")
 
+        await _report(
+            stage="generating",
+            stage_message="Формируем текст лекции",
+            progress_percent=40,
+        )
+
         chunk_contents = [c.content for c in chunks]
         text = await generate_lecture_from_context(lesson.title, chunk_contents)
         if not text:
@@ -368,6 +392,12 @@ class LessonService:
                 "Модель вернула пустой текст лекции. Попробуйте ещё раз; "
                 "если повторяется — проверьте наличие учебных материалов по теме и имя модели (LLM_MODEL_NAME)."
             )
+
+        await _report(
+            stage="saving",
+            stage_message="Сохраняем черновик",
+            progress_percent=85,
+        )
 
         lecture_blocks = [
             b for b in lesson.content_blocks
@@ -398,6 +428,7 @@ class LessonService:
         count: int = 10,
         created_by: uuid.UUID | None = None,
         allow_published_edit: bool = False,
+        on_progress: ProgressCallback | None = None,
     ) -> LessonDetailOut:
         """Сгенерировать задачи по материалам темы и привязать их к уроку.
 
@@ -405,13 +436,23 @@ class LessonService:
         по ~30 задач за один вызов ProblemService.generate_from_rag.
         """
 
+        async def _report(**kwargs: Any) -> None:
+            if on_progress is not None:
+                await on_progress(**kwargs)
+
+        await _report(
+            status="running",
+            stage="preparing",
+            stage_message="Готовим контекст для генерации задач",
+            progress_percent=5,
+        )
+
         lesson = await self.repo.get_lesson_with_blocks(lesson_id)
         await self._normalize_editable_status(
             lesson,
             allow_published_edit=allow_published_edit,
         )
 
-                                                                                                  
         topic = await self.catalog_repo.get_topic(lesson.topic_id)
         subject = await self.catalog_repo.get_subject(topic.subject_id)
 
@@ -425,6 +466,20 @@ class LessonService:
         while remaining > 0:
             current_batch = min(remaining, batch_size)
 
+            completed = requested_total - remaining
+            # Reserve last 10% for saving/block update.
+            progress_pct = min(
+                85,
+                10 + int(80 * completed / max(1, requested_total)),
+            )
+            await _report(
+                stage="generating",
+                stage_message=(
+                    f"Генерируем задачи ({completed}/{requested_total})"
+                ),
+                progress_percent=progress_pct,
+            )
+
             try:
                 problems, _skipped = await problem_svc.generate_from_rag(
                     subject_id=subject.id,
@@ -434,8 +489,6 @@ class LessonService:
                     difficulty_quota=None,
                 )
             except Conflict:
-                                                                            
-                                                                        
                 if all_created:
                     break
                 raise
@@ -446,10 +499,14 @@ class LessonService:
             all_created.extend(problems)
             remaining -= len(problems)
 
-                                                                    
-                                                                    
             if len(problems) < current_batch:
                 break
+
+        await _report(
+            stage="saving",
+            stage_message="Сохраняем задачи в уроке",
+            progress_percent=90,
+        )
 
                                                  
         problem_blocks = [
