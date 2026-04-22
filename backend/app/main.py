@@ -198,6 +198,14 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Could not reset stuck generation jobs: %s", exc)
 
+
+    try:
+        from app.modules.video_jobs.application.service import reset_stuck_video_jobs
+        await reset_stuck_video_jobs()
+        logger.info("Video queue: reset any stuck active jobs")
+    except Exception as exc:
+        logger.warning("Could not reset stuck video jobs: %s", exc)
+
     # -----------------------------------------------------------------------
     # Background pump loops: one for video jobs, one for generation jobs.
     # Each loop calls its pump every 3 s — a safety net so the queue keeps

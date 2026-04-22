@@ -184,6 +184,20 @@ async def pump_global_video_queue() -> None:
         asyncio.create_task(pump_global_video_queue())
 
 
+async def reset_stuck_video_jobs() -> None:
+    async with SessionLocal() as session:
+        await session.execute(
+            VideoJobModel.__table__.update()
+            .where(VideoJobModel.status.in_(_VIDEO_ACTIVE_STATUSES))
+            .values(
+                status="pending",
+                stage_message=_STAGE_LABELS["pending"],
+                progress_percent=0,
+                started_at=None,
+            )
+        )
+        await session.commit()
+
 
 async def _update_video_progress(
     job_id: uuid.UUID,
