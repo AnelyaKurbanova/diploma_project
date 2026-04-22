@@ -156,6 +156,8 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   const selectedTopicRef = useRef<string>("");
   const editingBlockIdRef = useRef<string | null>(null);
   const blockFormRef = useRef(blockForm);
+  // Incremented on every loadLessonDetail call; stale responses are ignored.
+  const lessonDetailVersionRef = useRef(0);
 
   const [problemModalOpen, setProblemModalOpen] = useState(false);
   const [problemModalMode, setProblemModalMode] = useState<"create" | "edit" | "view">("create");
@@ -265,15 +267,20 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   }, [loadLessons]);
 
   const loadLessonDetail = useCallback(async (lessonId: string) => {
+    const version = ++lessonDetailVersionRef.current;
     setLoadingLessonDetail(true);
     try {
       const data = await apiGet<LessonDetail>(`/lessons/${lessonId}?admin_view=1`, accessToken);
+      if (version !== lessonDetailVersionRef.current) return;
       setLessonDetail(data);
     } catch (err) {
+      if (version !== lessonDetailVersionRef.current) return;
       setLessonDetail(null);
       setError(err instanceof Error ? err.message : "Не удалось загрузить урок");
     } finally {
-      setLoadingLessonDetail(false);
+      if (version === lessonDetailVersionRef.current) {
+        setLoadingLessonDetail(false);
+      }
     }
   }, [accessToken]);
 
@@ -282,6 +289,8 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       setLessonDetail(null);
       return;
     }
+    // Clear immediately so stale blocks from the previous lesson never show.
+    setLessonDetail(null);
     loadLessonDetail(selectedLessonId);
   }, [selectedLessonId, loadLessonDetail]);
 
@@ -518,18 +527,21 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     if (lessons.length === 0) {
       if (selectedLessonId) {
         setSelectedLessonId(null);
+        resetBlockForm();
       }
       setLessonDetail(null);
       return;
     }
 
     if (!selectedLessonId) {
+      resetBlockForm();
       setSelectedLessonId(lessons[0].id);
       return;
     }
 
     const exists = lessons.some((lesson) => lesson.id === selectedLessonId);
     if (!exists) {
+      resetBlockForm();
       setSelectedLessonId(lessons[0].id);
       setLessonDetail(null);
     }
@@ -862,10 +874,15 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     const reordered = ordered.slice();
     const [moved] = reordered.splice(index, 1);
     reordered.splice(swapIndex, 0, moved);
+    const optimisticBlocks = reordered.map((b, i) => ({ ...b, order_no: i }));
 
     setError(null);
     setSuccess(null);
     setMovingBlock(true);
+    // Optimistic update — the list reorders instantly without a loading flash.
+    setLessonDetail((prev) =>
+      prev ? { ...prev, content_blocks: optimisticBlocks } : prev,
+    );
     try {
       for (let i = 0; i < reordered.length; i++) {
         const block = reordered[i];
@@ -873,10 +890,11 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
           await apiPatch(`/blocks/${block.id}`, { order_no: i }, accessToken);
         }
       }
-      await loadLessonDetail(selectedLessonId);
       setSuccess("Порядок блоков обновлен");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Ошибка при изменении порядка блоков");
+      // Revert: reload authoritative state from server.
+      await loadLessonDetail(selectedLessonId);
     } finally {
       setMovingBlock(false);
     }
@@ -1001,7 +1019,14 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                 >
                   <button
                     type="button"
-                    onClick={() => setSelectedLessonId(lesson.id)}
+                    onClick={() => {
+                      if (selectedLessonId !== lesson.id) {
+                        resetBlockForm();
+                        setError(null);
+                        setSuccess(null);
+                        setSelectedLessonId(lesson.id);
+                      }
+                    }}
                     className="min-w-0 flex-1 text-left"
                   >
                     <p className="truncate font-medium text-brand-navy">{lesson.title}</p>
