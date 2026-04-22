@@ -27,6 +27,7 @@ from app.modules.lessons.api.schemas import (
 )
 from app.modules.lessons.data.models import BlockType, LessonStatus
 from app.modules.lessons.data.repo import LessonsRepo
+from app.modules.problems.application.llm_rag_problems import RAG_PROBLEMS_LLM_MAX_PER_CALL
 from app.modules.problems.application.service import ProblemService
 from app.modules.problems.data.models import ProblemModel, ProblemStatus
 from app.modules.gamification.application.service import GamificationService
@@ -433,7 +434,7 @@ class LessonService:
         """Сгенерировать задачи по материалам темы и привязать их к уроку.
 
         Поддерживает запрос большого числа задач: генерация идёт батчами,
-        по ~30 задач за один вызов ProblemService.generate_from_rag.
+        батчами (по несколько за один внутренний LLM-вызов) через ProblemService.
         """
 
         async def _report(**kwargs: Any) -> None:
@@ -458,10 +459,15 @@ class LessonService:
 
         requested_total = max(1, count)
         remaining = requested_total
-        batch_size = 30
+        batch_size = RAG_PROBLEMS_LLM_MAX_PER_CALL
 
         problem_svc = ProblemService(self.session)
         all_created: list["ProblemModel"] = []
+
+        # How many times to retry a batch that returns 0 problems before
+        # treating the whole run as failed.
+        _batch_max_retries = 3
+        _consecutive_empty = 0
 
         while remaining > 0:
             current_batch = min(remaining, batch_size)
@@ -494,13 +500,31 @@ class LessonService:
                 raise
 
             if not problems:
-                break
+                _consecutive_empty += 1
+                if _consecutive_empty >= _batch_max_retries:
+                    # LLM consistently returns nothing — treat as a hard failure.
+                    raise RuntimeError(
+                        "Генерация задач: языковая модель вернула пустой список "
+                        f"после {_consecutive_empty} попыток подряд. "
+                        "Проверьте наличие учебных материалов по теме и повторите запрос."
+                    )
+                # Otherwise retry the same batch (LLM call already retried
+                # internally, but the outer loop adds another level of retry).
+                continue
 
+            _consecutive_empty = 0
             all_created.extend(problems)
             remaining -= len(problems)
 
             if len(problems) < current_batch:
                 break
+
+        if not all_created:
+            raise RuntimeError(
+                "Генерация задач завершилась без созданных задач. "
+                "Возможно, языковая модель не смогла сформировать ни одного вопроса "
+                "по имеющимся учебным материалам. Повторите запрос."
+            )
 
         await _report(
             stage="saving",
@@ -508,7 +532,6 @@ class LessonService:
             progress_percent=90,
         )
 
-                                                 
         problem_blocks = [
             b
             for b in lesson.content_blocks
@@ -527,8 +550,7 @@ class LessonService:
                 body=None,
             )
 
-                                                     
-        from app.modules.lessons.data.repo import LessonsRepo                                
+        from app.modules.lessons.data.repo import LessonsRepo  # noqa: PLC0415
 
         repo: LessonsRepo = self.repo
         existing_ids = await repo.list_block_problem_ids(block.id)

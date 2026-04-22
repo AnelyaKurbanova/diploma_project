@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.data.db.session import SessionLocal
@@ -160,3 +162,109 @@ async def find_active_job(
     )
     result = await session.execute(stmt)
     return result.scalar_one_or_none()
+
+
+# ---------------------------------------------------------------------------
+# Global one-at-a-time queue pump for all generation jobs
+# ---------------------------------------------------------------------------
+
+_GENERATION_PUMP_LOCK = asyncio.Lock()
+
+
+async def pump_generation_queue() -> None:
+    """Start the oldest pending generation job if none is currently running.
+
+    All generation kinds (lesson_draft, lesson_problems, …) share one global
+    slot so LLM calls run strictly one at a time.  Jobs are persisted in the
+    ``generation_jobs`` table, so they survive server restarts — the lifespan
+    poller in main.py re-drains the queue after any restart.
+    """
+    job_id: uuid.UUID | None = None
+    kind: str | None = None
+    rj: dict = {}
+
+    async with _GENERATION_PUMP_LOCK:
+        async with SessionLocal() as session:
+            # Skip if another job is already running.
+            r = await session.execute(
+                select(func.count())
+                .select_from(GenerationJobModel)
+                .where(GenerationJobModel.status == STATUS_RUNNING),
+            )
+            if int(r.scalar() or 0) > 0:
+                return
+
+            # Claim the oldest pending job atomically (SKIP LOCKED prevents
+            # double-pickup when multiple Uvicorn workers are running).
+            res = await session.execute(
+                select(GenerationJobModel)
+                .where(GenerationJobModel.status == STATUS_PENDING)
+                .order_by(GenerationJobModel.created_at.asc())
+                .limit(1)
+                .with_for_update(skip_locked=True)
+            )
+            job = res.scalars().first()
+            if job is None:
+                return
+
+            job_id = job.id
+            kind = job.kind
+            rj = dict(job.request_json or {})
+
+            job.status = STATUS_RUNNING
+            if job.started_at is None:
+                job.started_at = datetime.now(timezone.utc)
+            await session.commit()
+
+    if job_id is None or kind is None:
+        return
+
+    # Dispatch to the appropriate runner.  Lazy imports break the potential
+    # circular-import cycle (lessons router imports this service at module
+    # load; this service imports the runners only when called at runtime).
+    if kind == "lesson_draft":
+        from app.modules.lessons.api.router import _run_generate_draft  # noqa: PLC0415
+        lesson_id = uuid.UUID(str(rj["lesson_id"]))
+        allow_pub = bool(rj.get("allow_published_edit", False))
+        asyncio.create_task(_run_generate_draft(job_id, lesson_id, allow_pub))
+
+    elif kind == "lesson_problems":
+        from app.modules.lessons.api.router import _run_generate_problems  # noqa: PLC0415
+        lesson_id = uuid.UUID(str(rj["lesson_id"]))
+        count = int(rj.get("count", 10))
+        created_by_raw = rj.get("created_by")
+        created_by = uuid.UUID(str(created_by_raw)) if created_by_raw else None
+        allow_pub = bool(rj.get("allow_published_edit", False))
+        asyncio.create_task(
+            _run_generate_problems(job_id, lesson_id, count, created_by, allow_pub)
+        )
+
+    else:
+        LOGGER.error("pump_generation_queue: unknown kind=%s job_id=%s", kind, job_id)
+        async with SessionLocal() as session:
+            job = await session.get(GenerationJobModel, job_id)
+            if job is not None:
+                job.status = STATUS_FAILED
+                job.error_text = f"Unknown job kind: {kind}"
+                job.finished_at = datetime.now(timezone.utc)
+                await session.commit()
+        asyncio.create_task(pump_generation_queue())
+
+
+async def reset_stuck_running_jobs() -> None:
+    """On server startup, move any leftover ``running`` jobs back to ``pending``.
+
+    A ``running`` status means the previous process was killed mid-execution.
+    Resetting to ``pending`` lets the pump retry them on the next tick.
+    """
+    async with SessionLocal() as session:
+        await session.execute(
+            GenerationJobModel.__table__.update()
+            .where(GenerationJobModel.status == STATUS_RUNNING)
+            .values(
+                status=STATUS_PENDING,
+                stage_message="Возобновление после перезапуска сервера",
+                started_at=None,
+            )
+        )
+        await session.commit()

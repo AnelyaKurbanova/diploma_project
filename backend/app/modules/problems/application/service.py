@@ -15,6 +15,7 @@ from app.modules.problems.api.schemas import ProblemCreate, ProblemUpdate
 from app.modules.problems.application.canonicalize import normalize_for_storage
 from app.modules.problems.application.dedup import normalize_statement_for_dedup
 from app.modules.problems.application.llm_rag_problems import (
+    RAG_PROBLEMS_LLM_MAX_PER_CALL,
     GeneratedProblem,
     generate_problems_from_context,
 )
@@ -373,15 +374,21 @@ class ProblemService:
 
         chunk_texts = [c.content for c in chunks]
 
-        generated: list[GeneratedProblem] = await generate_problems_from_context(
-            topic_title=topic_row.title_ru,
-            chunks=chunk_texts,
-            count=count,
-            difficulty_quota=difficulty_quota,
-        )
-                                                                              
-                                                                           
-                                                       
+        generated: list[GeneratedProblem] = []
+        while len(generated) < count:
+            chunk = min(RAG_PROBLEMS_LLM_MAX_PER_CALL, count - len(generated))
+            part = await generate_problems_from_context(
+                topic_title=topic_row.title_ru,
+                chunks=chunk_texts,
+                count=chunk,
+                difficulty_quota=difficulty_quota,
+            )
+            if not part:
+                break
+            generated.extend(part)
+            if len(part) < chunk:
+                break
+
         if not generated:
             return [], 0
 

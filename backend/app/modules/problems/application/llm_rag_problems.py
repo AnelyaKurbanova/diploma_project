@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 from typing import List
@@ -15,6 +16,9 @@ from app.settings import settings
 
 
 logger = logging.getLogger(__name__)
+
+# Max problems per single LLM completion (keeps output small and reliable).
+RAG_PROBLEMS_LLM_MAX_PER_CALL = 4
 
 _client: AsyncOpenAI | None = None
 
@@ -76,10 +80,11 @@ async def generate_problems_from_context(
 
     if count < 1:
         count = 1
-    if count > 30:
-        count = 30
+    if count > RAG_PROBLEMS_LLM_MAX_PER_CALL:
+        count = RAG_PROBLEMS_LLM_MAX_PER_CALL
 
     client = _get_client()
+    max_attempts = 3
 
     system_prompt = (
         "Ты составляешь школьные задачи по математике (или другому школьному предмету) "
@@ -161,96 +166,141 @@ async def generate_problems_from_context(
         f"Контекст учебника (используй только его):\n{context}"
     )
 
-    try:
-        response = await client.chat.completions.create(
-            model=settings.LLM_MODEL_NAME,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_completion_tokens=4096,
-            response_format={"type": "json_object"},
-        )
-    except Exception as exc:                                   
+    last_error: str = ""
+    for attempt in range(1, max_attempts + 1):
+        try:
+            response = await client.chat.completions.create(
+                model=settings.LLM_MODEL_NAME,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_completion_tokens=4096,
+                response_format={"type": "json_object"},
+            )
+        except Exception as exc:
+            await log_llm_token_usage(
+                request_type="problems.generate_rag_problems",
+                model_name=settings.LLM_MODEL_NAME,
+                input_tokens=None,
+                output_tokens=None,
+                total_tokens=None,
+                request_meta={
+                    "topic_title": topic_title,
+                    "chunks_count": len(chunks),
+                    "requested_count": count,
+                    "difficulty_quota": dict(difficulty_quota or {}),
+                },
+                success=False,
+                error_text=str(exc),
+            )
+            last_error = str(exc)
+            logger.warning(
+                "LLM RAG problem generation failed (attempt %s/%s): %s",
+                attempt,
+                max_attempts,
+                exc,
+            )
+            if attempt < max_attempts:
+                await asyncio.sleep(2 ** (attempt - 1))
+            continue
+
+        input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
         await log_llm_token_usage(
             request_type="problems.generate_rag_problems",
             model_name=settings.LLM_MODEL_NAME,
-            input_tokens=None,
-            output_tokens=None,
-            total_tokens=None,
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            total_tokens=total_tokens,
             request_meta={
                 "topic_title": topic_title,
                 "chunks_count": len(chunks),
                 "requested_count": count,
                 "difficulty_quota": dict(difficulty_quota or {}),
             },
-            success=False,
-            error_text=str(exc),
         )
-        logger.warning("LLM RAG problem generation failed: %s", exc)
-        return []
 
-    input_tokens, output_tokens, total_tokens = extract_openai_token_usage(response)
-    await log_llm_token_usage(
-        request_type="problems.generate_rag_problems",
-        model_name=settings.LLM_MODEL_NAME,
-        input_tokens=input_tokens,
-        output_tokens=output_tokens,
-        total_tokens=total_tokens,
-        request_meta={
-            "topic_title": topic_title,
-            "chunks_count": len(chunks),
-            "requested_count": count,
-            "difficulty_quota": dict(difficulty_quota or {}),
-        },
-    )
-
-    content = response.choices[0].message.content or ""
-    raw = content.strip()
-    if not raw:
-        return []
-
-    json_block = _extract_json_block(raw) or raw
-
-    try:
-        data = json.loads(json_block)
-    except Exception as exc:                                   
-        logger.warning("Failed to parse JSON from LLM RAG problems: %s; content=%r", exc, raw[:5000])
-        return []
-
-                                                                              
-                                                       
-    raw_items: list[dict] = []
-    if isinstance(data, dict) and "problems" in data and isinstance(data["problems"], list):
-        raw_items = data["problems"]
-    elif isinstance(data, list):
-        raw_items = data
-    elif isinstance(data, dict):
-        raw_items = [data]
-    else:
-        logger.warning("Unexpected JSON structure for RAG problems: %r", type(data))
-        return []
-
-    problems: list[GeneratedProblem] = []
-    for idx, item in enumerate(raw_items):
-        try:
-            problems.append(GeneratedProblem.model_validate(item))
-        except ValidationError as exc:                                   
-            logger.warning("Validation error for RAG problem #%s: %s; item=%r", idx, exc, item)
+        content = response.choices[0].message.content or ""
+        raw = content.strip()
+        if not raw:
+            last_error = "LLM returned empty content"
+            logger.warning(
+                "LLM returned empty content (attempt %s/%s)", attempt, max_attempts
+            )
+            if attempt < max_attempts:
+                await asyncio.sleep(2 ** (attempt - 1))
             continue
 
-    if not problems:
-                                                                   
-        snippet = raw[:5000]
-        logger.warning(
-            "LLM RAG problems empty after validation; raw_response_snippet=%r",
-            snippet,
-        )
-                                                                         
-        print("\n===== LLM RAG RAW RESPONSE (snippet) =====")
-        print(snippet)
-        print("===== END LLM RAG RAW RESPONSE =====\n")
-        return []
+        json_block = _extract_json_block(raw) or raw
 
-    return problems[:count]
+        try:
+            data = json.loads(json_block)
+        except Exception as exc:
+            last_error = f"JSON parse error: {exc}"
+            logger.warning(
+                "Failed to parse JSON from LLM RAG problems (attempt %s/%s): %s; content=%r",
+                attempt,
+                max_attempts,
+                exc,
+                raw[:500],
+            )
+            if attempt < max_attempts:
+                await asyncio.sleep(2 ** (attempt - 1))
+            continue
+
+        raw_items: list[dict] = []
+        if isinstance(data, dict) and "problems" in data and isinstance(data["problems"], list):
+            raw_items = data["problems"]
+        elif isinstance(data, list):
+            raw_items = data
+        elif isinstance(data, dict):
+            raw_items = [data]
+        else:
+            last_error = f"Unexpected JSON structure: {type(data)}"
+            logger.warning(
+                "Unexpected JSON structure for RAG problems (attempt %s/%s): %r",
+                attempt,
+                max_attempts,
+                type(data),
+            )
+            if attempt < max_attempts:
+                await asyncio.sleep(2 ** (attempt - 1))
+            continue
+
+        problems: list[GeneratedProblem] = []
+        for idx, item in enumerate(raw_items):
+            try:
+                problems.append(GeneratedProblem.model_validate(item))
+            except ValidationError as exc:
+                logger.warning(
+                    "Validation error for RAG problem #%s (attempt %s/%s): %s; item=%r",
+                    idx,
+                    attempt,
+                    max_attempts,
+                    exc,
+                    item,
+                )
+                continue
+
+        if not problems:
+            snippet = raw[:500]
+            last_error = "all problems failed validation"
+            logger.warning(
+                "LLM RAG problems empty after validation (attempt %s/%s); snippet=%r",
+                attempt,
+                max_attempts,
+                snippet,
+            )
+            if attempt < max_attempts:
+                await asyncio.sleep(2 ** (attempt - 1))
+            continue
+
+        return problems[:count]
+
+    logger.error(
+        "generate_problems_from_context: all %s attempts exhausted; last_error=%s",
+        max_attempts,
+        last_error,
+    )
+    return []
 
