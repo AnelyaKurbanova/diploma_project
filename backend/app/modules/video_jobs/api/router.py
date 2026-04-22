@@ -22,6 +22,7 @@ router = APIRouter(tags=["video_jobs"])
 # the coarser status field (worker statuses). Frontend falls back to these when
 # ``stage_message`` is null (old rows created before the migration).
 _STATUS_MESSAGES: dict[str, str] = {
+    "pending": "В очереди (ожидает своей очереди)",
     "planning": "Готовим сценарий видео",
     "queued": "Видео отправлено в рендер",
     "rendering": "Рендерим сцены видео",
@@ -34,6 +35,7 @@ _STATUS_MESSAGES: dict[str, str] = {
 # Baseline progress percentage derived from status (used when the row has not
 # received an explicit progress_percent yet).
 _STATUS_PROGRESS: dict[str, int] = {
+    "pending": 0,
     "planning": 10,
     "queued": 40,
     "rendering": 60,

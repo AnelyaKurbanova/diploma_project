@@ -700,7 +700,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   );
 
   const handleCreateVideoForBlock = async () => {
-    if (generationVideoActive) return;
     if (!selectedTopic || !selectedLessonId) {
       setError("Сначала выберите тему и урок, для которого нужно сгенерировать видео.");
       return;
@@ -1241,7 +1240,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                         snapshot={videoDisplay}
                         active={generationVideoActive}
                         tone="purple"
-                        fallbackMessage="Ставим задачу в очередь видео-воркера…"
+                        fallbackMessage="Ставим задачу в серверную очередь; можно закрыть страницу — генерация продолжится. Одновременно в работе не больше одного видео…"
                         onRetry={
                           videoDisplay?.status === "failed"
                             ? () => {
@@ -1268,15 +1267,17 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     <button
                       type="button"
                       onClick={handleCreateVideoForBlock}
-                      disabled={generationVideoActive || !selectedTopic}
+                      disabled={startingVideo || !selectedTopic || !selectedLessonId}
                       className="rounded-lg bg-purple-600 px-4 py-2 text-xs font-medium text-white transition-colors hover:bg-purple-700 disabled:opacity-50"
                     >
-                      {generationVideoActive ? GENERATION_RUNNING_LABEL : "Сгенерировать видео"}
+                      {startingVideo ? GENERATION_RUNNING_LABEL : "Сгенерировать видео"}
                     </button>
                   </div>
                   <p className="mt-1 text-[11px] text-purple-700">
-                    Будет создана задача генерации объясняющего видео по выбранному уроку (теме).
-                    После завершения генерации ссылка на видео автоматически подставится в поле выше.
+                    Задача сохраняется на сервере: для каждого урока можно нажать «Сгенерировать»,
+                    закрыть сайт, и ссылки в БД появятся по мере готовности. В один момент
+                    строится и рендерится только одно видео, остальные ждут в очереди (по времени
+                    создания). После завершения воркер сам записывает URL в урок.
                   </p>
                 </div>
               </div>

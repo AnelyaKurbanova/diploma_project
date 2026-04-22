@@ -12,6 +12,7 @@ from typing import Any, Awaitable, Callable, Mapping
 import aio_pika
 from aio_pika import ExchangeType, Message
 from openai import AsyncOpenAI
+from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.errors import BadRequest, Conflict, NotFound
@@ -48,6 +49,7 @@ logger = logging.getLogger(__name__)
 # -----------------------------------------------------------------------------
 
 _STAGE_LABELS: dict[str, str] = {
+    "pending": "В очереди (ожидает своей очереди)",
     "collecting_context": "Собираем учебные материалы",
     "planning_plan": "Проектируем структуру урока",
     "planning_content": "Готовим сценарий и озвучку",
@@ -58,6 +60,129 @@ _STAGE_LABELS: dict[str, str] = {
     "done": "Готово",
     "failed": "Ошибка при генерации видео",
 }
+
+# A video "slot" is busy while planning, waiting for the worker, or being rendered.
+_VIDEO_ACTIVE_STATUSES: frozenset[str] = frozenset(
+    {"planning", "queued", "rendering", "merging", "uploading"},
+)
+_VIDEO_PUMP_LOCK = asyncio.Lock()
+# pg_try_advisory_lock id for multi-process (several Uvicorn workers) coordination.
+_VIDEO_PUMP_ADVISORY_KEY = 5_812_342_1
+
+
+def _use_pg_advisory_lock() -> bool:
+    return "postgres" in settings.DATABASE_URL.lower()
+
+
+async def _count_active_video_jobs(session: AsyncSession) -> int:
+    r = await session.execute(
+        select(func.count())
+        .select_from(VideoJobModel)
+        .where(VideoJobModel.status.in_(_VIDEO_ACTIVE_STATUSES)),
+    )
+    return int(r.scalar() or 0)
+
+
+async def pump_global_video_queue() -> None:
+    """Start at most one ``pending`` job if no other is in the active pipeline.
+
+    All video jobs (topic- and problem-based) share one global slot so the LLM
+    planning phase and the video worker run strictly one at a time. Pending
+    rows stay in the database; clients can close the browser; the server keeps
+    draining the queue (this function plus the app lifespan poller).
+    """
+    job_id: uuid.UUID | None = None
+    mode: str | None = None
+    topic_id: uuid.UUID | None = None
+    lesson_id: uuid.UUID | None = None
+    problem_id: uuid.UUID | None = None
+
+    async with _VIDEO_PUMP_LOCK:
+        async with SessionLocal() as session:
+            use_adv = _use_pg_advisory_lock()
+            if use_adv:
+                r = await session.execute(
+                    text("SELECT pg_try_advisory_lock(:k)"),
+                    {"k": _VIDEO_PUMP_ADVISORY_KEY},
+                )
+                if not r.scalar():
+                    return
+            try:
+                if await _count_active_video_jobs(session) > 0:
+                    return
+
+                res = await session.execute(
+                    select(VideoJobModel)
+                    .where(VideoJobModel.status == "pending")
+                    .order_by(VideoJobModel.created_at.asc())
+                    .limit(1)
+                )
+                job = res.scalars().first()
+                if job is None:
+                    return
+
+                rj = job.request_json or {}
+                mode = rj.get("mode")
+                job_id = job.id
+                if mode == "topic":
+                    raw_tid = rj.get("topic_id")
+                    if raw_tid is not None:
+                        topic_id = uuid.UUID(str(raw_tid))
+                    raw_l = rj.get("lesson_id")
+                    lesson_id = uuid.UUID(str(raw_l)) if raw_l else None
+                elif mode == "problem":
+                    raw_pid = rj.get("problem_id")
+                    if raw_pid is not None:
+                        problem_id = uuid.UUID(str(raw_pid))
+
+                now = datetime.now(timezone.utc)
+                job.status = "planning"
+                job.stage_message = _STAGE_LABELS["collecting_context"]
+                job.progress_percent = 1
+                if job.started_at is None:
+                    job.started_at = now
+                await session.commit()
+            except Exception:
+                logger.exception("pump_global_video_queue: could not start next job")
+                await session.rollback()
+                return
+            finally:
+                if use_adv:
+                    try:
+                        await session.execute(
+                            text("SELECT pg_advisory_unlock(:k)"),
+                            {"k": _VIDEO_PUMP_ADVISORY_KEY},
+                        )
+                        await session.commit()
+                    except Exception:
+                        logger.exception("pump: pg_advisory_unlock failed")
+
+    if job_id is None or mode is None:
+        return
+    if mode == "topic" and topic_id is not None:
+        asyncio.create_task(
+            VideoJobService._run_topic_job_background(
+                job_id=job_id,
+                topic_id=topic_id,
+                lesson_id=lesson_id,
+            )
+        )
+    elif mode == "problem" and problem_id is not None:
+        asyncio.create_task(
+            VideoJobService._run_problem_job_background(
+                job_id=job_id,
+                problem_id=problem_id,
+            )
+        )
+    else:
+        asyncio.create_task(
+            VideoJobService._mark_job_failed(
+                job_id,
+                "Некорректный request_json (mode) для видео-задачи",
+            )
+        )
+        asyncio.create_task(pump_global_video_queue())
+
 
 
 async def _update_video_progress(
@@ -1131,12 +1256,17 @@ class VideoJobService:
                 await session.commit()
 
             await _publish_video_requested(job_id)
+            # Kick the pump: if the worker already finished by the time we get
+            # here the 3-second poller would pick it up anyway, but an explicit
+            # nudge makes transitions feel instant in tests / fast renderers.
+            asyncio.create_task(pump_global_video_queue())
         except Exception as exc:
             logger.exception(
                 "Background planning failed for problem video job",
                 extra={"job_id": str(job_id), "problem_id": str(problem_id)},
             )
             await VideoJobService._mark_job_failed(job_id, str(exc))
+            asyncio.create_task(pump_global_video_queue())
 
     @staticmethod
     async def _run_topic_job_background(
@@ -1186,6 +1316,7 @@ class VideoJobService:
                 await session.commit()
 
             await _publish_video_requested(job_id)
+            asyncio.create_task(pump_global_video_queue())
         except Exception as exc:
             logger.exception(
                 "Background planning failed for topic video job",
@@ -1196,13 +1327,13 @@ class VideoJobService:
                 },
             )
             await VideoJobService._mark_job_failed(job_id, str(exc))
+            asyncio.create_task(pump_global_video_queue())
 
     async def create_problem_video_job(self, problem_id: uuid.UUID) -> VideoJobModel:
-        """Create a video job and prepare content asynchronously."""
+        """Create a persisted video job; planning/render run when the global slot is free."""
 
-        now = datetime.now(timezone.utc)
         job = VideoJobModel(
-            status="planning",
+            status="pending",
             request_json={
                 "mode": "problem",
                 "problem_id": str(problem_id),
@@ -1210,19 +1341,14 @@ class VideoJobService:
             plan_json=None,
             result_json=None,
             error_text=None,
-            progress_percent=1,
-            stage_message=_STAGE_LABELS["collecting_context"],
-            started_at=now,
+            progress_percent=0,
+            stage_message=_STAGE_LABELS["pending"],
+            started_at=None,
         )
         self.session.add(job)
         await self.session.commit()
 
-        asyncio.create_task(
-            self._run_problem_job_background(
-                job_id=job.id,
-                problem_id=problem_id,
-            )
-        )
+        asyncio.create_task(pump_global_video_queue())
         return job
 
     async def create_topic_video_job(
@@ -1230,11 +1356,10 @@ class VideoJobService:
         topic_id: uuid.UUID,
         lesson_id: uuid.UUID | None = None,
     ) -> VideoJobModel:
-        """Create a video job and prepare content asynchronously."""
+        """Create a persisted video job; planning/render run when the global slot is free."""
 
-        now = datetime.now(timezone.utc)
         job = VideoJobModel(
-            status="planning",
+            status="pending",
             request_json={
                 "mode": "topic",
                 "topic_id": str(topic_id),
@@ -1243,18 +1368,12 @@ class VideoJobService:
             plan_json=None,
             result_json=None,
             error_text=None,
-            progress_percent=1,
-            stage_message=_STAGE_LABELS["collecting_context"],
-            started_at=now,
+            progress_percent=0,
+            stage_message=_STAGE_LABELS["pending"],
+            started_at=None,
         )
         self.session.add(job)
         await self.session.commit()
 
-        asyncio.create_task(
-            self._run_topic_job_background(
-                job_id=job.id,
-                topic_id=topic_id,
-                lesson_id=lesson_id,
-            )
-        )
+        asyncio.create_task(pump_global_video_queue())
         return job
