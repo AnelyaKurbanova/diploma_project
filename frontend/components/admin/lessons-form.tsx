@@ -407,23 +407,41 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     [accessToken, loadProblemsForTopic],
   );
 
-  const persistGeneratedVideoUrlRef = useRef<(url: string) => Promise<void>>(
-    async () => {},
-  );
-
   const handleVideoDone = useCallback(
-    async (snapshot: GenerationJobSnapshot) => {
-      const url = snapshot.s3_url || snapshot.presigned_url || null;
-      if (!url) return;
+    async () => {
+      const currentLesson = selectedLessonIdRef.current;
+      if (!currentLesson) return;
       try {
-        await persistGeneratedVideoUrlRef.current(url);
-      } catch (err) {
-        setError(
-          err instanceof Error ? err.message : "Не удалось сохранить ссылку на видео.",
+        const detail = await apiGet<LessonDetail>(
+          `/lessons/${currentLesson}?admin_view=1`,
+          accessToken,
         );
+        setLessonDetail(detail);
+        const videoBlock = detail.content_blocks.find((b) => b.block_type === "video");
+        if (videoBlock) {
+          const eid = editingBlockIdRef.current;
+          const bf = blockFormRef.current;
+          if (bf.block_type === "video" && (eid === null || eid === videoBlock.id)) {
+            setBlockForm((prev) => ({
+              ...prev,
+              block_type: "video",
+              video_url: videoBlock.video_url ?? "",
+              video_description: videoBlock.video_description ?? "",
+              title:
+                videoBlock.title != null && videoBlock.title !== ""
+                  ? videoBlock.title
+                  : prev.title,
+            }));
+            if (eid === null) {
+              setEditingBlockId(videoBlock.id);
+            }
+          }
+        }
+      } catch {
+        // ignore refresh errors; next poll / manual reload will fix it
       }
     },
-    [],
+    [accessToken],
   );
 
   const lectureJob = useGenerationJob({
@@ -680,72 +698,6 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     },
     [accessToken, loadLessonDetail, loadProblemsForTopic, selectedLessonId],
   );
-
-  const persistGeneratedVideoUrl = useCallback(
-    async (videoUrl: string): Promise<void> => {
-      if (!selectedLessonId) return;
-
-      const existingVideoBlock =
-        (editingBlockId
-          ? lessonDetail?.content_blocks.find(
-              (b) => b.id === editingBlockId && b.block_type === "video",
-            )
-          : null) ??
-        lessonDetail?.content_blocks.find((b) => b.block_type === "video") ??
-        null;
-
-      if (existingVideoBlock) {
-        await apiPatch(
-          `/blocks/${existingVideoBlock.id}`,
-          {
-            video_url: videoUrl,
-          },
-          accessToken,
-        );
-        setEditingBlockId(existingVideoBlock.id);
-      } else {
-        const maxOrder = Math.max(
-          -1,
-          ...(lessonDetail?.content_blocks.map((b) => b.order_no) ?? []),
-        );
-        const created = await apiPost<ContentBlock>(
-          `/lessons/${selectedLessonId}/blocks`,
-          {
-            block_type: "video",
-            order_no: maxOrder + 1,
-            title: blockForm.title || "Видео",
-            video_url: videoUrl,
-            video_description: blockForm.video_description || null,
-          },
-          accessToken,
-        );
-        setEditingBlockId(created.id);
-      }
-
-      setBlockForm((f) => ({
-        ...f,
-        block_type: "video",
-        video_url: videoUrl,
-      }));
-
-      await loadLessonDetail(selectedLessonId);
-    },
-    [
-      accessToken,
-      blockForm.title,
-      blockForm.video_description,
-      editingBlockId,
-      lessonDetail?.content_blocks,
-      loadLessonDetail,
-      selectedLessonId,
-    ],
-  );
-
-  // Keep the ref in sync so the `onDone` callback (bound once) can call the
-  // latest version that closes over fresh block / lesson state.
-  useEffect(() => {
-    persistGeneratedVideoUrlRef.current = persistGeneratedVideoUrl;
-  }, [persistGeneratedVideoUrl]);
 
   const handleCreateVideoForBlock = async () => {
     if (generationVideoActive) return;
