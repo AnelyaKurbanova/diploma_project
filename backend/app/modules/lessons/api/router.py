@@ -14,6 +14,7 @@ from app.modules.generation_jobs.application.service import (
     GenerationJobTracker,
     create_job as create_generation_job,
     find_active_job,
+    pump_generation_queue,
 )
 from app.modules.lessons.application.service import LessonService
 from app.modules.lessons.api.schemas import (
@@ -71,6 +72,8 @@ async def _run_generate_problems(
             "generate_problems failed for lesson_id=%s: %s", lesson_id, exc
         )
         await tracker.fail(str(exc))
+    finally:
+        asyncio.create_task(pump_generation_queue())
 
 
 async def _run_generate_draft(
@@ -104,6 +107,8 @@ async def _run_generate_draft(
             "generate_draft failed for lesson_id=%s: %s", lesson_id, exc
         )
         await tracker.fail(str(exc))
+    finally:
+        asyncio.create_task(pump_generation_queue())
 
 
 router = APIRouter(tags=["lessons"])
@@ -292,17 +297,14 @@ async def generate_lesson_draft(
         target_kind="lesson",
         target_id=lesson_id,
         created_by=current_user.id,
-        request_json={"lesson_id": str(lesson_id)},
-        stage_message="Готовим генерацию лекции",
+        request_json={
+            "lesson_id": str(lesson_id),
+            "allow_published_edit": _can_edit_published(current_user.role),
+        },
+        stage_message="В очереди: ожидает генерации лекции",
     )
 
-    asyncio.create_task(
-        _run_generate_draft(
-            job.id,
-            lesson_id,
-            _can_edit_published(current_user.role),
-        )
-    )
+    asyncio.create_task(pump_generation_queue())
     return LessonGenerateDraftAcceptedOut(job_id=job.id)
 
 
@@ -339,19 +341,16 @@ async def generate_lesson_problems(
         target_kind="lesson",
         target_id=lesson_id,
         created_by=current_user.id,
-        request_json={"lesson_id": str(lesson_id), "count": body.count},
-        stage_message="Готовим генерацию задач",
+        request_json={
+            "lesson_id": str(lesson_id),
+            "count": body.count,
+            "created_by": str(current_user.id),
+            "allow_published_edit": _can_edit_published(current_user.role),
+        },
+        stage_message="В очереди: ожидает генерации задач",
     )
 
-    asyncio.create_task(
-        _run_generate_problems(
-            job.id,
-            lesson_id,
-            body.count,
-            current_user.id,
-            _can_edit_published(current_user.role),
-        )
-    )
+    asyncio.create_task(pump_generation_queue())
     return LessonGenerateProblemsAcceptedOut(job_id=job.id)
 
 

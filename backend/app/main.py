@@ -185,7 +185,26 @@ async def lifespan(app: FastAPI):
         logger.warning("Could not pre-load embedding model: %s", exc)
     await init_redis_cache(settings.REDIS_URL)
 
-    video_pump_task: asyncio.Task | None = None
+    # -----------------------------------------------------------------------
+    # Startup recovery: reset stuck "running" generation jobs to "pending"
+    # so the pump can retry them after a server restart.
+    # -----------------------------------------------------------------------
+    try:
+        from app.modules.generation_jobs.application.service import (
+            reset_stuck_running_jobs,
+        )
+        await reset_stuck_running_jobs()
+        logger.info("Generation queue: reset any stuck running jobs")
+    except Exception as exc:
+        logger.warning("Could not reset stuck generation jobs: %s", exc)
+
+    # -----------------------------------------------------------------------
+    # Background pump loops: one for video jobs, one for generation jobs.
+    # Each loop calls its pump every 3 s — a safety net so the queue keeps
+    # draining even when no explicit pump trigger fires (e.g. after restart).
+    # -----------------------------------------------------------------------
+    pump_tasks: list[asyncio.Task] = []
+
     try:
         from app.modules.video_jobs.application.service import pump_global_video_queue
 
@@ -196,19 +215,36 @@ async def lifespan(app: FastAPI):
                 except asyncio.CancelledError:
                     return
                 except Exception as exc:  # noqa: BLE001
-                    logger.exception("Global video queue pump: %s", exc)
+                    logger.exception("Video queue pump error: %s", exc)
                 await asyncio.sleep(3)
 
-        video_pump_task = asyncio.create_task(_video_pump_loop())
+        pump_tasks.append(asyncio.create_task(_video_pump_loop()))
     except Exception as exc:
-        logger.warning("Could not start global video queue pump: %s", exc)
+        logger.warning("Could not start video queue pump: %s", exc)
+
+    try:
+        from app.modules.generation_jobs.application.service import pump_generation_queue
+
+        async def _generation_pump_loop() -> None:
+            while True:
+                try:
+                    await pump_generation_queue()
+                except asyncio.CancelledError:
+                    return
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("Generation queue pump error: %s", exc)
+                await asyncio.sleep(3)
+
+        pump_tasks.append(asyncio.create_task(_generation_pump_loop()))
+    except Exception as exc:
+        logger.warning("Could not start generation queue pump: %s", exc)
 
     yield
 
-    if video_pump_task is not None:
-        video_pump_task.cancel()
+    for task in pump_tasks:
+        task.cancel()
         try:
-            await video_pump_task
+            await task
         except asyncio.CancelledError:
             pass
     await close_redis_cache()
