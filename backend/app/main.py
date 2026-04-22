@@ -184,7 +184,33 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Could not pre-load embedding model: %s", exc)
     await init_redis_cache(settings.REDIS_URL)
+
+    video_pump_task: asyncio.Task | None = None
+    try:
+        from app.modules.video_jobs.application.service import pump_global_video_queue
+
+        async def _video_pump_loop() -> None:
+            while True:
+                try:
+                    await pump_global_video_queue()
+                except asyncio.CancelledError:
+                    return
+                except Exception as exc:  # noqa: BLE001
+                    logger.exception("Global video queue pump: %s", exc)
+                await asyncio.sleep(3)
+
+        video_pump_task = asyncio.create_task(_video_pump_loop())
+    except Exception as exc:
+        logger.warning("Could not start global video queue pump: %s", exc)
+
     yield
+
+    if video_pump_task is not None:
+        video_pump_task.cancel()
+        try:
+            await video_pump_task
+        except asyncio.CancelledError:
+            pass
     await close_redis_cache()
 
 
