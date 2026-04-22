@@ -532,6 +532,8 @@ class LessonService:
             progress_percent=90,
         )
 
+        lesson = await self.repo.get_lesson_with_blocks(lesson_id)
+
         problem_blocks = [
             b
             for b in lesson.content_blocks

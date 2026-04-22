@@ -478,15 +478,23 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
   // Snapshot merged with hook-local elapsed ticker so the UI shows smoothly
   // incrementing time even between long-poll roundtrips.
-  const lectureDisplay: GenerationJobSnapshot | null = lectureSnapshot
-    ? { ...lectureSnapshot, elapsed_ms: lectureJob.elapsedMs }
-    : null;
-  const problemsDisplay: GenerationJobSnapshot | null = problemsSnapshot
-    ? { ...problemsSnapshot, elapsed_ms: problemsJob.elapsedMs }
-    : null;
-  const videoDisplay: GenerationJobSnapshot | null = videoSnapshot
-    ? { ...videoSnapshot, elapsed_ms: videoJob.elapsedMs }
-    : null;
+  //
+  // Gate each display value on its own job-id: useGenerationJob holds internal
+  // React state that clears one render cycle after jobId → null. Without this
+  // gate, the previous lesson's status panel would flash on the new lesson for
+  // that one frame even after resetJobState() has run.
+  const lectureDisplay: GenerationJobSnapshot | null =
+    lectureJobId && lectureSnapshot
+      ? { ...lectureSnapshot, elapsed_ms: lectureJob.elapsedMs }
+      : null;
+  const problemsDisplay: GenerationJobSnapshot | null =
+    problemsJobId && problemsSnapshot
+      ? { ...problemsSnapshot, elapsed_ms: problemsJob.elapsedMs }
+      : null;
+  const videoDisplay: GenerationJobSnapshot | null =
+    videoJobId && videoSnapshot
+      ? { ...videoSnapshot, elapsed_ms: videoJob.elapsedMs }
+      : null;
 
   const generationLectureActive =
     startingLecture ||
@@ -527,6 +535,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     if (lessons.length === 0) {
       if (selectedLessonId) {
         setSelectedLessonId(null);
+        resetJobState();
         resetBlockForm();
       }
       setLessonDetail(null);
@@ -534,6 +543,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     }
 
     if (!selectedLessonId) {
+      resetJobState();
       resetBlockForm();
       setSelectedLessonId(lessons[0].id);
       return;
@@ -541,10 +551,12 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
     const exists = lessons.some((lesson) => lesson.id === selectedLessonId);
     if (!exists) {
+      resetJobState();
       resetBlockForm();
       setSelectedLessonId(lessons[0].id);
       setLessonDetail(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lessons, selectedLessonId]);
 
   useEffect(() => {
@@ -579,6 +591,18 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
     setSelectedProblemIds([]);
     setEditingBlockId(null);
   };
+
+  // Reset all generation job state immediately when switching context (lesson /
+  // topic / subject). Calling this synchronously — before setSelectedLessonId —
+  // prevents stale job panels from flashing on the new lesson for even one frame.
+  const resetJobState = useCallback(() => {
+    setLectureJobId(null);
+    setProblemsJobId(null);
+    setVideoJobId(null);
+    setStartingLecture(false);
+    setStartingProblems(false);
+    setStartingVideo(false);
+  }, []);
 
   const startEditLesson = (lesson: Lesson) => {
     setEditingLessonId(lesson.id);
@@ -650,12 +674,20 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       );
       if (res?.job_id) {
         saveStoredJobId(`lesson:${lessonId}:lecture`, res.job_id);
-        setLectureJobId(res.job_id);
+        // Only apply to state if the user hasn't switched to a different lesson
+        // while the POST was in flight.
+        if (selectedLessonIdRef.current === lessonId) {
+          setLectureJobId(res.job_id);
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка при генерации черновика");
+      if (selectedLessonIdRef.current === lessonId) {
+        setError(err instanceof Error ? err.message : "Ошибка при генерации черновика");
+      }
     } finally {
-      setStartingLecture(false);
+      if (selectedLessonIdRef.current === lessonId) {
+        setStartingLecture(false);
+      }
     }
   };
 
@@ -676,12 +708,18 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       );
       if (res?.job_id) {
         saveStoredJobId(`lesson:${lessonId}:problems`, res.job_id);
-        setProblemsJobId(res.job_id);
+        if (selectedLessonIdRef.current === lessonId) {
+          setProblemsJobId(res.job_id);
+        }
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка при генерации задач для урока");
+      if (selectedLessonIdRef.current === lessonId) {
+        setError(err instanceof Error ? err.message : "Ошибка при генерации задач для урока");
+      }
     } finally {
-      setStartingProblems(false);
+      if (selectedLessonIdRef.current === lessonId) {
+        setStartingProblems(false);
+      }
     }
   };
 
@@ -716,27 +754,35 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       setError("Сначала выберите тему и урок, для которого нужно сгенерировать видео.");
       return;
     }
+    // Capture at call time; user may switch lessons while the POST is in flight.
+    const lessonIdAtStart = selectedLessonId;
     setError(null);
     setSuccess(null);
     setStartingVideo(true);
     try {
       const createRes = await apiPost<{ job_id: string; status: string }>(
         `/topics/${selectedTopic}/video`,
-        { lesson_id: selectedLessonId },
+        { lesson_id: lessonIdAtStart },
         accessToken,
       );
       if (createRes?.job_id) {
-        saveStoredJobId(`lesson:${selectedLessonId}:video`, createRes.job_id);
-        setVideoJobId(createRes.job_id);
+        saveStoredJobId(`lesson:${lessonIdAtStart}:video`, createRes.job_id);
+        if (selectedLessonIdRef.current === lessonIdAtStart) {
+          setVideoJobId(createRes.job_id);
+        }
       }
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Ошибка при запуске генерации видео для урока",
-      );
+      if (selectedLessonIdRef.current === lessonIdAtStart) {
+        setError(
+          err instanceof Error
+            ? err.message
+            : "Ошибка при запуске генерации видео для урока",
+        );
+      }
     } finally {
-      setStartingVideo(false);
+      if (selectedLessonIdRef.current === lessonIdAtStart) {
+        setStartingVideo(false);
+      }
     }
   };
 
@@ -908,6 +954,8 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
           <select
             value={selectedSubject}
             onChange={(e) => {
+              resetJobState();
+              resetBlockForm();
               setSelectedSubject(e.target.value);
               setSelectedTopic("");
               setSelectedLessonId(null);
@@ -926,11 +974,12 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
           <select
             value={selectedTopic}
             onChange={(e) => {
+              resetJobState();
+              resetBlockForm();
+              resetLessonForm();
               setSelectedTopic(e.target.value);
               setSelectedLessonId(null);
               setLessonDetail(null);
-              resetLessonForm();
-              resetBlockForm();
             }}
             disabled={!selectedSubject || loadingTopics}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50 disabled:bg-slate-50"
@@ -1021,6 +1070,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     type="button"
                     onClick={() => {
                       if (selectedLessonId !== lesson.id) {
+                        resetJobState();
                         resetBlockForm();
                         setError(null);
                         setSuccess(null);
