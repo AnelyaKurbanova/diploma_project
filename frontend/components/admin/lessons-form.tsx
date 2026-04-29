@@ -109,12 +109,16 @@ const LESSON_STATUS_LABELS: Record<
 };
 
 const GENERATION_RUNNING_LABEL = "Генерация…";
+const PROBLEMS_PER_PAGE = 20;
 
 export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [topics, setTopics] = useState<Topic[]>([]);
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [problems, setProblems] = useState<Problem[]>([]);
+  const [problemsPage, setProblemsPage] = useState(1);
+  const [problemsTotal, setProblemsTotal] = useState(0);
+  const [loadingProblems, setLoadingProblems] = useState(false);
 
   const [selectedSubject, setSelectedSubject] = useState("");
   const [selectedTopic, setSelectedTopic] = useState("");
@@ -180,6 +184,9 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
       setTopics([]);
       setLessons([]);
       setSelectedTopic("");
+      setProblems([]);
+      setProblemsPage(1);
+      setProblemsTotal(0);
       setSelectedLessonId(null);
       setLessonDetail(null);
       return;
@@ -202,27 +209,37 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
 
   }, [accessToken, selectedSubject]);
 
-  const loadProblemsForTopic = useCallback(async () => {
+  const loadProblemsForTopic = useCallback(async (page: number) => {
     if (!selectedTopic) {
       setProblems([]);
+      setProblemsTotal(0);
       return;
     }
 
+    setLoadingProblems(true);
     try {
       const data = await apiGet<ProblemListResponse>(
-        `/admin/problems?topic_id=${selectedTopic}&per_page=100&page=1`,
+        `/admin/problems?topic_id=${selectedTopic}&per_page=${PROBLEMS_PER_PAGE}&page=${page}`,
         accessToken,
       );
       const visibleProblems = data.items.filter((problem) => problem.status !== "archived");
       setProblems(visibleProblems);
+      setProblemsTotal(data.total);
+      if (page > 1 && visibleProblems.length === 0 && data.total > 0) {
+        setProblemsPage(page - 1);
+      }
     } catch {
       setProblems([]);
+      setProblemsTotal(0);
+    } finally {
+      setLoadingProblems(false);
     }
   }, [accessToken, selectedTopic]);
 
   useEffect(() => {
-    void loadProblemsForTopic();
-  }, [loadProblemsForTopic]);
+    if (!selectedTopic) return;
+    void loadProblemsForTopic(problemsPage);
+  }, [loadProblemsForTopic, problemsPage, selectedTopic]);
 
   useEffect(() => {
     selectedLessonIdRef.current = selectedLessonId;
@@ -386,7 +403,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
         );
         setLessonDetail(detail);
         if (detail.topic_id === selectedTopicRef.current) {
-          void loadProblemsForTopic();
+          void loadProblemsForTopic(problemsPage);
         }
         const problemSet = detail.content_blocks.find(
           (b) => b.block_type === "problem_set",
@@ -739,7 +756,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
         if (selectedLessonId) {
           await loadLessonDetail(selectedLessonId);
         }
-        await loadProblemsForTopic();
+        await loadProblemsForTopic(problemsPage);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Не удалось удалить задачу");
       } finally {
@@ -958,6 +975,9 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
               resetBlockForm();
               setSelectedSubject(e.target.value);
               setSelectedTopic("");
+              setProblems([]);
+              setProblemsPage(1);
+              setProblemsTotal(0);
               setSelectedLessonId(null);
             }}
             className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm outline-none focus:border-brand-navy/50"
@@ -977,6 +997,8 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
               resetJobState();
               resetBlockForm();
               resetLessonForm();
+              setProblemsPage(1);
+              setProblemsTotal(0);
               setSelectedTopic(e.target.value);
               setSelectedLessonId(null);
               setLessonDetail(null);
@@ -1383,7 +1405,9 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                   </button>
                 </div>
                 <div className="max-h-64 overflow-y-auto rounded-lg border border-gray-200 p-3">
-                  {problems.length === 0 ? (
+                  {loadingProblems ? (
+                    <p className="text-xs text-slate-400">Загружаем задачи…</p>
+                  ) : problems.length === 0 ? (
                     <p className="text-xs text-slate-400">
                       В выбранной теме пока нет задач.
                     </p>
@@ -1458,7 +1482,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                                             accessToken,
                                           );
                                           setSuccess("Задача отправлена на проверку");
-                                          await loadProblemsForTopic();
+                                          await loadProblemsForTopic(problemsPage);
                                         } catch (err) {
                                           setError(
                                             err instanceof Error
@@ -1493,6 +1517,38 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
                     </div>
                   )}
                 </div>
+                {problemsTotal > 0 && (
+                  <div className="flex items-center justify-between text-xs text-slate-500">
+                    <span>
+                      Страница {problemsPage} из {Math.max(1, Math.ceil(problemsTotal / PROBLEMS_PER_PAGE))}
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setProblemsPage((prev) => Math.max(1, prev - 1))}
+                        disabled={problemsPage <= 1 || loadingProblems}
+                        className="rounded border border-gray-200 px-2 py-1 disabled:opacity-50"
+                      >
+                        Назад
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setProblemsPage((prev) =>
+                            Math.min(Math.ceil(problemsTotal / PROBLEMS_PER_PAGE), prev + 1),
+                          )
+                        }
+                        disabled={
+                          loadingProblems ||
+                          problemsPage >= Math.ceil(problemsTotal / PROBLEMS_PER_PAGE)
+                        }
+                        className="rounded border border-gray-200 px-2 py-1 disabled:opacity-50"
+                      >
+                        Вперед
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="rounded-lg border border-emerald-100 bg-emerald-50/60 p-3">
                   <p className="mb-2 text-xs font-medium text-emerald-900">
@@ -1702,7 +1758,7 @@ export function LessonsForm({ accessToken, userRole }: LessonsFormProps) {
             setSelectedProblemIds((prev) =>
               prev.includes(p.id) ? prev : [...prev, p.id],
             );
-            void loadProblemsForTopic();
+            void loadProblemsForTopic(problemsPage);
           }}
         />
       )}
