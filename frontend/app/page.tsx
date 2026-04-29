@@ -7,11 +7,11 @@ import { useAuth } from "@/lib/auth-context";
 import { EntHeader } from "@/components/ent-header";
 
 
-const HERO_BG     = "https://www.figma.com/api/mcp/asset/939666b1-378c-4925-9aa6-54ac74537d8c";
-const AVATAR_1    = "https://www.figma.com/api/mcp/asset/d9cb896a-ac89-4ebb-99f7-afae8822f661";
-const AVATAR_2    = "https://www.figma.com/api/mcp/asset/8e04bad5-25fb-4875-8be6-4361a3fc07c7";
-const AVATAR_3    = "https://www.figma.com/api/mcp/asset/b939f1e6-0700-4069-b9b8-e9ee1a1b10b7";
-const CTA_BG      = "https://www.figma.com/api/mcp/asset/6ce222b6-97bf-4cae-8dcf-26b72e90c832";
+const HERO_BG     = "images/hero_bg.png";
+const AVATAR_1    = "icons/User.png";
+const AVATAR_2    = "icons/User_margin.png";
+const AVATAR_3    = "icons/User_margin-1.png";
+const CTA_BG      = "images/ct_bg.png";
 
 const JAKARTA = "var(--font-jakarta), 'Plus Jakarta Sans', 'Noto Sans', sans-serif";
 const ROSTOV  = "var(--font-rostov)";
